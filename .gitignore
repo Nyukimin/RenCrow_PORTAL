@@ -1,0 +1,5 @@
+build/
+portal.json
+*.log
+.env
+.playwright-cli/

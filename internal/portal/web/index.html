@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RenCrow Portal</title>
+  <link rel="stylesheet" href="/assets/portal.css">
+</head>
+<body data-mode="{{.Mode}}">
+  <header class="portal-header">
+    <div>
+      <p class="portal-header__eyebrow">RenCrow Portal</p>
+      <h1>Conversation Stage</h1>
+    </div>
+    <div class="portal-header__status" aria-live="polite">
+      <span id="connectionDot" class="status-dot status-dot--waiting"></span>
+      <span id="connectionText">COREを確認中</span>
+    </div>
+  </header>
+
+  <nav class="mode-nav" aria-label="Portal mode">
+    <a href="/?mode=view" data-mode-link="view">View</a>
+    <a href="/?mode=lab" data-mode-link="lab">Lab</a>
+  </nav>
+
+  <main class="portal-main">
+    <section class="summary-band" aria-label="Current status">
+      <div class="summary-block">
+        <span>Mode</span>
+        <strong id="modeLabel">{{.Mode}}</strong>
+      </div>
+      <div class="summary-block">
+        <span>Conversation</span>
+        <strong id="conversationStatus">待機中</strong>
+      </div>
+      <div class="summary-block">
+        <span>Topic</span>
+        <strong id="topicText">-</strong>
+      </div>
+    </section>
+
+    <section class="conversation" aria-label="Conversation events">
+      <div id="messages" class="conversation__messages" role="log" aria-live="polite">
+        <p id="emptyMessage" class="conversation__empty">会話イベントを待っています。</p>
+      </div>
+    </section>
+
+    <section id="labControls" class="lab-controls" aria-label="Lab controls">
+      <div class="lab-controls__row">
+        <label for="recipient">会話相手</label>
+        <select id="recipient">
+          <option value="mio">Mio</option>
+          <option value="shiro">Shiro</option>
+          <option value="kuro">Kuro</option>
+          <option value="midori">Midori</option>
+        </select>
+        <button id="idleStart" type="button">IdleChat開始</button>
+        <button id="idleStop" type="button">IdleChat停止</button>
+      </div>
+      <form id="messageForm" class="message-form">
+        <label class="sr-only" for="messageInput">メッセージ</label>
+        <textarea id="messageInput" rows="2" maxlength="4000" placeholder="メッセージを入力"></textarea>
+        <button id="sendButton" type="submit">送信</button>
+      </form>
+      <p id="operationStatus" class="operation-status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script src="/assets/portal.js" defer></script>
+</body>
+</html>
