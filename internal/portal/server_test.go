@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestPortalServesViewAsCanonicalLiveAlias(t *testing.T) {
+func TestPortalServesLiveAsDistinctMode(t *testing.T) {
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			w.WriteHeader(http.StatusOK)
@@ -33,8 +33,115 @@ func TestPortalServesViewAsCanonicalLiveAlias(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), `data-mode="view"`) {
-		t.Fatalf("live alias should render canonical view mode: %s", rec.Body.String())
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-mode="live"`) {
+		t.Fatalf("live mode should remain distinct: %s", body)
+	}
+	if !strings.Contains(body, `data-surface="live"`) {
+		t.Fatalf("live surface marker is missing: %s", body)
+	}
+	if strings.Contains(body, `class="theme-modern live-mode lab-mode`) {
+		t.Fatalf("live mode must not include lab-mode class: %s", body)
+	}
+}
+
+func TestPortalLabRendersAIVTuberRoom(t *testing.T) {
+	cfg := DefaultConfig()
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/?mode=lab", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`data-mode="lab"`,
+		`data-surface="lab"`,
+		`class="theme-modern live-mode lab-mode`,
+		`class="lab-stream-shell"`,
+		`class="lab-world"`,
+		`class="lab-mio-portrait"`,
+		`class="lab-shiro-portrait"`,
+		`id="chat"`,
+		`id="labInp"`,
+		`id="labModeChatChip" type="button" data-lab-switch="chat" aria-current="true"`,
+		`id="labModeIdleChip" type="button" data-lab-switch="idle" aria-current="false"`,
+		`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
+		`id="labModePartnerChip" type="button" data-lab-partner-toggle aria-current="false"`,
+		`id="labAudioBtn"`,
+		`id="labMicBtn"`,
+		`id="labAttachBtn"`,
+		`id="labScreenBtn"`,
+		`id="labCameraBtn"`,
+		`id="labCameraLivePreview"`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("AI VTuber room marker %q is missing", marker)
+		}
+	}
+	if strings.Contains(body, `class="lab-icon-btn portal-send-btn"`) {
+		t.Fatal("Lab footer must use the established five controls, not a replacement send button")
+	}
+}
+
+func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`setChip('labModeIdleChip', isIdle);`,
+		`setChip('labModeMioChip', isIdle || selectedRecipient === 'mio');`,
+		`setChip('labModePartnerChip', !isIdle && isPartnerActor(selectedRecipient));`,
+		`const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);`,
+		`setModeSwitcherBusy(true);`,
+		`await refreshStatus();`,
+		`setModeSwitcherBusy(false);`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("Lab switcher contract marker %q is missing", marker)
+		}
+	}
+}
+
+func TestPortalLiveAllowsReadAndRejectsWrite(t *testing.T) {
+	var calls atomic.Int32
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/viewer/events" {
+			t.Fatalf("core path = %q", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, "data: {}\n\n")
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	readReq := httptest.NewRequest(http.MethodGet, "/api/live/viewer/events", nil)
+	readRec := httptest.NewRecorder()
+	handler.ServeHTTP(readRec, readReq)
+	if readRec.Code != http.StatusOK || calls.Load() != 1 {
+		t.Fatalf("read status=%d calls=%d", readRec.Code, calls.Load())
+	}
+
+	writeReq := httptest.NewRequest(http.MethodPost, "/api/live/viewer/send", strings.NewReader(`{"message":"hello"}`))
+	writeRec := httptest.NewRecorder()
+	handler.ServeHTTP(writeRec, writeReq)
+	if writeRec.Code != http.StatusForbidden {
+		t.Fatalf("live write status = %d, want 403", writeRec.Code)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("blocked write reached core: calls=%d", calls.Load())
 	}
 }
 

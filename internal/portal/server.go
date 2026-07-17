@@ -26,6 +26,12 @@ type handler struct {
 	readiness *http.Client
 }
 
+type pageData struct {
+	Mode      Mode
+	Surface   string
+	BodyClass string
+}
+
 // NewHandlerはPORTALのHTTP handlerを構築する。
 func NewHandler(cfg Config) (http.Handler, error) {
 	if err := cfg.Validate(); err != nil {
@@ -67,7 +73,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
 	switch {
-	case r.URL.Path == "/" || r.URL.Path == "/view" || r.URL.Path == "/lab":
+	case r.URL.Path == "/" || r.URL.Path == "/view" || r.URL.Path == "/live" || r.URL.Path == "/lab":
 		h.servePage(w, r)
 	case r.URL.Path == "/health/live":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "rencrow-portal"})
@@ -99,7 +105,19 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if err := h.page.Execute(w, struct{ Mode Mode }{Mode: mode}); err != nil {
+	data := pageData{
+		Mode:      mode,
+		Surface:   "lab",
+		BodyClass: "theme-modern live-mode lab-mode lab-chat-mode lab-partner-shiro portal-view-mode",
+	}
+	if mode == ModeLab {
+		data.BodyClass = "theme-modern live-mode lab-mode lab-chat-mode lab-partner-shiro"
+	}
+	if mode == ModeLive {
+		data.Surface = "live"
+		data.BodyClass = "theme-modern live-mode portal-live-mode"
+	}
+	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)
 	}
 }
@@ -109,11 +127,8 @@ func (h *handler) modeFromRequest(r *http.Request) Mode {
 	if raw == "" {
 		raw = strings.Trim(strings.ToLower(r.URL.Path), "/")
 	}
-	if raw == "live" {
-		raw = string(ModeView)
-	}
 	mode := Mode(raw)
-	if mode != ModeView && mode != ModeLab {
+	if mode != ModeView && mode != ModeLive && mode != ModeLab {
 		return h.cfg.DefaultMode
 	}
 	return mode
@@ -127,9 +142,6 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := Mode(strings.ToLower(modeText))
-	if mode == "live" {
-		mode = ModeView
-	}
 	targetPath = "/" + targetPath
 	if !h.cfg.modeEnabled(mode) {
 		http.Error(w, "mode is disabled", http.StatusForbidden)

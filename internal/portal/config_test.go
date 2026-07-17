@@ -20,6 +20,9 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	if cfg.DefaultMode != ModeView {
 		t.Fatalf("DefaultMode = %q", cfg.DefaultMode)
 	}
+	if !cfg.modeEnabled(ModeLive) {
+		t.Fatal("Live mode should be enabled by default")
+	}
 }
 
 func TestLoadConfigReadsJSONAndValidatesModes(t *testing.T) {

@@ -2,5 +2,5 @@
   "listen": "127.0.0.1:18791",
   "core_url": "http://127.0.0.1:18790",
   "default_mode": "view",
-  "enabled_modes": ["view", "lab"]
+  "enabled_modes": ["view", "live", "lab"]
 }

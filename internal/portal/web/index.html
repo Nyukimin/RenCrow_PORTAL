@@ -2,68 +2,152 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RenCrow Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>RenCrow AI VTuber Portal</title>
   <link rel="stylesheet" href="/assets/portal.css">
 </head>
-<body data-mode="{{.Mode}}">
-  <header class="portal-header">
+<body class="{{.BodyClass}}" data-mode="{{.Mode}}" data-surface="{{.Surface}}">
+  <header class="portal-live-brand" aria-label="RenCrow Live">
+    <img src="/assets/rencrow-logo.png" alt="">
     <div>
-      <p class="portal-header__eyebrow">RenCrow Portal</p>
-      <h1>Conversation Stage</h1>
+      <strong>RenCrow LIVE</strong>
+      <span>MioとShiroの会話配信</span>
     </div>
-    <div class="portal-header__status" aria-live="polite">
-      <span id="connectionDot" class="status-dot status-dot--waiting"></span>
-      <span id="connectionText">COREを確認中</span>
+    <div class="portal-connection" aria-live="polite">
+      <span class="portal-connection__dot" data-live-connection-dot></span>
+      <span data-live-connection-text>COREを確認中</span>
     </div>
   </header>
+  <div class="live-topic-bar" id="liveTopicBar">
+    <span class="live-topic-label">TOPIC</span>
+    <span class="live-topic-text" id="topicText">-</span>
+  </div>
 
-  <nav class="mode-nav" aria-label="Portal mode">
-    <a href="/?mode=view" data-mode-link="view">View</a>
-    <a href="/?mode=lab" data-mode-link="lab">Lab</a>
-  </nav>
+  <div class="lab-stream-shell" aria-label="RenCrow AI VTuber room">
+    <div class="lab-world" aria-hidden="true">
+      <div class="lab-window lab-window-left"></div>
+      <div class="lab-window lab-window-right"></div>
+      <div class="lab-ceiling-ring"></div>
+      <div class="lab-holo-circle"></div>
+      <div class="lab-crystal lab-crystal-left"></div>
+      <div class="lab-crystal lab-crystal-center"></div>
+      <div class="lab-console lab-console-left"></div>
+      <div class="lab-console lab-console-right"></div>
+    </div>
 
-  <main class="portal-main">
-    <section class="summary-band" aria-label="Current status">
-      <div class="summary-block">
-        <span>Mode</span>
-        <strong id="modeLabel">{{.Mode}}</strong>
+    <section class="lab-brand-panel">
+      <div class="lab-logo-row">
+        <img src="/assets/rencrow-logo.png" alt="">
+        <div>
+          <strong>RenCrow</strong>
+          <span>AI VTuber Portal</span>
+        </div>
       </div>
-      <div class="summary-block">
-        <span>Conversation</span>
-        <strong id="conversationStatus">待機中</strong>
-      </div>
-      <div class="summary-block">
-        <span>Topic</span>
-        <strong id="topicText">-</strong>
+      <div class="portal-connection" aria-live="polite">
+        <span id="connectionDot" class="portal-connection__dot"></span>
+        <span id="connectionText">COREを確認中</span>
       </div>
     </section>
 
-    <section class="conversation" aria-label="Conversation events">
-      <div id="messages" class="conversation__messages" role="log" aria-live="polite">
-        <p id="emptyMessage" class="conversation__empty">会話イベントを待っています。</p>
+    <section class="lab-mode-indicator" id="labModeIndicator" aria-label="Conversation mode and partner switcher">
+      <button class="lab-mode-chip lab-mode-chip-chat" id="labModeChatChip" type="button" data-lab-switch="chat" aria-current="true" aria-pressed="true">Chat</button>
+      <button class="lab-mode-chip lab-mode-chip-idle" id="labModeIdleChip" type="button" data-lab-switch="idle" aria-current="false" aria-pressed="false">IdleChat</button>
+      <button class="lab-mode-chip lab-mode-chip-mio" id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true" aria-pressed="true">Mio</button>
+      <div class="lab-partner-picker" id="labPartnerPicker">
+        <button class="lab-mode-chip lab-mode-chip-partner" id="labModePartnerChip" type="button" data-lab-partner-toggle aria-current="false" aria-pressed="false" aria-expanded="false">Shiro</button>
+        <div class="lab-partner-options" id="labPartnerOptions" hidden>
+          <button class="lab-mode-chip lab-partner-option" type="button" data-lab-partner-option="shiro">Shiro</button>
+          <button class="lab-mode-chip lab-partner-option" type="button" data-lab-partner-option="kuro">Kuro</button>
+          <button class="lab-mode-chip lab-partner-option" type="button" data-lab-partner-option="midori">Midori</button>
+        </div>
       </div>
     </section>
 
-    <section id="labControls" class="lab-controls" aria-label="Lab controls">
-      <div class="lab-controls__row">
-        <label for="recipient">会話相手</label>
-        <select id="recipient">
-          <option value="mio">Mio</option>
-          <option value="shiro">Shiro</option>
-          <option value="kuro">Kuro</option>
-          <option value="midori">Midori</option>
-        </select>
-        <button id="idleStart" type="button">IdleChat開始</button>
-        <button id="idleStop" type="button">IdleChat停止</button>
-      </div>
-      <form id="messageForm" class="message-form">
-        <label class="sr-only" for="messageInput">メッセージ</label>
-        <textarea id="messageInput" rows="2" maxlength="4000" placeholder="メッセージを入力"></textarea>
-        <button id="sendButton" type="submit">送信</button>
-      </form>
-      <p id="operationStatus" class="operation-status" aria-live="polite"></p>
+    <time class="lab-datetime-panel" id="labDateTimePanel" datetime="" aria-label="現在日時"></time>
+
+    <section class="lab-camera-live-preview" id="labCameraLivePreview" aria-label="Media live preview">
+      <div class="lab-camera-live-badge">LIVE</div>
+      <video id="labCameraLiveVideo" autoplay playsinline muted></video>
     </section>
+
+    <footer class="lab-footer lab-input-footer">
+      <label class="lab-input-label" for="labInp">メッセージを入力</label>
+      <div class="lab-input-shell">
+        <textarea id="labInp" rows="1" placeholder="メッセージを入力..." autocomplete="off" aria-label="メッセージを入力"></textarea>
+      </div>
+      <div class="lab-footer-controls" aria-label="Audio controls">
+        <button class="lab-icon-btn lab-audio-toggle off" id="labAudioBtn" type="button" title="TTS_OFF" aria-label="TTS_OFF" aria-pressed="false" data-control-state="TTS_OFF">
+          <svg class="lab-control-icon lab-control-icon-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9v6h4l5 4V5L8 9H4z"></path>
+            <path d="M16 8.5a5 5 0 0 1 0 7"></path>
+            <path d="M18.5 6a8 8 0 0 1 0 12"></path>
+          </svg>
+          <svg class="lab-control-icon lab-control-icon-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9v6h4l5 4V5L8 9H4z"></path>
+            <path d="M19 5 5 19"></path>
+          </svg>
+        </button>
+        <button class="lab-icon-btn lab-mic-toggle off" id="labMicBtn" type="button" title="STT_OFF" aria-label="STT_OFF" aria-pressed="false" data-control-state="STT_OFF">
+          <svg class="lab-control-icon lab-control-icon-on" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path>
+            <path d="M5 11a7 7 0 0 0 14 0"></path>
+            <path d="M12 18v3"></path>
+            <path d="M8 21h8"></path>
+          </svg>
+          <svg class="lab-control-icon lab-control-icon-off" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path>
+            <path d="M5 11a7 7 0 0 0 14 0"></path>
+            <path d="M12 18v3"></path>
+            <path d="M8 21h8"></path>
+            <path d="M19 5 5 19"></path>
+          </svg>
+        </button>
+        <button class="lab-icon-btn lab-attach-toggle" id="labAttachBtn" type="button" title="Attach files" aria-label="Attach files">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21.4 11.6 12 21a6 6 0 0 1-8.5-8.5l9.8-9.8a4 4 0 0 1 5.7 5.7l-9.8 9.8a2 2 0 0 1-2.8-2.8l9.3-9.3"></path>
+          </svg>
+        </button>
+        <button class="lab-icon-btn lab-screen-toggle" id="labScreenBtn" type="button" title="画面/タブ入力" aria-label="画面/タブ入力">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="12" rx="2"></rect>
+            <path d="M8 20h8"></path>
+            <path d="M12 16v4"></path>
+          </svg>
+        </button>
+        <button class="lab-icon-btn lab-camera-toggle" id="labCameraBtn" type="button" title="カメラ/マイク入力" aria-label="カメラ/マイク入力">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3h5z"></path>
+            <circle cx="12" cy="13" r="3.5"></circle>
+          </svg>
+        </button>
+      </div>
+    </footer>
+    <p id="operationStatus" class="portal-operation-status" aria-live="polite"></p>
+  </div>
+
+  <div class="lab-mio-portrait" id="mioPortrait" aria-label="Mio">
+    <img src="/assets/mio.png" alt="Mio">
+  </div>
+  <div class="lab-shiro-portrait" id="shiroPortrait" aria-label="Shiro">
+    <img src="/assets/shiro.png" alt="Shiro">
+  </div>
+
+  <main>
+    <div class="app-shell">
+      <section id="panel-timeline" class="panel active chat-desk-panel">
+        <div class="chat-desk-shell">
+          <section class="chat-main-pane" aria-label="会話内容">
+            <div id="chat" class="chat-conversation" role="log" aria-live="polite">
+              <div class="empty chat-empty" id="empty">
+                <div class="chat-empty-mark">R</div>
+                <div class="chat-empty-title">メッセージ待機中</div>
+                <div class="chat-empty-sub">MioとShiroの会話をここに表示します。</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script src="/assets/portal.js" defer></script>

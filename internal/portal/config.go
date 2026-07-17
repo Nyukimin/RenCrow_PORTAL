@@ -14,6 +14,7 @@ type Mode string
 
 const (
 	ModeView Mode = "view"
+	ModeLive Mode = "live"
 	ModeLab  Mode = "lab"
 )
 
@@ -31,7 +32,7 @@ func DefaultConfig() Config {
 		Listen:       "127.0.0.1:18791",
 		CoreURL:      "http://127.0.0.1:18790",
 		DefaultMode:  ModeView,
-		EnabledModes: []Mode{ModeView, ModeLab},
+		EnabledModes: []Mode{ModeView, ModeLive, ModeLab},
 	}
 }
 
@@ -81,7 +82,7 @@ func (c Config) Validate() error {
 	}
 	enabled := map[Mode]bool{}
 	for _, mode := range c.EnabledModes {
-		if mode != ModeView && mode != ModeLab {
+		if mode != ModeView && mode != ModeLive && mode != ModeLab {
 			return fmt.Errorf("未対応のmodeです: %s", mode)
 		}
 		enabled[mode] = true

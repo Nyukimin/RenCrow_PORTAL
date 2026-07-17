@@ -3,3 +3,4 @@ portal.json
 *.log
 .env
 .playwright-cli/
+output/
