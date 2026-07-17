@@ -151,11 +151,13 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "このmodeでは許可されていない操作です", http.StatusForbidden)
 		return
 	}
-	if r.Method == http.MethodPost {
+	if r.Method == http.MethodPost || targetPath == "/stt" {
 		if !sameOriginOrNonBrowser(r) {
-			http.Error(w, "cross-origin writeは許可されていません", http.StatusForbidden)
+			http.Error(w, "cross-origin controlは許可されていません", http.StatusForbidden)
 			return
 		}
+	}
+	if r.Method == http.MethodPost {
 		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
 	}
 	r.URL.Path = targetPath
@@ -173,11 +175,27 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	if method == http.MethodGet && readEndpoints[path] {
 		return true
 	}
-	if mode != ModeLab || method != http.MethodPost {
+	if mode != ModeLab {
+		return false
+	}
+	if method == http.MethodGet {
+		switch path {
+		case "/viewer/tts/audio", "/stt":
+			return true
+		default:
+			return false
+		}
+	}
+	if method != http.MethodPost {
 		return false
 	}
 	switch path {
-	case "/viewer/send", "/viewer/idlechat/start", "/viewer/idlechat/stop":
+	case "/viewer/send",
+		"/viewer/idlechat/start",
+		"/viewer/idlechat/stop",
+		"/viewer/recipient-selection",
+		"/viewer/active-control",
+		"/viewer/tts/playback-ack":
 		return true
 	default:
 		return false

@@ -20,6 +20,32 @@
   let selectedRecipient = storedRecipient;
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
   let modeSwitchBusy = false;
+  const viewerClientID = getViewerClientID();
+  const ttsControl = {
+    enabled: false,
+    queue: [],
+    playing: false,
+    completedResponses: new Set(),
+    responseCounts: new Map(),
+    responseResults: new Map(),
+    responseItems: new Map(),
+    sessionResponses: new Map(),
+    acknowledged: new Set(),
+    seenChunks: new Set(),
+    heartbeat: null,
+    currentAudio: null,
+  };
+  const sttControl = {
+    enabled: false,
+    socket: null,
+    stream: null,
+    context: null,
+    source: null,
+    processor: null,
+    heartbeat: null,
+    stopTimer: null,
+    releaseOnCleanup: false,
+  };
 
   const actorInfo = {
     user: {label: 'あなた', mark: 'U', color: '#64748b'},
@@ -31,6 +57,18 @@
 
   function api(path) {
     return `/api/${mode}${path}`;
+  }
+
+  function getViewerClientID() {
+    const key = 'rencrow.portal.viewerClientID';
+    const existing = String(sessionStorage.getItem(key) || '').trim();
+    if (existing) return existing;
+    const suffix = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const created = `portal-${suffix}`;
+    sessionStorage.setItem(key, created);
+    return created;
   }
 
   function normalizeActor(value) {
@@ -64,13 +102,24 @@
     operationStatus.classList.toggle('is-error', isError);
   }
 
+  function setToggleState(control, name, enabled) {
+    if (!control) return;
+    const state = `${name}_${enabled ? 'ON' : 'OFF'}`;
+    control.classList.toggle('off', !enabled);
+    control.classList.toggle('is-active', enabled);
+    control.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    control.setAttribute('aria-label', state);
+    control.title = state;
+    control.dataset.controlState = state;
+  }
+
   function eventKey(event) {
     return [event.seq, event.event_id, event.message_id, event.timestamp, event.type, event.from, event.content].map((value) => String(value || '')).join('|');
   }
 
   function shouldRenderEvent(event) {
     const content = String(event && event.content || '').trim();
-    if (!content || event.type === 'tts.audio_chunk' || event.type === 'metrics.latency') return false;
+    if (!content || ['tts.audio_chunk', 'tts.session_completed', 'metrics.latency', 'viewer.active_control', 'viewer.recipient_selected'].includes(event.type)) return false;
     const from = normalizeActor(event.from);
     const to = normalizeActor(event.to);
     return Boolean(from || to) && (from !== '' || to === 'user');
@@ -215,7 +264,9 @@
     events.onopen = () => setConnection('ready', 'CORE接続済み');
     events.onmessage = (message) => {
       try {
-        renderEvent(JSON.parse(message.data));
+        const event = JSON.parse(message.data);
+        handleControlEvent(event);
+        renderEvent(event);
       } catch (error) {
         setConnection('error', 'イベント解析エラー');
       }
@@ -232,6 +283,361 @@
     }
     const response = await fetch(api(path), options);
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    const contentType = String(response.headers.get('content-type') || '');
+    return contentType.includes('application/json') ? response.json() : null;
+  }
+
+  async function setActiveControl(kind, action, reason) {
+    return post('/viewer/active-control', {
+      viewer_client_id: viewerClientID,
+      kind,
+      action,
+      reason,
+    });
+  }
+
+  function controlPayload(event) {
+    try {
+      return JSON.parse(String(event && event.content || '{}'));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function handleControlEvent(event) {
+    const type = String(event && event.type || '');
+    if (type === 'tts.audio_chunk' || type === 'tts.session_completed') {
+      handleTTSEvent(event);
+      return;
+    }
+    if (type !== 'viewer.active_control') return;
+    const payload = controlPayload(event);
+    if (ttsControl.enabled && payload.active_audio_viewer_id && payload.active_audio_viewer_id !== viewerClientID) {
+      disableTTS(false, '別のViewerへTTS再生権を移しました');
+    }
+    if (sttControl.enabled && payload.active_input_viewer_id && payload.active_input_viewer_id !== viewerClientID) {
+      stopSTT(false, '別のViewerへSTT入力権を移しました');
+    }
+  }
+
+  function resolveTTSAudioURL(payload) {
+    const sourceURL = String(payload.audio_url || '').trim();
+    const sourcePath = String(payload.audio_path || '').trim();
+    const base = api('/viewer/tts/audio');
+    if (sourceURL) return `${base}?url=${encodeURIComponent(sourceURL)}`;
+    if (sourcePath) return `${base}?path=${encodeURIComponent(sourcePath)}`;
+    return '';
+  }
+
+  function normalizeTTSEvent(event) {
+    const payload = controlPayload(event);
+    const sessionId = String(payload.session_id || event.session_id || '').trim();
+    return {
+      responseId: String(payload.response_id || ttsControl.sessionResponses.get(sessionId) || '').trim(),
+      sessionId,
+      utteranceId: String(payload.utterance_id || '').trim(),
+      chunkIndex: Number.isFinite(Number(payload.chunk_index)) ? Number(payload.chunk_index) : -1,
+      url: resolveTTSAudioURL(payload),
+    };
+  }
+
+  function handleTTSEvent(event) {
+    if (!ttsControl.enabled) return;
+    const item = normalizeTTSEvent(event);
+    if (!item.responseId) return;
+    ttsControl.responseItems.set(item.responseId, item);
+    if (event.type === 'tts.session_completed') {
+      ttsControl.completedResponses.add(item.responseId);
+      maybeAcknowledgeTTS(item.responseId);
+      return;
+    }
+    ttsControl.sessionResponses.set(item.sessionId, item.responseId);
+    const chunkKey = `${item.sessionId}|${item.responseId}|${item.utteranceId}|${item.chunkIndex}`;
+    if (ttsControl.seenChunks.has(chunkKey)) return;
+    ttsControl.seenChunks.add(chunkKey);
+    if (ttsControl.seenChunks.size > 2000) ttsControl.seenChunks.clear();
+    ttsControl.responseCounts.set(item.responseId, (ttsControl.responseCounts.get(item.responseId) || 0) + 1);
+    if (!item.url) {
+      finishTTSItem(item, 'error', new Error('TTS audio URL is missing'));
+      return;
+    }
+    ttsControl.queue.push(item);
+    playNextTTS();
+  }
+
+  function finishTTSItem(item, status, error) {
+    const remaining = Math.max(0, (ttsControl.responseCounts.get(item.responseId) || 1) - 1);
+    if (remaining) ttsControl.responseCounts.set(item.responseId, remaining);
+    else ttsControl.responseCounts.delete(item.responseId);
+    if (status !== 'ended' && !ttsControl.responseResults.has(item.responseId)) {
+      ttsControl.responseResults.set(item.responseId, {status: 'error', error});
+    }
+    maybeAcknowledgeTTS(item.responseId);
+  }
+
+  async function acknowledgeTTS(item, result) {
+    try {
+      await post('/viewer/tts/playback-ack', {
+        response_id: item.responseId,
+        session_id: item.sessionId,
+        utterance_id: item.utteranceId,
+        viewer_client_id: viewerClientID,
+        status: result ? result.status : 'ended',
+        error_code: result ? 'TTS_AUDIO_PLAYBACK_ERROR' : '',
+        error: result && result.error ? String(result.error.message || result.error) : '',
+      });
+    } catch (error) {
+      console.warn('TTS playback ACK failed', error);
+    }
+  }
+
+  function maybeAcknowledgeTTS(responseID) {
+    if (!ttsControl.completedResponses.has(responseID)) return;
+    if ((ttsControl.responseCounts.get(responseID) || 0) > 0) return;
+    if (ttsControl.acknowledged.has(responseID)) return;
+    const item = ttsControl.responseItems.get(responseID);
+    if (!item) return;
+    ttsControl.acknowledged.add(responseID);
+    if (ttsControl.acknowledged.size > 2000) {
+      ttsControl.acknowledged.clear();
+      ttsControl.acknowledged.add(responseID);
+    }
+    acknowledgeTTS(item, ttsControl.responseResults.get(responseID));
+    ttsControl.completedResponses.delete(responseID);
+    ttsControl.responseResults.delete(responseID);
+    ttsControl.responseItems.delete(responseID);
+    if (ttsControl.sessionResponses.get(item.sessionId) === responseID) ttsControl.sessionResponses.delete(item.sessionId);
+  }
+
+  function playNextTTS() {
+    if (!ttsControl.enabled || ttsControl.playing || !ttsControl.queue.length) return;
+    const item = ttsControl.queue.shift();
+    const audio = new Audio(item.url);
+    ttsControl.currentAudio = audio;
+    ttsControl.playing = true;
+    let settled = false;
+    const complete = (status, error) => {
+      if (settled) return;
+      settled = true;
+      ttsControl.playing = false;
+      ttsControl.currentAudio = null;
+      if (!ttsControl.enabled) return;
+      finishTTSItem(item, status, error);
+      playNextTTS();
+    };
+    audio.addEventListener('ended', () => complete('ended'), {once: true});
+    audio.addEventListener('error', () => complete('error', audio.error || new Error('audio playback failed')), {once: true});
+    audio.play().catch((error) => complete('error', error));
+  }
+
+  async function enableTTS() {
+    const control = document.getElementById('labAudioBtn');
+    try {
+      await setActiveControl('audio', 'claim', 'portal_tts_on');
+      ttsControl.enabled = true;
+      setToggleState(control, 'TTS', true);
+      window.clearInterval(ttsControl.heartbeat);
+      ttsControl.heartbeat = window.setInterval(() => {
+        setActiveControl('audio', 'heartbeat', 'portal_tts_heartbeat').catch(() => disableTTS(false, 'TTS再生権を維持できません'));
+      }, 30000);
+      setOperation('TTSをONにしました');
+    } catch (error) {
+      setOperation(`TTSをONにできません: ${error.message}`, true);
+    }
+  }
+
+  function clearTTSPlayback() {
+    ttsControl.queue.length = 0;
+    if (ttsControl.currentAudio) {
+      ttsControl.currentAudio.pause();
+      ttsControl.currentAudio.removeAttribute('src');
+    }
+    ttsControl.currentAudio = null;
+    ttsControl.playing = false;
+    ttsControl.responseCounts.clear();
+    ttsControl.responseResults.clear();
+    ttsControl.completedResponses.clear();
+    ttsControl.responseItems.clear();
+    ttsControl.sessionResponses.clear();
+  }
+
+  async function disableTTS(release = true, message = 'TTSをOFFにしました') {
+    const control = document.getElementById('labAudioBtn');
+    ttsControl.enabled = false;
+    window.clearInterval(ttsControl.heartbeat);
+    ttsControl.heartbeat = null;
+    clearTTSPlayback();
+    setToggleState(control, 'TTS', false);
+    if (release) {
+      try {
+        await setActiveControl('audio', 'release', 'portal_tts_off');
+      } catch (error) {
+        setOperation(`TTS再生権を解放できません: ${error.message}`, true);
+        return;
+      }
+    }
+    setOperation(message);
+  }
+
+  function resamplePCM16(inputSamples, inputRate, outputRate = 16000) {
+    if (inputRate === outputRate) {
+      const output = new Int16Array(inputSamples.length);
+      for (let i = 0; i < inputSamples.length; i += 1) output[i] = Math.max(-32768, Math.min(32767, inputSamples[i] * 32768));
+      return output;
+    }
+    const ratio = inputRate / outputRate;
+    const length = Math.max(1, Math.floor(inputSamples.length / ratio));
+    const output = new Int16Array(length);
+    for (let i = 0; i < length; i += 1) {
+      const start = Math.floor(i * ratio);
+      const end = Math.min(inputSamples.length, Math.floor((i + 1) * ratio));
+      let sum = 0;
+      for (let j = start; j < end; j += 1) sum += inputSamples[j];
+      const sample = sum / Math.max(1, end - start);
+      output[i] = Math.max(-32768, Math.min(32767, sample * 32768));
+    }
+    return output;
+  }
+
+  function webSocketURL(path) {
+    const url = new URL(path, window.location.href);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.searchParams.set('viewer_client_id', viewerClientID);
+    return url.href;
+  }
+
+  function handleSTTMessage(message) {
+    let payload;
+    try {
+      payload = JSON.parse(String(message.data || '{}'));
+    } catch (_) {
+      return;
+    }
+    const type = String(payload.type || '').toLowerCase();
+    const text = String(payload.text || payload.transcript || '').trim();
+    if (type === 'draft' || type === 'partial') {
+      if (text) input.value = text;
+      return;
+    }
+    if (type === 'final' && text) {
+      input.value = text;
+      send();
+      if (!sttControl.enabled) cleanupSTT(true);
+      return;
+    }
+    if (type === 'error') {
+      stopSTT(true, `STTエラー: ${payload.error || payload.message || 'unknown'}`, true);
+    }
+  }
+
+  async function startSTT() {
+    const control = document.getElementById('labMicBtn');
+    if (sttControl.stopTimer) {
+      setOperation('STTの終了処理中です', true);
+      return;
+    }
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      setOperation('このブラウザではマイク入力を利用できません', true);
+      return;
+    }
+    try {
+      await setActiveControl('input', 'claim', 'portal_stt_on');
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const context = new AudioContextClass();
+      const source = context.createMediaStreamSource(stream);
+      const processor = context.createScriptProcessor(4096, 1, 1);
+      const socket = new WebSocket(webSocketURL(api('/stt')));
+      socket.binaryType = 'arraybuffer';
+      sttControl.stream = stream;
+      sttControl.context = context;
+      sttControl.source = source;
+      sttControl.processor = processor;
+      sttControl.socket = socket;
+      sttControl.enabled = true;
+      processor.onaudioprocess = (event) => {
+        if (!sttControl.enabled || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(resamplePCM16(event.inputBuffer.getChannelData(0), context.sampleRate).buffer);
+      };
+      source.connect(processor);
+      processor.connect(context.destination);
+      socket.addEventListener('open', () => {
+        socket.send(JSON.stringify({type: 'start', sample_rate: 16000, channels: 1, format: 'pcm_s16le'}));
+      });
+      socket.addEventListener('message', handleSTTMessage);
+      socket.addEventListener('error', () => setOperation('STT WebSocketへ接続できません', true));
+      socket.addEventListener('close', () => {
+        if (sttControl.enabled) stopSTT(true, 'STT接続が終了しました');
+      });
+      setToggleState(control, 'STT', true);
+      window.clearInterval(sttControl.heartbeat);
+      sttControl.heartbeat = window.setInterval(() => {
+        setActiveControl('input', 'heartbeat', 'portal_stt_heartbeat').catch(() => stopSTT(false, 'STT入力権を維持できません'));
+      }, 30000);
+      setOperation('STTをONにしました');
+    } catch (error) {
+      cleanupSTT(false);
+      try { await setActiveControl('input', 'release', 'portal_stt_start_failed'); } catch (_) {}
+      setToggleState(control, 'STT', false);
+      setOperation(`STTをONにできません: ${error.message}`, true);
+    }
+  }
+
+  function cleanupSTT(closeSocket = true) {
+    window.clearTimeout(sttControl.stopTimer);
+    sttControl.stopTimer = null;
+    window.clearInterval(sttControl.heartbeat);
+    sttControl.heartbeat = null;
+    if (sttControl.processor) sttControl.processor.disconnect();
+    if (sttControl.source) sttControl.source.disconnect();
+    if (sttControl.stream) sttControl.stream.getTracks().forEach((track) => track.stop());
+    if (sttControl.context) sttControl.context.close().catch(() => {});
+    if (closeSocket && sttControl.socket && sttControl.socket.readyState < WebSocket.CLOSING) sttControl.socket.close();
+    sttControl.processor = null;
+    sttControl.source = null;
+    sttControl.stream = null;
+    sttControl.context = null;
+    sttControl.socket = null;
+    if (sttControl.releaseOnCleanup) {
+      sttControl.releaseOnCleanup = false;
+      setActiveControl('input', 'release', 'portal_stt_off').catch((error) => {
+        setOperation(`STT入力権を解放できません: ${error.message}`, true);
+      });
+    }
+  }
+
+  function stopSTT(release = true, message = 'STTをOFFにしました', isError = false) {
+    const control = document.getElementById('labMicBtn');
+    sttControl.enabled = false;
+    sttControl.releaseOnCleanup = release;
+    setToggleState(control, 'STT', false);
+    if (sttControl.socket && sttControl.socket.readyState === WebSocket.OPEN) {
+      sttControl.socket.send(JSON.stringify({type: 'stop'}));
+      sttControl.stopTimer = window.setTimeout(() => cleanupSTT(true), 1500);
+    } else {
+      cleanupSTT(true);
+    }
+    setOperation(message, isError);
+  }
+
+  function bindTTSControl() {
+    const control = document.getElementById('labAudioBtn');
+    if (!control) return;
+    setToggleState(control, 'TTS', false);
+    control.addEventListener('click', () => {
+      if (ttsControl.enabled) disableTTS();
+      else enableTTS();
+    });
+  }
+
+  function bindSTTControl() {
+    const control = document.getElementById('labMicBtn');
+    if (!control) return;
+    setToggleState(control, 'STT', false);
+    control.addEventListener('click', () => {
+      if (sttControl.enabled) stopSTT();
+      else startSTT();
+    });
   }
 
   async function send() {
@@ -285,6 +691,9 @@
     setOperation(isIdle ? 'IdleChatを開始中' : 'Chatへ切り替え中');
     try {
       await post(isIdle ? '/viewer/idlechat/start' : '/viewer/idlechat/stop');
+      if (!isIdle) {
+        await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});
+      }
       await refreshStatus();
       setOperation(isIdle ? 'IdleChatを開始しました' : `${actorInfo[nextRecipient].label}とのChatへ切り替えました`);
     } catch (error) {
@@ -339,8 +748,8 @@
       partnerOptions.hidden = true;
       partnerChip.setAttribute('aria-expanded', 'false');
     });
-    bindCoreViewerControl('labAudioBtn', 'TTS');
-    bindCoreViewerControl('labMicBtn', 'STT');
+    bindTTSControl();
+    bindSTTControl();
     bindCoreViewerControl('labAttachBtn', 'ファイル添付');
     bindCoreViewerControl('labScreenBtn', '画面入力');
     bindCoreViewerControl('labCameraBtn', 'カメラ入力');

@@ -212,6 +212,55 @@ func TestPortalLabAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 	}
 }
 
+func TestPortalLabAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.T) {
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/viewer/recipient-selection"},
+		{http.MethodPost, "/viewer/active-control"},
+		{http.MethodGet, "/viewer/tts/audio"},
+		{http.MethodPost, "/viewer/tts/playback-ack"},
+		{http.MethodGet, "/stt"},
+	}
+	for _, test := range tests {
+		if !portalEndpointAllowed(ModeLab, test.method, test.path) {
+			t.Errorf("lab should allow %s %s", test.method, test.path)
+		}
+		if portalEndpointAllowed(ModeView, test.method, test.path) {
+			t.Errorf("view must reject %s %s", test.method, test.path)
+		}
+		if portalEndpointAllowed(ModeLive, test.method, test.path) {
+			t.Errorf("live must reject %s %s", test.method, test.path)
+		}
+	}
+	for _, path := range []string{"/viewer/stt/admin/restart", "/viewer/debug/system", "/viewer/llm-ops/restart"} {
+		if portalEndpointAllowed(ModeLab, http.MethodPost, path) || portalEndpointAllowed(ModeLab, http.MethodGet, path) {
+			t.Errorf("lab must reject administrative endpoint %s", path)
+		}
+	}
+}
+
+func TestPortalLabScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`post('/viewer/recipient-selection'`,
+		`post('/viewer/active-control'`,
+		`api('/viewer/tts/audio')`,
+		`post('/viewer/tts/playback-ack'`,
+		`api('/stt')`,
+		`navigator.mediaDevices.getUserMedia`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("PORTAL control contract marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalLabRejectsCrossOriginWrite(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -236,6 +285,35 @@ func TestPortalLabRejectsCrossOriginWrite(t *testing.T) {
 	}
 	if calls.Load() != 0 {
 		t.Fatalf("cross-origin write reached CORE: calls=%d", calls.Load())
+	}
+}
+
+func TestPortalLabRejectsCrossOriginSTTWebSocket(t *testing.T) {
+	var calls atomic.Int32
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusSwitchingProtocols)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://portal.example/api/lab/stt", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("cross-origin STT reached CORE: calls=%d", calls.Load())
 	}
 }
 
