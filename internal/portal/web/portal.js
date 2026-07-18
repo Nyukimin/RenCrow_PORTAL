@@ -53,6 +53,11 @@
     shiro: {label: 'Shiro', mark: 'S', color: '#7c62d7'},
     kuro: {label: 'Kuro', mark: 'K', color: '#334155'},
     midori: {label: 'Midori', mark: 'M', color: '#16846b'},
+    coder1: {label: 'Coder1', mark: 'C1', color: '#a16207'},
+    coder2: {label: 'Coder2', mark: 'C2', color: '#a16207'},
+    coder3: {label: 'Coder3', mark: 'C3', color: '#a16207'},
+    coder4: {label: 'Coder4', mark: 'C4', color: '#a16207'},
+    coder_loop: {label: 'CoderLoop', mark: 'CL', color: '#a16207'},
   };
 
   function api(path) {
@@ -74,9 +79,11 @@
   function normalizeActor(value) {
     const text = String(value || '').trim().toLowerCase();
     if (text.includes('shiro') || text.includes('しろ')) return 'shiro';
-    if (text.includes('kuro') || text.includes('くろ')) return 'kuro';
-    if (text.includes('midori') || text.includes('みどり')) return 'midori';
+    if (text.includes('kuro') || text.includes('くろ') || text === 'heavy') return 'kuro';
+    if (text.includes('midori') || text.includes('みどり') || text === 'wild') return 'midori';
     if (text.includes('mio') || text.includes('みお') || text === 'chat') return 'mio';
+    if (text === 'coder_loop') return 'coder_loop';
+    if (/^coder[1-4]$/.test(text)) return text;
     if (text === 'user' || text === 'human') return 'user';
     return '';
   }

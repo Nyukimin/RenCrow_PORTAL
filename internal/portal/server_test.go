@@ -109,6 +109,28 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 }
 
+func TestPortalRendersNamedAgentHandoffSpeakers(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`coder1: {label: 'Coder1'`,
+		`coder2: {label: 'Coder2'`,
+		`coder3: {label: 'Coder3'`,
+		`coder4: {label: 'Coder4'`,
+		`coder_loop: {label: 'CoderLoop'`,
+		`text === 'heavy'`,
+		`text === 'wild'`,
+		`/^coder[1-4]$/.test(text)`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("Agent handoff speaker marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalLiveAllowsReadAndRejectsWrite(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
