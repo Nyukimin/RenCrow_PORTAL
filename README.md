@@ -16,6 +16,39 @@ Debug、Ops、Repair、設定変更などの管理APIは中継しません。
 
 ASSISTANT連携でも、読み取り画面からwrite actionを許可せず、他利用者のprivate data、secret、device credentialを中継しません。
 
+## Interaction profile
+
+PORTALは、COREのChat／IdleChat能力をWebで利用するInteraction profileです。
+
+```text
+RenCrow_PORTAL
+  = RenCrow Interaction Client
+  + Web Renderer
+  + view / live / lab mode policy
+```
+
+CORE、PORTAL、CMD、ASSISTANTの間で揃えるのは、Chat、IdleChat、recipient、event、
+session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画面へ投影しますが、
+別の会話runtime、会話履歴、IdleChat状態、Task状態を持ちません。
+
+| capability | PORTALでの表現 | 現在状態 |
+| --- | --- | --- |
+| Chat | `lab`の会話入力とmessage表示 | 実装済み |
+| IdleChat | `view`／`live`／`lab`の表示、`lab`の開始・停止 | 実装済み |
+| recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
+| STT／TTS | browser microphone、audio再生、ACK | 実装済み |
+| CORE Task | 許可された状態・結果の表示 | CORE側APIに従う |
+| ASSISTANT Routine／PUSH | 予定、通知、端末、履歴のcard／設定UI | planned |
+
+同じ能力を全modeへ公開しません。`view`と`live`は読み取り専用、`lab`は明示allowlist
+だけを操作可能とし、認証scopeとserver側認可も必要です。将来ASSISTANTのPUSHを表示する
+場合も第二のmessage形式を独自に作らず、利用者、source、category、相関IDを保った
+Interaction outputをWeb cardまたはmessageとして描画します。
+
+PORTALが閉じていてもASSISTANTのRoutineとPUSHは動作しなければなりません。PORTALは
+ASSISTANTの配信経路やschedulerにはならず、ASSISTANT Public APIのViewer／設定clientに
+限定します。
+
 ## COREとの操作契約
 
 PORTALは状態の正本を持たず、Lab操作をCOREのPublic APIへ通知します。
