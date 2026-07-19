@@ -1136,7 +1136,8 @@ body.live-mode .live-audio-btn{
 
 /* === RenCrow Lab Mode: white sci-fi fantasy lab === */
 .lab-mio-portrait,
-.lab-shiro-portrait{display:none}
+.lab-shiro-portrait,
+.lab-midori-portrait{display:none}
 
 body.lab-mode{
   --bg:#eef6ff;
@@ -1352,35 +1353,6 @@ body.lab-mode.live-mode main .lipsync-stage{display:none}
   body.lab-mode.live-mode .lab-mio-portrait{
     top:45%;
     height:min(44vh,460px);
-  }
-}
-
-@media (orientation:portrait) and (max-width:640px){
-  body.lab-mode.live-mode header{display:none}
-  body.lab-mode.live-mode .live-topic-bar{
-    margin:10px 12px 0;
-    padding:10px 12px;
-  }
-  body.lab-mode.live-mode .live-topic-bar .live-topic-label{font-size:12px}
-  body.lab-mode.live-mode .live-topic-bar .live-topic-text{font-size:14px}
-  body.lab-mode.live-mode main{
-    left:10px;
-    right:10px;
-    bottom:10px;
-    height:44vh;
-  }
-  body.lab-mode.live-mode #chat{
-    padding:12px;
-    border-radius:18px;
-  }
-  body.lab-mode.live-mode .lab-mio-portrait{
-    top:37%;
-    height:38vh;
-  }
-  body.lab-mode.live-mode .mc{
-    font-size:15px;
-    line-height:1.6;
-    padding:10px 12px;
   }
 }
 
@@ -1840,59 +1812,6 @@ body.lab-mode.live-mode .live-audio-btn{
   .lab-footer small{display:none}
 }
 
-@media (orientation:portrait) and (max-width:720px){
-  body.lab-mode.live-mode{
-    --lab-bottom:45vh;
-    overflow:hidden;
-  }
-  .lab-brand-panel{
-    left:12px;
-    top:8px;
-  }
-  .lab-logo-row img{width:36px;height:36px}
-  .lab-logo-row strong{font-size:22px}
-  .lab-logo-row span{font-size:13px}
-  .lab-window{top:10vh;bottom:52vh;width:42vw}
-  .lab-holo-circle{left:7vw;top:24vh;width:130px}
-  .lab-crystal-left{left:5vw;top:31vh}
-  .lab-crystal-center{display:none}
-  body.lab-mode.live-mode .lab-mio-portrait{
-    left:43vw;
-    top:14vh;
-    height:34vh;
-  }
-  body.lab-mode.live-mode .lab-shiro-portrait{
-    left:66vw;
-    top:17vh;
-    height:30vh;
-    opacity:.92;
-  }
-  body.lab-mode.live-mode #chat{
-    left:10px;
-    right:10px;
-    bottom:calc(45vh - 2px);
-    width:auto;
-    max-width:none;
-    height:22vh;
-    padding:36px 12px 46px;
-  }
-  body.lab-mode.live-mode .live-topic-bar{
-    left:10px;
-    right:10px;
-    bottom:calc(22vh + 48px);
-    height:12vh;
-    padding:10px 14px;
-  }
-  .lab-footer{
-    left:10px;
-    right:10px;
-    bottom:8px;
-    height:34px;
-  }
-  .lab-footer em{display:none}
-  body.lab-mode.live-mode .live-audio-btn{display:none}
-}
-
 /* === RenCrow Lab readability pass === */
 body.lab-mode.live-mode{
   font-size:16px;
@@ -2048,7 +1967,8 @@ body.lab-mode.live-mode .lab-footer em{
 .portal-operation-status.is-error{color:#c23f5b}
 
 .lab-mio-portrait.is-speaking img,
-.lab-shiro-portrait.is-speaking img{
+.lab-shiro-portrait.is-speaking img,
+.lab-midori-portrait.is-speaking img{
   animation:portal-speaking 1.3s ease-in-out;
 }
 
@@ -2067,6 +1987,11 @@ body[data-mode="view"] #chat{
 
 body[data-mode="view"] .lab-mode-indicator{
   opacity:.78;
+}
+
+/* view mode is Chat-only: Mio / Shiro のみ表示 */
+body[data-mode="view"] .lab-mode-chip-midori{
+  display:none !important;
 }
 
 @media (max-width:700px){
@@ -2433,6 +2358,27 @@ body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro .lab-shiro-portrait{
   transform:translateX(-50%);
 }
 
+body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori .lab-midori-portrait{
+  display:block !important;
+  position:fixed;
+  pointer-events:none;
+  z-index:18;
+  left:50%;
+  top:8.8vh;
+  height:clamp(410px,60vh,720px);
+  transform:translateX(-50%);
+}
+
+body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori .lab-mio-portrait{
+  display:none !important;
+}
+
+body.lab-mode.live-mode .lab-midori-portrait img{
+  height:100%;
+  width:auto;
+  filter:drop-shadow(0 26px 42px rgba(38,102,84,.26)) drop-shadow(0 0 24px rgba(126,224,182,.26));
+}
+
 body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait{
   display:block !important;
   left:34.6vw;
@@ -2515,6 +2461,11 @@ body.lab-mode.live-mode #chat{
   height:auto !important;
   max-height:none !important;
   padding:44px 20px 18px !important;
+}
+
+/* view mode hides the input footer, so the chat log reclaims its space */
+body[data-mode="view"].lab-mode.live-mode #chat{
+  bottom:var(--lab-edge) !important;
 }
 
 body.lab-mode.live-mode #chat.chat-conversation .msg{
@@ -2875,5 +2826,173 @@ body.portal-live-mode main{
 
   body.portal-live-mode .portal-live-brand > div:first-of-type span{
     display:none;
+  }
+}
+
+/* === RenCrow Lab portrait composition (縦画面: スマホ縦〜縦置きディスプレイ) === */
+@media (orientation:portrait){
+  body.lab-mode.live-mode{
+    --lab-edge:clamp(10px,2.6vw,20px);
+    --lab-input-height:clamp(44px,6dvh,56px);
+    --lab-p-row1-top:calc(var(--safe-top) + 8px);
+    --lab-p-row1-h:clamp(48px,6.5dvh,92px);
+    --lab-p-row2-top:calc(var(--lab-p-row1-top) + var(--lab-p-row1-h) + 8px);
+    --lab-p-row2-h:clamp(38px,5dvh,56px);
+    --lab-p-stage-top:calc(var(--lab-p-row2-top) + var(--lab-p-row2-h));
+    --lab-p-chat-top:52dvh;
+  }
+
+  /* Row 1: ロゴ + トピック */
+  body.lab-mode.live-mode .lab-brand-panel{
+    left:var(--lab-edge) !important;
+    top:var(--lab-p-row1-top) !important;
+  }
+
+  body.lab-mode.live-mode .lab-logo-row img{
+    width:clamp(44px,11vw,88px) !important;
+  }
+
+  body.lab-mode.live-mode .live-topic-bar{
+    left:calc(var(--lab-edge) + clamp(44px,11vw,88px) + 10px) !important;
+    right:var(--lab-edge) !important;
+    top:var(--lab-p-row1-top) !important;
+    bottom:auto !important;
+    width:auto !important;
+    height:var(--lab-p-row1-h) !important;
+    min-height:0;
+    max-height:none;
+    justify-content:center;
+    gap:4px;
+    padding:clamp(6px,1dvh,12px) clamp(12px,3vw,18px);
+  }
+
+  body.lab-mode.live-mode .live-topic-bar .live-topic-text{
+    display:-webkit-box !important;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    white-space:normal;
+    overflow:hidden;
+    font-size:clamp(13px,3.4vw,21px);
+    line-height:1.3;
+  }
+
+  /* Row 2: モードチップ列は右寄せ（左端は日時パネル用に空ける） */
+  body.lab-mode.live-mode .lab-mode-indicator{
+    left:auto;
+    right:var(--lab-edge);
+    top:var(--lab-p-row2-top);
+    min-height:var(--lab-p-row2-h);
+    max-width:calc(100vw - var(--lab-edge) * 2);
+    flex-wrap:nowrap;
+  }
+
+  /* 接続ピルは上部に置き場がないため、フッター左上へ退避 */
+  body.lab-mode.live-mode .lab-brand-panel .portal-connection{
+    position:fixed;
+    left:var(--lab-edge);
+    bottom:calc(var(--lab-edge) + var(--safe-bottom) + var(--lab-input-height) + 6px);
+  }
+
+  body.lab-mode.live-mode .lab-datetime-panel{
+    left:var(--lab-edge);
+    right:auto;
+    top:calc(var(--lab-p-row2-top) + (var(--lab-p-row2-h) - 24px) / 2);
+  }
+
+  body.lab-mode.live-mode .lab-camera-live-preview{
+    right:var(--lab-edge);
+    top:calc(var(--lab-p-stage-top) + 8px);
+  }
+
+  /* 背景の部屋パーツ: 縦構図に合わせて簡素化 */
+  .lab-window{top:var(--lab-p-stage-top);bottom:50dvh;width:34vw}
+  .lab-ceiling-ring{top:calc(var(--lab-p-stage-top) + 4px);width:min(420px,58vw)}
+  .lab-holo-circle{left:5vw;top:24dvh;width:min(150px,20vw)}
+  .lab-crystal-left{left:4vw;top:30dvh}
+  .lab-crystal-center,
+  .lab-console-left,
+  .lab-console-right{display:none}
+
+  /* 立ち絵: 画像は正方形カード（背景つき）なので重ねずに配置する */
+  body.lab-mode.live-mode.lab-chat-mode .lab-mio-portrait,
+  body.lab-mode.live-mode.lab-chat-mode .lab-shiro-portrait,
+  body.lab-mode.live-mode:not(.lab-idle-mode) .lab-mio-portrait{
+    left:50%;
+    top:calc(var(--lab-p-stage-top) + 1.5dvh);
+    height:min(44dvh,74vw,720px);
+    transform:translateX(-50%);
+  }
+
+  body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro .lab-shiro-portrait{
+    left:50%;
+    top:calc(var(--lab-p-stage-top) + 1dvh);
+    height:min(44dvh,74vw,720px);
+    transform:translateX(-50%);
+  }
+
+  body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori .lab-midori-portrait{
+    left:50%;
+    top:calc(var(--lab-p-stage-top) + 1dvh);
+    height:min(44dvh,74vw,720px);
+    transform:translateX(-50%);
+  }
+
+  body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait{
+    left:26.5vw;
+    top:calc(var(--lab-p-stage-top) + 3dvh);
+    height:min(38dvh,44vw,620px);
+    transform:translateX(-50%);
+  }
+
+  body.lab-mode.live-mode.lab-idle-mode .lab-shiro-portrait{
+    left:73.5vw;
+    top:calc(var(--lab-p-stage-top) + 3dvh);
+    height:min(38dvh,44vw,620px);
+    transform:translateX(-50%);
+  }
+
+  /* 会話ログ: 下半分。立ち絵の足元に半透明で重なる */
+  body.lab-mode.live-mode #chat{
+    left:var(--lab-edge) !important;
+    right:var(--lab-edge) !important;
+    top:var(--lab-p-chat-top) !important;
+    bottom:calc(var(--lab-edge) + var(--safe-bottom) + var(--lab-input-height) + var(--lab-input-gap)) !important;
+    width:auto !important;
+    max-width:none !important;
+    height:auto !important;
+    max-height:none !important;
+    padding:40px 12px 12px !important;
+  }
+
+  body[data-mode="view"].lab-mode.live-mode #chat{
+    bottom:calc(var(--lab-edge) + var(--safe-bottom)) !important;
+  }
+
+  /* 入力フッター */
+  body.lab-mode.live-mode .lab-input-footer{
+    left:var(--lab-edge);
+    right:var(--lab-edge);
+    bottom:calc(var(--lab-edge) + var(--safe-bottom));
+    height:var(--lab-input-height);
+  }
+
+  body.lab-mode.live-mode .portal-operation-status{
+    left:var(--lab-edge);
+    right:var(--lab-edge);
+    bottom:calc(var(--lab-edge) + var(--safe-bottom) + var(--lab-input-height) + 6px);
+    max-width:none;
+    text-align:right;
+  }
+
+  /* view mode hides the input footer, so bottom-pinned pills drop to the edge */
+  body[data-mode="view"].lab-mode.live-mode .lab-brand-panel .portal-connection,
+  body[data-mode="view"].lab-mode.live-mode .portal-operation-status{
+    bottom:calc(var(--lab-edge) + var(--safe-bottom));
+  }
+}
+
+@media (orientation:portrait) and (min-width:700px){
+  body.lab-mode.live-mode .lab-mode-indicator{
+    max-width:calc(100vw - var(--lab-edge) * 2 - 260px);
   }
 }

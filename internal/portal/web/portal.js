@@ -12,8 +12,6 @@
   const connectionDot = document.getElementById('connectionDot');
   const connectionText = document.getElementById('connectionText');
   const operationStatus = document.getElementById('operationStatus');
-  const partnerChip = document.getElementById('labModePartnerChip');
-  const partnerOptions = document.getElementById('labPartnerOptions');
   const seenEvents = new Set();
   const partnerStorageKey = 'labConversation.selectedPartner';
   const storedRecipient = normalizeActor(localStorage.getItem(partnerStorageKey)) || normalizeActor(localStorage.getItem('rencrow.portal.partner')) || 'shiro';
@@ -78,7 +76,7 @@
 
   function normalizeActor(value) {
     const text = String(value || '').trim().toLowerCase();
-    if (text.includes('shiro') || text.includes('しろ')) return 'shiro';
+    if (text.includes('shiro') || text.includes('しろ') || text === 'chatworker') return 'shiro';
     if (text.includes('kuro') || text.includes('くろ') || text === 'heavy') return 'kuro';
     if (text.includes('midori') || text.includes('みどり') || text === 'wild') return 'midori';
     if (text.includes('mio') || text.includes('みお') || text === 'chat') return 'mio';
@@ -139,7 +137,8 @@
   }
 
   function animateSpeaker(actor) {
-    const target = document.getElementById(actor === 'shiro' ? 'shiroPortrait' : 'mioPortrait');
+    const portraitIDs = {shiro: 'shiroPortrait', midori: 'midoriPortrait'};
+    const target = document.getElementById(portraitIDs[actor] || 'mioPortrait');
     if (!target) return;
     target.classList.remove('is-speaking');
     requestAnimationFrame(() => target.classList.add('is-speaking'));
@@ -213,21 +212,9 @@
     body.dataset.labConversationMode = isIdle ? 'idle' : 'chat';
     body.dataset.labPartner = isIdle ? 'both' : selectedRecipient;
     body.dataset.labSelectedPartner = isIdle ? selectedPartner : selectedRecipient;
-    setChip('labModeChatChip', !isIdle);
-    setChip('labModeIdleChip', isIdle);
-    setChip('labModeMioChip', isIdle || selectedRecipient === 'mio');
-    setChip('labModePartnerChip', !isIdle && isPartnerActor(selectedRecipient));
-    partnerChip.textContent = actorInfo[selectedPartner].label;
-    partnerChip.disabled = modeSwitchBusy || isIdle || mode !== 'lab';
-    partnerChip.setAttribute('aria-disabled', partnerChip.disabled ? 'true' : 'false');
-    partnerOptions.hidden = true;
-    partnerChip.setAttribute('aria-expanded', 'false');
-    document.querySelectorAll('[data-lab-partner-option]').forEach((option) => {
-      const actor = normalizeActor(option.dataset.labPartnerOption);
-      option.hidden = actor === selectedPartner;
-      option.disabled = modeSwitchBusy;
-      option.setAttribute('aria-disabled', option.disabled ? 'true' : 'false');
-    });
+    setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');
+    setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');
+    setChip('labModeMidoriChip', !isIdle && selectedRecipient === 'midori');
   }
 
   function idleStatusActive(status) {
@@ -674,16 +661,10 @@
 
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
-    const isIdle = body.classList.contains('lab-idle-mode');
-    document.querySelectorAll('[data-lab-switch], [data-lab-partner-toggle], [data-lab-partner-option]').forEach((control) => {
-      const partnerToggle = control.hasAttribute('data-lab-partner-toggle');
-      control.disabled = modeSwitchBusy || mode !== 'lab' || (partnerToggle && isIdle);
+    document.querySelectorAll('[data-lab-switch]').forEach((control) => {
+      control.disabled = modeSwitchBusy || mode !== 'lab';
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
-    if (modeSwitchBusy || isIdle) {
-      partnerOptions.hidden = true;
-      partnerChip.setAttribute('aria-expanded', 'false');
-    }
   }
 
   async function switchConversation(nextMode, partner) {
@@ -730,30 +711,8 @@
     });
     document.querySelectorAll('[data-lab-switch]').forEach((chip) => {
       chip.addEventListener('click', () => {
-        const action = chip.dataset.labSwitch;
-        if (action === 'idle') switchConversation('idle');
-        else if (action === 'mio') switchConversation('chat', 'mio');
-        else switchConversation('chat', selectedPartner);
+        switchConversation('chat', chip.dataset.labSwitch);
       });
-    });
-    partnerChip.addEventListener('click', (event) => {
-      event.preventDefault();
-      if (!body.classList.contains('lab-chat-mode') || modeSwitchBusy) return;
-      partnerOptions.hidden = !partnerOptions.hidden;
-      partnerChip.setAttribute('aria-expanded', partnerOptions.hidden ? 'false' : 'true');
-    });
-    document.querySelectorAll('[data-lab-partner-option]').forEach((option) => {
-      option.addEventListener('click', () => {
-        partnerOptions.hidden = true;
-        partnerChip.setAttribute('aria-expanded', 'false');
-        switchConversation('chat', option.dataset.labPartnerOption);
-      });
-    });
-    document.addEventListener('click', (event) => {
-      const picker = document.getElementById('labPartnerPicker');
-      if (picker && picker.contains(event.target)) return;
-      partnerOptions.hidden = true;
-      partnerChip.setAttribute('aria-expanded', 'false');
     });
     bindTTSControl();
     bindSTTControl();

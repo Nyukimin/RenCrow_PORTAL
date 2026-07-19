@@ -49,18 +49,10 @@
       </div>
     </section>
 
-    <section class="lab-mode-indicator" id="labModeIndicator" aria-label="Conversation mode and partner switcher">
-      <button class="lab-mode-chip lab-mode-chip-chat" id="labModeChatChip" type="button" data-lab-switch="chat" aria-current="true" aria-pressed="true">Chat</button>
-      <button class="lab-mode-chip lab-mode-chip-idle" id="labModeIdleChip" type="button" data-lab-switch="idle" aria-current="false" aria-pressed="false">IdleChat</button>
+    <section class="lab-mode-indicator" id="labModeIndicator" aria-label="Chat partner switcher">
       <button class="lab-mode-chip lab-mode-chip-mio" id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true" aria-pressed="true">Mio</button>
-      <div class="lab-partner-picker" id="labPartnerPicker">
-        <button class="lab-mode-chip lab-mode-chip-partner" id="labModePartnerChip" type="button" data-lab-partner-toggle aria-current="false" aria-pressed="false" aria-expanded="false">Shiro</button>
-        <div class="lab-partner-options" id="labPartnerOptions" hidden>
-          <button class="lab-mode-chip lab-partner-option" type="button" data-lab-partner-option="shiro">Shiro</button>
-          <button class="lab-mode-chip lab-partner-option" type="button" data-lab-partner-option="kuro">Kuro</button>
-          <button class="lab-mode-chip lab-partner-option" type="button" data-lab-partner-option="midori">Midori</button>
-        </div>
-      </div>
+      <button class="lab-mode-chip lab-mode-chip-shiro" id="labModeShiroChip" type="button" data-lab-switch="shiro" aria-current="false" aria-pressed="false">Shiro</button>
+      <button class="lab-mode-chip lab-mode-chip-midori" id="labModeMidoriChip" type="button" data-lab-switch="midori" aria-current="false" aria-pressed="false">Midori</button>
     </section>
 
     <time class="lab-datetime-panel" id="labDateTimePanel" datetime="" aria-label="現在日時"></time>
@@ -130,6 +122,9 @@
   </div>
   <div class="lab-shiro-portrait" id="shiroPortrait" aria-label="Shiro">
     <img src="/assets/shiro.png" alt="Shiro">
+  </div>
+  <div class="lab-midori-portrait" id="midoriPortrait" aria-label="Midori">
+    <img src="/assets/midori.png" alt="Midori">
   </div>
 
   <main>

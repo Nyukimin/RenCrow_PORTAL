@@ -68,10 +68,9 @@ func TestPortalLabRendersAIVTuberRoom(t *testing.T) {
 		`class="lab-shiro-portrait"`,
 		`id="chat"`,
 		`id="labInp"`,
-		`id="labModeChatChip" type="button" data-lab-switch="chat" aria-current="true"`,
-		`id="labModeIdleChip" type="button" data-lab-switch="idle" aria-current="false"`,
 		`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
-		`id="labModePartnerChip" type="button" data-lab-partner-toggle aria-current="false"`,
+		`id="labModeShiroChip" type="button" data-lab-switch="shiro" aria-current="false"`,
+		`id="labModeMidoriChip" type="button" data-lab-switch="midori" aria-current="false"`,
 		`id="labAudioBtn"`,
 		`id="labMicBtn"`,
 		`id="labAttachBtn"`,
@@ -95,9 +94,9 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`setChip('labModeIdleChip', isIdle);`,
-		`setChip('labModeMioChip', isIdle || selectedRecipient === 'mio');`,
-		`setChip('labModePartnerChip', !isIdle && isPartnerActor(selectedRecipient));`,
+		`setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');`,
+		`setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');`,
+		`setChip('labModeMidoriChip', !isIdle && selectedRecipient === 'midori');`,
 		`const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);`,
 		`setModeSwitcherBusy(true);`,
 		`await refreshStatus();`,
