@@ -233,6 +233,43 @@ func TestPortalLabAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 	}
 }
 
+func TestPortalProxyAddsTrustedOperationSourceAndClientIP(t *testing.T) {
+	var gotClient, gotForwardedFor, gotUserAgent string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotClient = r.Header.Get("X-RenCrow-Client")
+		gotForwardedFor = r.Header.Get("X-Forwarded-For")
+		gotUserAgent = r.Header.Get("User-Agent")
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/lab/viewer/send", strings.NewReader(`{"message":"hello","to":"mio"}`))
+	req.RemoteAddr = "203.0.113.42:4567"
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("User-Agent", "Mozilla/5.0 test-browser")
+	req.Header.Set("X-RenCrow-Client", "spoofed-client")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 body=%s", rec.Code, rec.Body.String())
+	}
+	if gotClient != "RenCrow_PORTAL" {
+		t.Fatalf("X-RenCrow-Client = %q, want RenCrow_PORTAL", gotClient)
+	}
+	if !strings.Contains(gotForwardedFor, "203.0.113.42") {
+		t.Fatalf("X-Forwarded-For = %q, want source IP", gotForwardedFor)
+	}
+	if gotUserAgent != "Mozilla/5.0 test-browser" {
+		t.Fatalf("User-Agent = %q", gotUserAgent)
+	}
+}
+
 func TestPortalLabAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.T) {
 	tests := []struct {
 		method string
@@ -278,6 +315,30 @@ func TestPortalLabScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL control contract marker %q is missing", marker)
+		}
+	}
+}
+
+func TestPortalLabGuardsRecipientUntilMatchingResponse(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`let pendingRequest = null;`,
+		`viewer_client_id: viewerClientID`,
+		`input_source: inputSource`,
+		`user_id: viewerUserID`,
+		`device_name: viewerDeviceName`,
+		`send('stt')`,
+		`pendingRequest.jobID = String(accepted.job_id || '').trim();`,
+		`String(event.job_id || '') !== pendingRequest.jobID`,
+		`type === 'agent.response' && String(event && event.to || '').toLowerCase() === 'user'`,
+		`if (pendingRequest) return;`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("PORTAL request guard marker %q is missing", marker)
 		}
 	}
 }

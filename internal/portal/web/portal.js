@@ -18,7 +18,12 @@
   let selectedRecipient = storedRecipient;
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
   let modeSwitchBusy = false;
+  let pendingRequest = null;
+  const earlyTerminalJobIDs = new Set();
+  const requestGuardTimeoutMS = 305000;
   const viewerClientID = getViewerClientID();
+  const viewerUserID = 'viewer-user';
+  const viewerDeviceName = getViewerDeviceName();
   const ttsControl = {
     enabled: false,
     queue: [],
@@ -74,6 +79,13 @@
     return created;
   }
 
+  function getViewerDeviceName() {
+    const platform = globalThis.navigator && navigator.userAgentData && navigator.userAgentData.platform
+      ? navigator.userAgentData.platform
+      : (globalThis.navigator && navigator.platform ? navigator.platform : 'unknown');
+    return String(platform || 'unknown').trim().slice(0, 120) || 'unknown';
+  }
+
   function normalizeActor(value) {
     const text = String(value || '').trim().toLowerCase();
     if (text.includes('shiro') || text.includes('しろ') || text === 'chatworker') return 'shiro';
@@ -116,6 +128,49 @@
     control.setAttribute('aria-label', state);
     control.title = state;
     control.dataset.controlState = state;
+  }
+
+  function isTerminalResponseEvent(event) {
+    const type = String(event && event.type || '');
+    if (type === 'agent.response' && String(event && event.to || '').toLowerCase() === 'user') return true;
+    return ['agent.error', 'mailbox.error', 'worker.classified_failure', 'viewer.error'].includes(type);
+  }
+
+  function finishRequestGuard(message = '', isError = false) {
+    if (!pendingRequest) return;
+    window.clearTimeout(pendingRequest.timeoutID);
+    pendingRequest = null;
+    setModeSwitcherBusy(modeSwitchBusy);
+    input.disabled = mode !== 'lab';
+    if (message) setOperation(message, isError);
+    if (mode === 'lab') input.focus();
+  }
+
+  function beginRequestGuard(recipient) {
+    if (pendingRequest) return false;
+    const guard = {jobID: '', recipient, timeoutID: null};
+    guard.timeoutID = window.setTimeout(() => {
+      if (pendingRequest !== guard) return;
+      finishRequestGuard('応答待ちがタイムアウトしました', true);
+    }, requestGuardTimeoutMS);
+    pendingRequest = guard;
+    input.disabled = true;
+    setModeSwitcherBusy(modeSwitchBusy);
+    return true;
+  }
+
+  function handleRequestTerminalEvent(event) {
+    if (!pendingRequest || !isTerminalResponseEvent(event)) return;
+    const jobID = String(event.job_id || '').trim();
+    if (!jobID) return;
+    if (!pendingRequest.jobID) {
+      earlyTerminalJobIDs.add(jobID);
+      if (earlyTerminalJobIDs.size > 100) earlyTerminalJobIDs.delete(earlyTerminalJobIDs.values().next().value);
+      return;
+    }
+    if (String(event.job_id || '') !== pendingRequest.jobID) return;
+    const failed = event.type !== 'agent.response';
+    finishRequestGuard(failed ? '応答処理がエラーで終了しました' : '応答を受信しました', failed);
   }
 
   function eventKey(event) {
@@ -195,7 +250,8 @@
 
   function setConversationState(isIdle, recipient = selectedRecipient) {
     if (!roomSurface) return;
-    const normalizedRecipient = normalizeActor(recipient);
+    let normalizedRecipient = normalizeActor(recipient);
+    if (pendingRequest && normalizedRecipient !== pendingRequest.recipient) normalizedRecipient = pendingRequest.recipient;
     if (!isIdle && (normalizedRecipient === 'mio' || isPartnerActor(normalizedRecipient))) {
       selectedRecipient = normalizedRecipient;
       if (isPartnerActor(normalizedRecipient)) selectedPartner = normalizedRecipient;
@@ -259,6 +315,7 @@
     events.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
+        handleRequestTerminalEvent(event);
         handleControlEvent(event);
         renderEvent(event);
       } catch (error) {
@@ -515,7 +572,7 @@
     }
     if (type === 'final' && text) {
       input.value = text;
-      send();
+      send('stt');
       if (!sttControl.enabled) cleanupSTT(true);
       return;
     }
@@ -634,20 +691,37 @@
     });
   }
 
-  async function send() {
+  async function send(inputSource = 'text') {
     const message = input.value.trim();
     if (!message || mode !== 'lab') return;
-    input.disabled = true;
+    if (pendingRequest) {
+      setOperation(`${actorInfo[pendingRequest.recipient].label}の応答を待っています`, true);
+      return;
+    }
+    const recipient = selectedRecipient;
+    if (!beginRequestGuard(recipient)) return;
     setOperation('送信中');
     try {
-      await post('/viewer/send', {message, to: selectedRecipient});
+      const accepted = await post('/viewer/send', {
+        message,
+        to: recipient,
+        viewer_client_id: viewerClientID,
+        input_source: inputSource === 'stt' ? 'stt' : 'text',
+        user_id: viewerUserID,
+        device_name: viewerDeviceName,
+      });
+      pendingRequest.jobID = String(accepted.job_id || '').trim();
+      if (!pendingRequest.jobID) throw new Error('CORE応答にjob_idがありません');
+      if (normalizeActor(accepted.recipient) !== recipient) throw new Error('CORE受付先が選択中の相手と一致しません');
       input.value = '';
-      setOperation('送信しました');
+      if (earlyTerminalJobIDs.delete(pendingRequest.jobID)) {
+        finishRequestGuard('応答を受信しました');
+        return;
+      }
+      setOperation(`${actorInfo[recipient].label}の応答を待っています`);
     } catch (error) {
+      finishRequestGuard();
       setOperation(`送信できません: ${error.message}`, true);
-    } finally {
-      input.disabled = false;
-      input.focus();
     }
   }
 
@@ -662,12 +736,13 @@
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
     document.querySelectorAll('[data-lab-switch]').forEach((control) => {
-      control.disabled = modeSwitchBusy || mode !== 'lab';
+      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'lab';
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
   }
 
   async function switchConversation(nextMode, partner) {
+    if (pendingRequest) return;
     if (mode !== 'lab' || modeSwitchBusy) return;
     const isIdle = nextMode === 'idle';
     const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);
@@ -706,7 +781,7 @@
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-        send();
+        send('text');
       }
     });
     document.querySelectorAll('[data-lab-switch]').forEach((chip) => {

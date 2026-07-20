@@ -54,6 +54,9 @@ ASSISTANTの配信経路やschedulerにはならず、ASSISTANT Public APIのVie
 PORTALは状態の正本を持たず、Lab操作をCOREのPublic APIへ通知します。
 
 - 会話相手の切替は`POST /viewer/recipient-selection`で観測eventを発行し、実際の送信先は`POST /viewer/send`の`to`で確定する
+- `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Midoriの切替をロックする
+- `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。現行は認証UIを持たないため`user_id=viewer-user`、`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
+- PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`を付け、接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
 - `view`と`live`はこれらの操作を許可しない
