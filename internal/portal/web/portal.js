@@ -260,13 +260,11 @@
     body.classList.toggle('lab-idle-mode', isIdle);
     body.classList.toggle('lab-chat-mode', !isIdle);
     ['mio', 'shiro', 'kuro', 'midori'].forEach((actor) => body.classList.remove(`lab-partner-${actor}`));
-    if (isIdle) {
-      body.classList.add('lab-partner-mio', 'lab-partner-shiro');
-    } else {
-      body.classList.add(`lab-partner-${selectedRecipient}`);
-    }
+    const candidateRecipient = isIdle ? normalizedRecipient : selectedRecipient;
+    const portraitRecipient = ['mio', 'shiro', 'midori'].includes(candidateRecipient) ? candidateRecipient : 'mio';
+    body.classList.add(`lab-partner-${portraitRecipient}`);
     body.dataset.labConversationMode = isIdle ? 'idle' : 'chat';
-    body.dataset.labPartner = isIdle ? 'both' : selectedRecipient;
+    body.dataset.labPartner = portraitRecipient;
     body.dataset.labSelectedPartner = isIdle ? selectedPartner : selectedRecipient;
     setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');
     setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');

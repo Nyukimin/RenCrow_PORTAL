@@ -108,6 +108,39 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 }
 
+func TestPortalLabAlwaysDisplaysSinglePortrait(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(script)
+	css := string(stylesheet)
+	for _, forbidden := range []string{
+		`body.classList.add('lab-partner-mio', 'lab-partner-shiro');`,
+		`body.dataset.labPartner = isIdle ? 'both' : selectedRecipient;`,
+	} {
+		if strings.Contains(js, forbidden) {
+			t.Errorf("Lab must not select multiple portraits: %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		`body.classList.add(` + "`lab-partner-${portraitRecipient}`" + `);`,
+		`body.dataset.labPartner = portraitRecipient;`,
+		`body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait,`,
+		`body.lab-mode.live-mode.lab-idle-mode.lab-partner-mio .lab-mio-portrait`,
+		`body.lab-mode.live-mode.lab-idle-mode.lab-partner-shiro .lab-shiro-portrait`,
+		`body.lab-mode.live-mode.lab-idle-mode.lab-partner-midori .lab-midori-portrait`,
+	} {
+		if !strings.Contains(js+css, required) {
+			t.Errorf("single portrait contract marker %q is missing", required)
+		}
+	}
+}
+
 func TestPortalRendersNamedAgentHandoffSpeakers(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {

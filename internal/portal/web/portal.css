@@ -2379,19 +2379,22 @@ body.lab-mode.live-mode .lab-midori-portrait img{
   filter:drop-shadow(0 26px 42px rgba(38,102,84,.26)) drop-shadow(0 0 24px rgba(126,224,182,.26));
 }
 
-body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait{
-  display:block !important;
-  left:34.6vw;
-  top:14.2vh;
-  height:clamp(312px,46vh,548px);
-  transform:translateX(-50%);
+body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait,
+body.lab-mode.live-mode.lab-idle-mode .lab-shiro-portrait,
+body.lab-mode.live-mode.lab-idle-mode .lab-midori-portrait{
+  display:none !important;
 }
 
-body.lab-mode.live-mode.lab-idle-mode .lab-shiro-portrait{
+body.lab-mode.live-mode.lab-idle-mode.lab-partner-mio .lab-mio-portrait,
+body.lab-mode.live-mode.lab-idle-mode.lab-partner-shiro .lab-shiro-portrait,
+body.lab-mode.live-mode.lab-idle-mode.lab-partner-midori .lab-midori-portrait{
   display:block !important;
-  left:59.2vw;
-  top:12.4vh;
-  height:clamp(342px,49vh,588px);
+  position:fixed;
+  pointer-events:none;
+  z-index:18;
+  left:50%;
+  top:8.8vh;
+  height:clamp(410px,60vh,720px);
   transform:translateX(-50%);
 }
 
@@ -2427,7 +2430,10 @@ body.lab-mode.live-mode.lab-idle-mode .lab-shiro-portrait{
 
   body.lab-mode.live-mode.lab-chat-mode .lab-mio-portrait,
   body.lab-mode.live-mode.lab-chat-mode .lab-shiro-portrait,
-  body.lab-mode.live-mode:not(.lab-idle-mode) .lab-mio-portrait{
+  body.lab-mode.live-mode:not(.lab-idle-mode) .lab-mio-portrait,
+  body.lab-mode.live-mode.lab-idle-mode.lab-partner-mio .lab-mio-portrait,
+  body.lab-mode.live-mode.lab-idle-mode.lab-partner-shiro .lab-shiro-portrait,
+  body.lab-mode.live-mode.lab-idle-mode.lab-partner-midori .lab-midori-portrait{
     height:clamp(250px,43vh,420px);
   }
 }
@@ -2937,17 +2943,12 @@ body.portal-live-mode main{
     transform:translateX(-50%);
   }
 
-  body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait{
-    left:26.5vw;
-    top:calc(var(--lab-p-stage-top) + 3dvh);
-    height:min(38dvh,44vw,620px);
-    transform:translateX(-50%);
-  }
-
-  body.lab-mode.live-mode.lab-idle-mode .lab-shiro-portrait{
-    left:73.5vw;
-    top:calc(var(--lab-p-stage-top) + 3dvh);
-    height:min(38dvh,44vw,620px);
+  body.lab-mode.live-mode.lab-idle-mode.lab-partner-mio .lab-mio-portrait,
+  body.lab-mode.live-mode.lab-idle-mode.lab-partner-shiro .lab-shiro-portrait,
+  body.lab-mode.live-mode.lab-idle-mode.lab-partner-midori .lab-midori-portrait{
+    left:50%;
+    top:calc(var(--lab-p-stage-top) + 1dvh);
+    height:min(44dvh,74vw,720px);
     transform:translateX(-50%);
   }
 
