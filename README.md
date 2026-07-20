@@ -17,6 +17,37 @@ Debug、Ops、Repair、設定変更などの管理APIは中継しません。
 
 ASSISTANT連携でも、読み取り画面からwrite actionを許可せず、他利用者のprivate data、secret、device credentialを中継しません。
 
+## 立ち絵asset
+
+PORTALで表示する立ち絵の正本は`internal/portal/web/`配下です。
+
+| character | source asset | public path | 現在の画像 |
+| --- | --- | --- | --- |
+| Mio | `internal/portal/web/mio.png` | `/assets/mio.png` | 512×512 RGBA PNG |
+| Shiro | `internal/portal/web/shiro.png` | `/assets/shiro.png` | 512×512 RGBA PNG |
+| Midori | `internal/portal/web/midori.png` | `/assets/midori.png` | 1024×1024 RGBA PNG |
+
+立ち絵は透過背景を持つ正方形PNGを使用します。人物の頭部や衣装を画像端で意図せず切らず、背景色や透過確認用の市松模様を画像へ焼き込みません。表示サイズと配置は`portal.css`が所有し、画像側へ画面レイアウト用の余白や背景を持たせません。
+
+`mode=lab`ではChat／IdleChatのどちらでも、`lab-partner-mio`、`lab-partner-shiro`、`lab-partner-midori`のうち一つだけを選択し、対応する一人の立ち絵だけを表示します。画像を差し替えてもこの一人表示契約は変えません。
+
+### 立ち絵の差し替え
+
+1. 同じsource asset名で画像を置き換える。
+2. `file`またはImageMagickの`identify`で、PNGとして読めること、正方形であること、alpha channelがあることを確認する。
+3. `make check`でtest、vet、PORTAL binary buildを実行する。
+4. PORTALを再起動する。
+5. source assetと稼働PORTALの配信assetが一致することを確認する。
+
+```bash
+sha256sum internal/portal/web/midori.png
+curl -fsS http://127.0.0.1:18791/assets/midori.png | sha256sum
+```
+
+6. `http://127.0.0.1:18791/?mode=lab`を実ブラウザで開き、対象characterへ切り替えて、画像の欠損、透過、画面内配置、一人表示をdesktop幅とnarrow幅で確認する。
+
+PORTALは`//go:embed web/*`でassetをbinaryへ埋め込むため、ファイルを置き換えただけでは稼働中の表示は変わりません。必ず再ビルド・再起動します。`internal/portal/web/`配下の未参照ファイルもbinaryへ埋め込まれるため、旧画像や作業用バックアップはこのディレクトリへ残しません。
+
 ## Interaction profile
 
 PORTALは、COREのChat／IdleChat能力をWebで利用するInteraction profileです。
