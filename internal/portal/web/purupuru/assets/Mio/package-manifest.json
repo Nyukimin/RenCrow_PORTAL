@@ -1,0 +1,18 @@
+{
+    "format":  "purupuru-avatar-package",
+    "formatVersion":  1,
+    "app":  "PuruPuru PNGTuber",
+    "createdAt":  "2026-07-21T11:39:20.8827293Z",
+    "settings":  "settings.json",
+    "thumbnail":  "thumbnail.png",
+    "avatar":  {
+                   "backHair":  "avatar/back-hair.png",
+                   "frontHair":  "avatar/front-hair.png",
+                   "eyesOpenMouthClosed":  "avatar/eyes-open-mouth-closed.png",
+                   "eyesOpenMouthHalf":  "avatar/eyes-open-mouth-half.png",
+                   "eyesOpenMouthOpen":  "avatar/eyes-open-mouth-open.png",
+                   "eyesClosedMouthClosed":  "avatar/eyes-closed-mouth-closed.png",
+                   "eyesClosedMouthHalf":  "avatar/eyes-closed-mouth-half.png",
+                   "eyesClosedMouthOpen":  "avatar/eyes-closed-mouth-open.png"
+               }
+}

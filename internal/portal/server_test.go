@@ -64,8 +64,12 @@ func TestPortalLabRendersAIVTuberRoom(t *testing.T) {
 		`class="theme-modern live-mode lab-mode`,
 		`class="lab-stream-shell"`,
 		`class="lab-world"`,
-		`class="lab-mio-portrait"`,
-		`class="lab-shiro-portrait"`,
+		`class="lab-mio-portrait purupuru-avatar"`,
+		`class="lab-shiro-portrait purupuru-avatar"`,
+		`class="lab-midori-portrait purupuru-avatar"`,
+		`id="mioAvatar" character="mio"`,
+		`id="shiroAvatar" character="shiro"`,
+		`id="midoriAvatar" character="midori"`,
 		`id="chat"`,
 		`id="labInp"`,
 		`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
@@ -108,7 +112,7 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 }
 
-func TestPortalLabAlwaysDisplaysSinglePortrait(t *testing.T) {
+func TestPortalMountsThreePuruPuruAvatarInstances(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -117,26 +121,112 @@ func TestPortalLabAlwaysDisplaysSinglePortrait(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	markup, err := webFiles.ReadFile("web/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
 	js := string(script)
 	css := string(stylesheet)
-	for _, forbidden := range []string{
-		`body.classList.add('lab-partner-mio', 'lab-partner-shiro');`,
-		`body.dataset.labPartner = isIdle ? 'both' : selectedRecipient;`,
+	html := string(markup)
+	for _, required := range []string{
+		`id="mioAvatar" character="mio"`,
+		`id="shiroAvatar" character="shiro"`,
+		`id="midoriAvatar" character="midori"`,
+		`/assets/purupuru/runtime-app.js`,
+		`/assets/purupuru/runtime-host.js`,
+		`['mio', 'shiro', 'midori'].includes(actor)`,
+		`runtime.setInput(input)`,
+		`getFloatTimeDomainData`,
 	} {
-		if strings.Contains(js, forbidden) {
-			t.Errorf("Lab must not select multiple portraits: %q", forbidden)
+		if !strings.Contains(js+css+html, required) {
+			t.Errorf("multi-avatar contract marker %q is missing", required)
 		}
 	}
+}
+
+func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(script) + string(stylesheet)
 	for _, required := range []string{
-		`body.classList.add(` + "`lab-partner-${portraitRecipient}`" + `);`,
-		`body.dataset.labPartner = portraitRecipient;`,
-		`body.lab-mode.live-mode.lab-idle-mode .lab-mio-portrait,`,
-		`body.lab-mode.live-mode.lab-idle-mode.lab-partner-mio .lab-mio-portrait`,
-		`body.lab-mode.live-mode.lab-idle-mode.lab-partner-shiro .lab-shiro-portrait`,
-		`body.lab-mode.live-mode.lab-idle-mode.lab-partner-midori .lab-midori-portrait`,
+		`if (!roomSurface && body.dataset.surface !== 'live') return;`,
+		`body.classList.toggle('lab-idle-mode', isIdle);`,
+		`body.classList.toggle('lab-chat-mode', !isIdle);`,
+		`setConversationState(false, selectedRecipient);`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait,`,
+		`body.lab-mode.live-mode.lab-idle-mode #mioPortrait,`,
+		`body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,`,
+		`body.portal-live-mode.lab-idle-mode #mioPortrait,`,
+		`body.portal-live-mode.lab-idle-mode #shiroPortrait{`,
+		`body.portal-live-mode.lab-idle-mode #mioPortrait{left:27%}`,
+		`body.portal-live-mode.lab-idle-mode #shiroPortrait{left:73%}`,
 	} {
-		if !strings.Contains(js+css, required) {
-			t.Errorf("single portrait contract marker %q is missing", required)
+		if !strings.Contains(content, required) {
+			t.Errorf("Chat/IdleChat avatar layout marker %q is missing", required)
+		}
+	}
+}
+
+func TestPuruPuruRendererAssetsRemainNonFrameable(t *testing.T) {
+	cfg := DefaultConfig()
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	renderer := httptest.NewRecorder()
+	handler.ServeHTTP(renderer, httptest.NewRequest(http.MethodGet, "/assets/purupuru/runtime-app.js", nil))
+	if renderer.Code != http.StatusOK {
+		t.Fatalf("renderer status = %d", renderer.Code)
+	}
+	if got := renderer.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("renderer X-Frame-Options = %q", got)
+	}
+	if got := renderer.Header().Get("Content-Security-Policy"); !strings.Contains(got, "frame-ancestors 'none'") {
+		t.Fatalf("renderer assets must remain non-frameable: %q", got)
+	}
+
+	page := httptest.NewRecorder()
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/?mode=lab", nil))
+	if got := page.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("portal page X-Frame-Options = %q", got)
+	}
+	if got := page.Header().Get("Content-Security-Policy"); !strings.Contains(got, "frame-ancestors 'none'") {
+		t.Fatalf("portal page CSP must remain non-frameable: %q", got)
+	}
+}
+
+func TestPortalLipSyncUsesTTSAudioAmplitude(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, required := range []string{
+		`createMediaElementSource(audio)`,
+		`getFloatTimeDomainData(ttsControl.meterBuffer)`,
+		`Math.sqrt(sum / ttsControl.meterBuffer.length)`,
+		`setAvatarInput(ttsControl.speakingActor, {voiceRaw: Math.min(2, rms)})`,
+	} {
+		if !strings.Contains(body, required) {
+			t.Errorf("audio-driven lip sync marker %q is missing", required)
+		}
+	}
+	for _, forbidden := range []string{
+		`String(spokenText || '').length`,
+		`const pattern = [0.2, 0.64`,
+		`contentWindow.postMessage`,
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("synthetic/iframe lip sync marker %q must not remain", forbidden)
 		}
 	}
 }
@@ -349,6 +439,40 @@ func TestPortalLabScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL control contract marker %q is missing", marker)
 		}
+	}
+}
+
+func TestPuruPuruHostPreservesUpstreamMotionInputs(t *testing.T) {
+	host, err := webFiles.ReadFile("web/purupuru/runtime-host.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostScript := string(host)
+	for _, marker := range []string{
+		`window.addEventListener('pointermove'`,
+		`index.html?mode=portal&transparent=1`,
+		`mouseFollowEnabled: false`,
+		`controlPanelLeft: VIRTUAL_STAGE.width - 20 - Math.min(448, VIRTUAL_STAGE.width - 40)`,
+		`runtime.setPointer(latestPointer.x, latestPointer.y)`,
+		`runtime.setVoiceLevel(0)`,
+	} {
+		if !strings.Contains(hostScript, marker) {
+			t.Errorf("PuruPuru host motion marker %q is missing", marker)
+		}
+	}
+	if strings.Contains(hostScript, `runtime.setInput({voiceRaw: 0, angleX: 0, angleY: 0})`) {
+		t.Error("PuruPuru host must not reset pose from a voice initialization")
+	}
+	if strings.Contains(hostScript, `index.html?mode=obs`) {
+		t.Error("PuruPuru host must not reuse standalone OBS behavior as PORTAL behavior")
+	}
+
+	portalScript, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(portalScript), `setAvatarInput(actor, {voiceRaw: 0});`) {
+		t.Error("PORTAL ready handler must initialize voice without resetting pose")
 	}
 }
 

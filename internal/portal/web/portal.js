@@ -37,6 +37,12 @@
     seenChunks: new Set(),
     heartbeat: null,
     currentAudio: null,
+    audioContext: null,
+    mediaSource: null,
+    analyser: null,
+    meterBuffer: null,
+    meterFrameID: 0,
+    speakingActor: '',
   };
   const sttControl = {
     enabled: false,
@@ -62,6 +68,12 @@
     coder4: {label: 'Coder4', mark: 'C4', color: '#a16207'},
     coder_loop: {label: 'CoderLoop', mark: 'CL', color: '#a16207'},
   };
+  const avatarRuntimeIDs = {
+    mio: 'mioAvatar',
+    shiro: 'shiroAvatar',
+    midori: 'midoriAvatar',
+  };
+  let latestAvatarSpeaker = 'mio';
 
   function api(path) {
     return `/api/${mode}${path}`;
@@ -191,10 +203,17 @@
     return new Intl.DateTimeFormat('ja-JP', {hour: '2-digit', minute: '2-digit'}).format(date);
   }
 
+  function setAvatarInput(actor, input) {
+    const runtime = document.getElementById(avatarRuntimeIDs[actor]);
+    if (!runtime || typeof runtime.setInput !== 'function') return;
+    runtime.setInput(input);
+  }
+
   function animateSpeaker(actor) {
     const portraitIDs = {shiro: 'shiroPortrait', midori: 'midoriPortrait'};
     const target = document.getElementById(portraitIDs[actor] || 'mioPortrait');
     if (!target) return;
+    latestAvatarSpeaker = actor;
     target.classList.remove('is-speaking');
     requestAnimationFrame(() => target.classList.add('is-speaking'));
     window.setTimeout(() => target.classList.remove('is-speaking'), 1300);
@@ -237,7 +256,7 @@
     chat.append(row);
     while (chat.children.length > 300) chat.firstElementChild.remove();
     chat.scrollTop = chat.scrollHeight;
-    if (actor === 'mio' || actor === 'shiro') animateSpeaker(actor);
+    if (['mio', 'shiro', 'midori'].includes(actor)) animateSpeaker(actor);
   }
 
   function setChip(id, active) {
@@ -249,7 +268,7 @@
   }
 
   function setConversationState(isIdle, recipient = selectedRecipient) {
-    if (!roomSurface) return;
+    if (!roomSurface && body.dataset.surface !== 'live') return;
     let normalizedRecipient = normalizeActor(recipient);
     if (pendingRequest && normalizedRecipient !== pendingRequest.recipient) normalizedRecipient = pendingRequest.recipient;
     if (!isIdle && (normalizedRecipient === 'mio' || isPartnerActor(normalizedRecipient))) {
@@ -387,7 +406,52 @@
       utteranceId: String(payload.utterance_id || '').trim(),
       chunkIndex: Number.isFinite(Number(payload.chunk_index)) ? Number(payload.chunk_index) : -1,
       url: resolveTTSAudioURL(payload),
+      actor: normalizeActor(payload.actor || payload.speaker || payload.from || event.from) || latestAvatarSpeaker,
     };
+  }
+
+  function stopTTSMeter() {
+    if (ttsControl.meterFrameID) cancelAnimationFrame(ttsControl.meterFrameID);
+    ttsControl.meterFrameID = 0;
+    if (ttsControl.speakingActor) setAvatarInput(ttsControl.speakingActor, {voiceRaw: 0});
+    ttsControl.speakingActor = '';
+    ttsControl.mediaSource?.disconnect();
+    ttsControl.analyser?.disconnect();
+    ttsControl.mediaSource = null;
+    ttsControl.analyser = null;
+    ttsControl.meterBuffer = null;
+  }
+
+  async function startTTSMeter(audio, actor) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!ttsControl.audioContext) ttsControl.audioContext = new AudioContextClass();
+    await ttsControl.audioContext.resume();
+    stopTTSMeter();
+    const source = ttsControl.audioContext.createMediaElementSource(audio);
+    const analyser = ttsControl.audioContext.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0;
+    source.connect(analyser);
+    analyser.connect(ttsControl.audioContext.destination);
+    ttsControl.mediaSource = source;
+    ttsControl.analyser = analyser;
+    ttsControl.meterBuffer = new Float32Array(analyser.fftSize);
+    ttsControl.speakingActor = ['mio', 'shiro', 'midori'].includes(actor) ? actor : latestAvatarSpeaker;
+
+    const measure = () => {
+      if (!ttsControl.analyser || !ttsControl.meterBuffer) return;
+      ttsControl.analyser.getFloatTimeDomainData(ttsControl.meterBuffer);
+      let sum = 0;
+      for (let index = 0; index < ttsControl.meterBuffer.length; index += 1) {
+        const sample = ttsControl.meterBuffer[index];
+        sum += sample * sample;
+      }
+      const rms = Math.sqrt(sum / ttsControl.meterBuffer.length);
+      setAvatarInput(ttsControl.speakingActor, {voiceRaw: Math.min(2, rms)});
+      ttsControl.meterFrameID = requestAnimationFrame(measure);
+    };
+    measure();
   }
 
   function handleTTSEvent(event) {
@@ -468,6 +532,7 @@
     const complete = (status, error) => {
       if (settled) return;
       settled = true;
+      stopTTSMeter();
       ttsControl.playing = false;
       ttsControl.currentAudio = null;
       if (!ttsControl.enabled) return;
@@ -476,7 +541,9 @@
     };
     audio.addEventListener('ended', () => complete('ended'), {once: true});
     audio.addEventListener('error', () => complete('error', audio.error || new Error('audio playback failed')), {once: true});
-    audio.play().catch((error) => complete('error', error));
+    startTTSMeter(audio, item.actor)
+      .then(() => audio.play())
+      .catch((error) => complete('error', error));
   }
 
   async function enableTTS() {
@@ -497,6 +564,7 @@
 
   function clearTTSPlayback() {
     ttsControl.queue.length = 0;
+    stopTTSMeter();
     if (ttsControl.currentAudio) {
       ttsControl.currentAudio.pause();
       ttsControl.currentAudio.removeAttribute('src');
@@ -792,12 +860,27 @@
     bindCoreViewerControl('labAttachBtn', 'ファイル添付');
     bindCoreViewerControl('labScreenBtn', '画面入力');
     bindCoreViewerControl('labCameraBtn', 'カメラ入力');
+    setConversationState(false, selectedRecipient);
   } else if (roomSurface) {
     input.disabled = true;
     document.querySelectorAll('.lab-footer-controls .lab-icon-btn').forEach((control) => { control.disabled = true; });
     document.querySelectorAll('.lab-mode-chip').forEach((chip) => chip.disabled = true);
     setConversationState(true, selectedRecipient);
+  } else if (body.dataset.surface === 'live') {
+    setConversationState(false, selectedRecipient);
   }
+
+  document.addEventListener('purupuru-ready', (event) => {
+    const actor = normalizeActor(event.detail && event.detail.character);
+    const portrait = document.querySelector(`.purupuru-avatar[data-character="${actor}"]`);
+    if (portrait) portrait.classList.add('is-renderer-ready');
+    setAvatarInput(actor, {voiceRaw: 0});
+  });
+
+  document.addEventListener('purupuru-error', (event) => {
+    const actor = normalizeActor(event.detail && event.detail.character) || 'unknown';
+    console.error(`PuruPuru ${actor} failed: ${String(event.detail && event.detail.message || 'unknown error')}`);
+  });
 
   updateDateTime();
   window.setInterval(updateDateTime, 1000);

@@ -1,0 +1,255 @@
+{
+    "app":  "PuruPuru PNGTuber",
+    "type":  "character-settings",
+    "version":  1,
+    "savedAt":  "2026-07-21T01:27:22.793895Z",
+    "avatarImageSize":  {
+                            "width":  1254,
+                            "height":  1254
+                        },
+    "state":  {
+                  "angleStrength":  80,
+                  "faceWarp":  32,
+                  "angleXDeform":  125,
+                  "faceTurnDepth":  120,
+                  "faceTurnVertical":  25,
+                  "angleYDeform":  160,
+                  "hairVisible":  true,
+                  "hairWarp":  60,
+                  "hairSpring":  100,
+                  "hairBundleStrength":  100,
+                  "frontHairShadowEnabled":  false,
+                  "frontHairShadowStrength":  0,
+                  "frontHairShadowDistance":  0,
+                  "followSpeed":  25,
+                  "avatarSize":  65,
+                  "avatarX":  -169,
+                  "avatarY":  -33,
+                  "highlightEnabled":  false,
+                  "subHighlightEnabled":  false,
+                  "tearLensEnabled":  false,
+                  "bgColor":  "#FFF8EE",
+                  "hairTintEnabled":  false,
+                  "hairTintColor":  "#FFFFFF",
+                  "autoBlink":  true,
+                  "diagonalEnabled":  true,
+                  "micGain":  250,
+                  "mouthHalf":  7,
+                  "mouthFull":  20,
+                  "mouthRelease":  18,
+                  "bgImageVisible":  false,
+                  "bgImageOpacity":  100,
+                  "bgImageScale":  100,
+                  "bgImageX":  0,
+                  "bgImageY":  0,
+                  "rangeLeft":  50,
+                  "rangeRight":  50,
+                  "rangeUp":  15,
+                  "rangeDown":  50,
+                  "breathStrength":  40,
+                  "rollStrength":  1,
+                  "pyokoStrength":  15,
+                  "mouseFollowEnabled":  true,
+                  "idleMotionEnabled":  false,
+                  "diagonalFaceWarpEnabled":  true,
+                  "mouthCrossfadeMs":  0,
+                  "wobbleSeed":  0.18
+              },
+    "outputSettings":  {
+                           "obsPreset":  "standard"
+                       },
+    "faceCenterSetup":  {
+                            "version":  1,
+                            "point":  {
+                                          "x":  626,
+                                          "y":  482
+                                      }
+                        },
+    "eyeSetup":  {
+                     "version":  2,
+                     "left":  {
+                                  "x":  526,
+                                  "y":  423,
+                                  "radiusX":  58,
+                                  "radiusY":  45
+                              },
+                     "right":  {
+                                   "x":  722,
+                                   "y":  434,
+                                   "radiusX":  58,
+                                   "radiusY":  45
+                               }
+                 },
+    "faceDepthSetup":  {
+                           "version":  1,
+                           "leftEye":  {
+                                           "x":  526,
+                                           "y":  423
+                                       },
+                           "rightEye":  {
+                                            "x":  722,
+                                            "y":  434
+                                        },
+                           "nose":  {
+                                        "x":  617,
+                                        "y":  499
+                                    },
+                           "mouth":  {
+                                         "x":  618,
+                                         "y":  553
+                                     },
+                           "chin":  {
+                                        "x":  619,
+                                        "y":  636
+                                    }
+                       },
+    "neckPivotSetup":  {
+                           "version":  1,
+                           "point":  {
+                                         "x":  625,
+                                         "y":  694
+                                     }
+                       },
+    "highlightSetup":  {
+                           "version":  1,
+                           "left":  {
+                                        "x":  526,
+                                        "y":  423
+                                    },
+                           "right":  {
+                                         "x":  722,
+                                         "y":  434
+                                     }
+                       },
+    "hairBundleSetup":  {
+                            "version":  1,
+                            "bundles":  [
+                                            {
+                                                "id":  "frontLeft",
+                                                "root":  {
+                                                             "x":  500,
+                                                             "y":  160
+                                                         },
+                                                "tip":  {
+                                                            "x":  465,
+                                                            "y":  505
+                                                        }
+                                            },
+                                            {
+                                                "id":  "frontCenter",
+                                                "root":  {
+                                                             "x":  620,
+                                                             "y":  135
+                                                         },
+                                                "tip":  {
+                                                            "x":  625,
+                                                            "y":  375
+                                                        }
+                                            },
+                                            {
+                                                "id":  "frontRight",
+                                                "root":  {
+                                                             "x":  740,
+                                                             "y":  155
+                                                         },
+                                                "tip":  {
+                                                            "x":  775,
+                                                            "y":  500
+                                                        }
+                                            },
+                                            {
+                                                "id":  "sideLeft",
+                                                "root":  {
+                                                             "x":  360,
+                                                             "y":  245
+                                                         },
+                                                "tip":  {
+                                                            "x":  295,
+                                                            "y":  800
+                                                        }
+                                            },
+                                            {
+                                                "id":  "sideRight",
+                                                "root":  {
+                                                             "x":  900,
+                                                             "y":  245
+                                                         },
+                                                "tip":  {
+                                                            "x":  970,
+                                                            "y":  800
+                                                        }
+                                            },
+                                            {
+                                                "id":  "backLeft",
+                                                "root":  {
+                                                             "x":  290,
+                                                             "y":  220
+                                                         },
+                                                "tip":  {
+                                                            "x":  200,
+                                                            "y":  1040
+                                                        }
+                                            },
+                                            {
+                                                "id":  "backCenter",
+                                                "root":  {
+                                                             "x":  620,
+                                                             "y":  100
+                                                         },
+                                                "tip":  {
+                                                            "x":  620,
+                                                            "y":  760
+                                                        }
+                                            },
+                                            {
+                                                "id":  "backRight",
+                                                "root":  {
+                                                             "x":  960,
+                                                             "y":  230
+                                                         },
+                                                "tip":  {
+                                                            "x":  1060,
+                                                            "y":  1040
+                                                        }
+                                            }
+                                        ]
+                        },
+    "itemLayers":  [
+                       {
+                           "id":  1,
+                           "label":  "#1 body.png",
+                           "name":  "body.png",
+                           "src":  null,
+                           "slot":  "faceBack",
+                           "x":  0,
+                           "y":  0,
+                           "scale":  100,
+                           "rotation":  0,
+                           "opacity":  100,
+                           "followStrength":  100,
+                           "deformFollowEnabled":  false,
+                           "visible":  true,
+                           "locked":  true,
+                           "file":  "items/body.png"
+                       },
+                       {
+                           "id":  2,
+                           "label":  "#2 accessories.png",
+                           "name":  "accessories.png",
+                           "src":  null,
+                           "slot":  "faceFront",
+                           "x":  0,
+                           "y":  0,
+                           "scale":  100,
+                           "rotation":  0,
+                           "opacity":  100,
+                           "followStrength":  100,
+                           "deformFollowEnabled":  false,
+                           "visible":  true,
+                           "locked":  true,
+                           "file":  "items/accessories.png"
+                       }
+                   ],
+    "activeItemLayerId":  2,
+    "packageVersion":  1
+}

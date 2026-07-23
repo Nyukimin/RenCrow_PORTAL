@@ -2997,3 +2997,104 @@ body.portal-live-mode main{
     max-width:calc(100vw - var(--lab-edge) * 2 - 260px);
   }
 }
+
+/* PuruPuru renderer: Chatは選択中の1体、IdleChatはMio左・Shiro右。 */
+.purupuru-avatar{
+  position:fixed;
+  display:none;
+  top:8.5vh;
+  width:min(34vw,560px);
+  height:43vh;
+  min-height:300px;
+  z-index:18;
+  overflow:visible;
+  pointer-events:none;
+  opacity:.88;
+  transform:translateX(-50%);
+  transition:opacity .2s ease,filter .2s ease,transform .2s ease;
+}
+
+.purupuru-avatar purupuru-avatar{
+  width:100%;
+  height:100%;
+  display:block;
+  overflow:hidden;
+  border:0;
+  background:transparent;
+  pointer-events:none;
+}
+
+body.lab-mode.live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,
+body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,
+body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait,
+body.portal-live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,
+body.portal-live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,
+body.portal-live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait{
+  display:block !important;
+  left:50%;
+  top:8.5vh;
+  width:min(56vw,760px);
+  height:58vh;
+  transform:translateX(-50%);
+  opacity:1;
+  filter:drop-shadow(0 0 24px rgba(112,190,255,.28));
+}
+
+body.lab-mode.live-mode.lab-idle-mode #mioPortrait,
+body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,
+body.portal-live-mode.lab-idle-mode #mioPortrait,
+body.portal-live-mode.lab-idle-mode #shiroPortrait{
+  display:block !important;
+  top:8.5vh;
+  width:min(44vw,700px);
+  height:52vh;
+  opacity:1;
+}
+
+body.lab-mode.live-mode.lab-idle-mode #mioPortrait,
+body.portal-live-mode.lab-idle-mode #mioPortrait{
+  left:28%;
+}
+
+body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,
+body.portal-live-mode.lab-idle-mode #shiroPortrait{
+  left:72%;
+}
+
+.purupuru-avatar.is-speaking{
+  opacity:1;
+  filter:drop-shadow(0 0 30px rgba(126,208,255,.42));
+}
+
+@media (orientation:portrait), (max-width:700px){
+  .purupuru-avatar{
+    top:14dvh !important;
+    width:42vw !important;
+    height:34dvh !important;
+    min-height:220px;
+  }
+
+  body.lab-mode.live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,
+  body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,
+  body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait,
+  body.portal-live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,
+  body.portal-live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,
+  body.portal-live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait{
+    left:50%;
+    width:72vw !important;
+    height:44dvh !important;
+  }
+
+  body.lab-mode.live-mode.lab-idle-mode #mioPortrait,
+  body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,
+  body.portal-live-mode.lab-idle-mode #mioPortrait,
+  body.portal-live-mode.lab-idle-mode #shiroPortrait{
+    width:48vw !important;
+    height:36dvh !important;
+  }
+
+  body.lab-mode.live-mode.lab-idle-mode #mioPortrait,
+  body.portal-live-mode.lab-idle-mode #mioPortrait{left:27%}
+  body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,
+  body.portal-live-mode.lab-idle-mode #shiroPortrait{left:73%}
+}

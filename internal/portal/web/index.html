@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>RenCrow AI VTuber Portal</title>
+  <link rel="icon" href="/assets/rencrow-logo.png">
   <link rel="stylesheet" href="/assets/portal.css">
 </head>
 <body class="{{.BodyClass}}" data-mode="{{.Mode}}" data-surface="{{.Surface}}">
@@ -117,14 +118,14 @@
     <p id="operationStatus" class="portal-operation-status" aria-live="polite"></p>
   </div>
 
-  <div class="lab-mio-portrait" id="mioPortrait" aria-label="Mio">
-    <img src="/assets/mio.png" alt="Mio">
+  <div class="lab-mio-portrait purupuru-avatar" id="mioPortrait" data-character="mio" aria-label="Mio">
+    <purupuru-avatar id="mioAvatar" character="mio" aria-label="Mio PuruPuru avatar"></purupuru-avatar>
   </div>
-  <div class="lab-shiro-portrait" id="shiroPortrait" aria-label="Shiro">
-    <img src="/assets/shiro.png" alt="Shiro">
+  <div class="lab-shiro-portrait purupuru-avatar" id="shiroPortrait" data-character="shiro" aria-label="Shiro">
+    <purupuru-avatar id="shiroAvatar" character="shiro" aria-label="Shiro PuruPuru avatar"></purupuru-avatar>
   </div>
-  <div class="lab-midori-portrait" id="midoriPortrait" aria-label="Midori">
-    <img src="/assets/midori.png" alt="Midori">
+  <div class="lab-midori-portrait purupuru-avatar" id="midoriPortrait" data-character="midori" aria-label="Midori">
+    <purupuru-avatar id="midoriAvatar" character="midori" aria-label="Midori PuruPuru avatar"></purupuru-avatar>
   </div>
 
   <main>
@@ -145,6 +146,8 @@
     </div>
   </main>
 
+  <script src="/assets/purupuru/runtime-app.js" defer></script>
+  <script src="/assets/purupuru/runtime-host.js" defer></script>
   <script src="/assets/portal.js" defer></script>
 </body>
 </html>

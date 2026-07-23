@@ -1,0 +1,37 @@
+:host{
+  position:absolute;
+  inset:0;
+  display:block;
+  overflow:hidden;
+  contain:layout paint style;
+}
+
+.purupuru-runtime-document{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  background:transparent;
+}
+
+.purupuru-runtime-document.obs-mode{
+  background:transparent !important;
+}
+
+.purupuru-runtime-document #stage{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:transparent !important;
+}
+
+.purupuru-runtime-document .control-card,
+.purupuru-runtime-document .character-switcher,
+.purupuru-runtime-document .live-bar,
+.purupuru-runtime-document .dock-peek-button,
+.purupuru-runtime-document .character-wizard-panel,
+.purupuru-runtime-document .drawing-avatar-panel{
+  display:none !important;
+}
