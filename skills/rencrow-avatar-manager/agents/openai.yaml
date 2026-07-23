@@ -1,0 +1,4 @@
+interface:
+  display_name: "RenCrow Avatar Manager"
+  short_description: "RenCrowキャラの追加・更新・検証を安全に実行"
+  default_prompt: "Use $rencrow-avatar-manager to update or add a RenCrow PORTAL avatar safely and verify the live result."

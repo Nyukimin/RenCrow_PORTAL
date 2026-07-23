@@ -55,6 +55,16 @@ curl -fsS http://127.0.0.1:18791/assets/purupuru/assets/Midori/front-hair.png | 
 
 PORTALは`//go:embed web/*`でassetをbinaryへ埋め込むため、ファイルを置き換えただけでは稼働中の表示は変わりません。必ず再ビルド・再起動します。`internal/portal/web/`配下の未参照ファイルもbinaryへ埋め込まれるため、旧画像や作業用バックアップはこのディレクトリへ残しません。vendored PuruPuruのライセンスとPortal固有差分は`internal/portal/web/purupuru/README.md`に記録します。
 
+### Avatar管理Skill
+
+PORTAL専用の`rencrow-avatar-manager` Skillは`skills/rencrow-avatar-manager/`を正本としてGit管理します。Codexから自動検出させる場合は、管理者権限を必要としないディレクトリジャンクションを作成します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\skills\rencrow-avatar-manager\scripts\install.ps1
+```
+
+SkillはPuruPuru package、PORTAL展開Asset、Chat／IdleChat配置、テスト、再ビルド、HTTP配信Asset、実ブラウザ表示を一連で検査します。
+
 ## Interaction profile
 
 PORTALは、COREのChat／IdleChat能力をWebで利用するInteraction profileです。

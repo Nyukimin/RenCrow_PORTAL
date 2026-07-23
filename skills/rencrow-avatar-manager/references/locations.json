@@ -1,0 +1,54 @@
+{
+  "skill_root": "C:\\Users\\nyuki\\Documents\\GenerativeAI\\RenCrow\\RenCrow_PORTAL\\skills\\rencrow-avatar-manager",
+  "purupuru_root": "C:\\Users\\nyuki\\Documents\\GenerativeAI\\PuruPuruPNGTuber",
+  "portal_root": "C:\\Users\\nyuki\\Documents\\GenerativeAI\\RenCrow\\RenCrow_PORTAL",
+  "portal_assets_relative": "internal\\portal\\web\\purupuru\\assets",
+  "portal_manifest_relative": "internal\\portal\\web\\purupuru\\manifest.json",
+  "portal_binary_relative": "build\\rencrow-portal.exe",
+  "portal_url": "http://127.0.0.1:18791/?mode=lab",
+  "portal_port": 18791,
+  "characters": {
+    "mio": {
+      "display_name": "Mio",
+      "source_directory": "assets\\Mio",
+      "package": "Mio.purupuru",
+      "portal_directory": "Mio",
+      "chat": {
+        "enabled": true,
+        "placement": "center"
+      },
+      "idle_chat": {
+        "enabled": true,
+        "placement": "left"
+      }
+    },
+    "shiro": {
+      "display_name": "Shiro",
+      "source_directory": "assets\\Shiro",
+      "package": "Shiro02.purupuru",
+      "portal_directory": "Shiro",
+      "chat": {
+        "enabled": true,
+        "placement": "center"
+      },
+      "idle_chat": {
+        "enabled": true,
+        "placement": "right"
+      }
+    },
+    "midori": {
+      "display_name": "Midori",
+      "source_directory": "assets\\Midori",
+      "package": "Midori02.purupuru",
+      "portal_directory": "Midori",
+      "chat": {
+        "enabled": true,
+        "placement": "center"
+      },
+      "idle_chat": {
+        "enabled": false,
+        "placement": null
+      }
+    }
+  }
+}
