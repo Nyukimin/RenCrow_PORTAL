@@ -66,14 +66,17 @@ func TestPortalLabRendersAIVTuberRoom(t *testing.T) {
 		`class="lab-world"`,
 		`class="lab-mio-portrait purupuru-avatar"`,
 		`class="lab-shiro-portrait purupuru-avatar"`,
+		`class="lab-kuro-portrait purupuru-avatar"`,
 		`class="lab-midori-portrait purupuru-avatar"`,
 		`id="mioAvatar" character="mio"`,
 		`id="shiroAvatar" character="shiro"`,
+		`id="kuroAvatar" character="kuro"`,
 		`id="midoriAvatar" character="midori"`,
 		`id="chat"`,
 		`id="labInp"`,
 		`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
 		`id="labModeShiroChip" type="button" data-lab-switch="shiro" aria-current="false"`,
+		`id="labModeKuroChip" type="button" data-lab-switch="kuro" aria-current="false"`,
 		`id="labModeMidoriChip" type="button" data-lab-switch="midori" aria-current="false"`,
 		`id="labAudioBtn"`,
 		`id="labMicBtn"`,
@@ -100,6 +103,7 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 	for _, marker := range []string{
 		`setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');`,
 		`setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');`,
+		`setChip('labModeKuroChip', !isIdle && selectedRecipient === 'kuro');`,
 		`setChip('labModeMidoriChip', !isIdle && selectedRecipient === 'midori');`,
 		`const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);`,
 		`setModeSwitcherBusy(true);`,
@@ -112,7 +116,7 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 }
 
-func TestPortalMountsThreePuruPuruAvatarInstances(t *testing.T) {
+func TestPortalMountsFourPuruPuruAvatarInstances(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -131,10 +135,11 @@ func TestPortalMountsThreePuruPuruAvatarInstances(t *testing.T) {
 	for _, required := range []string{
 		`id="mioAvatar" character="mio"`,
 		`id="shiroAvatar" character="shiro"`,
+		`id="kuroAvatar" character="kuro"`,
 		`id="midoriAvatar" character="midori"`,
 		`/assets/purupuru/runtime-app.js`,
 		`/assets/purupuru/runtime-host.js`,
-		`['mio', 'shiro', 'midori'].includes(actor)`,
+		`['mio', 'shiro', 'kuro', 'midori'].includes(actor)`,
 		`runtime.setInput(input)`,
 		`getFloatTimeDomainData`,
 	} {
@@ -161,7 +166,9 @@ func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
 		`setConversationState(false, selectedRecipient);`,
 		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,`,
 		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #kuroPortrait,`,
 		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait,`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #mioPortrait,`,
 		`body.lab-mode.live-mode.lab-idle-mode #mioPortrait,`,
 		`body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,`,
 		`body.portal-live-mode.lab-idle-mode #mioPortrait,`,

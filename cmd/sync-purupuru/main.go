@@ -14,6 +14,7 @@ import (
 func main() {
 	source := flag.String("source", "../PuruPuruPNGTuber", "PuruPuruPNGTuber checkout")
 	destination := flag.String("destination", "internal/portal/web/purupuru", "generated runtime destination")
+	character := flag.String("character", "", "extract only this character (comma-separated); empty syncs all")
 	flag.Parse()
 
 	absSource, err := filepath.Abs(*source)
@@ -25,7 +26,13 @@ func main() {
 		log.Fatal(err)
 	}
 	commit := strings.TrimSpace(gitOutput(absSource, "rev-parse", "HEAD"))
-	manifest, err := purupurusync.Sync(absSource, absDestination, commit)
+	var selected []string
+	for _, value := range strings.Split(*character, ",") {
+		if value = strings.TrimSpace(value); value != "" {
+			selected = append(selected, value)
+		}
+	}
+	manifest, err := purupurusync.SyncSelected(absSource, absDestination, commit, selected)
 	if err != nil {
 		log.Fatal(err)
 	}

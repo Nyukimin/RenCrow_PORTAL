@@ -2,11 +2,13 @@
   "source_commit": "9dc1e735155faae8f54f9ee3076b52db7da36624",
   "app_sha256": "16ce47d4d56bddfea6663ba7c8a15fe529c3b864fafaa4455e6a1f270953d367",
   "character_packages": {
+    "Kuro": "Kuro.purupuru",
     "Midori": "Midori02.purupuru",
     "Mio": "Mio.purupuru",
     "Shiro": "Shiro02.purupuru"
   },
   "package_sha256": {
+    "Kuro": "c25f4d07eb13f6bf0cd2ad5cd1acf1add428abec1b0f043b6dd17c5825b03111",
     "Midori": "cc926d00e7a6acdc07cbfd6c557c392d748076739385f4894d2452bb4d0addf6",
     "Mio": "e4fe0fe57e8433873c085644086a5b86b8e61f55dcedea8db8674415480453b1",
     "Shiro": "42abdba0db868add338f11d4b0b4b1805feda491cd76e4c2db4d16e3ee0e9cec"
@@ -15,6 +17,18 @@
     "LICENSE": "8895a4c628bc3eda9f5ae2864aa586fbf3faaf63588f8c8501b756123945c494",
     "README.md": "be264edf51bd7d394c0df16326682d3e7c4df70e6ad3191879dc918241aa2e0b",
     "app.js": "16ce47d4d56bddfea6663ba7c8a15fe529c3b864fafaa4455e6a1f270953d367",
+    "assets/Kuro/back-hair.png": "3ca92a32ec9fbbc674d4b6d9686af381b28128acbb4692c6a7e5e21faba480a2",
+    "assets/Kuro/default-settings.json": "52a0f198c07cb8f59796fdb9eeff23bb6a2e7098112f7ed113276c536bad15ea",
+    "assets/Kuro/eyes-closed-mouth-closed.png": "281d0b6710a5a1fcada58e795d41f82fe158d322274d1d0ca7bf34f3932fe7bf",
+    "assets/Kuro/eyes-closed-mouth-half.png": "7d59a70e3f5cd4a40929a6cd9b94e6f18c001c4acceba5100c46007e0699742e",
+    "assets/Kuro/eyes-closed-mouth-open.png": "a349f3440148470b96d5358cd208bd26fdacec56e45ba377d04204d0a9c894e9",
+    "assets/Kuro/eyes-open-mouth-closed.png": "798aa26b79c8693fea857a89e7e4997a28e5c6ef03af76b00f62a4dc9cb92fa6",
+    "assets/Kuro/eyes-open-mouth-half.png": "3f597405dea38564d12a86dca607f4ec2a726100ce0bb1dd3c6fea7f4f099325",
+    "assets/Kuro/eyes-open-mouth-open.png": "4cf9714c214f3bd0cb8541facbce6e99261be7a316ec7e302fb6e920e97a5bce",
+    "assets/Kuro/front-hair.png": "7d261f4181cf5caba1f69fdee99fc6f046806d322304ac37d79ca4b9a364ea3b",
+    "assets/Kuro/items/item-1-body.png": "8535b95861bcb1d4bb2dace8c4abeaabcdc9fbac3b183f47be75b2c156746d65",
+    "assets/Kuro/package-manifest.json": "8e7a01debdce36632a7ff55c7ed80ff94880f5e47e8544fbea9dd2ddf98de08c",
+    "assets/Kuro/package-thumbnail.png": "9434229da321af4e4a2b4c11654725cbe606b27dd6db49407f96f5ef6a9a8d18",
     "assets/Midori/back-hair.png": "be16477246d7fc69278ab654013695e8000d9d2b5dc9348ed39b4601bcb27fe3",
     "assets/Midori/default-settings.json": "795022befe1ba6e013eb22bcf2029bb64f2b74d3cd2408ade39c89c4c7919026",
     "assets/Midori/eyes-closed-mouth-closed.png": "b4ad3a7f54da2216215a9f4672308332078b9b97867ff471a6636f360cc0087a",
@@ -57,9 +71,9 @@
     "assets/Shiro/package-manifest.json": "510eca84e7c143f271001ef5f45fec43288eac495969e2b40f61491251569d89",
     "assets/Shiro/package-thumbnail.png": "79d1d3a30d6c7f477849140d87b5df3baa7a3980bbc8ad0fb65cbd02fe9dfe5f",
     "index.html": "c8b389e2113351f0337d6b182832ce534dc6bfefcde09c0526682a42a3d75e86",
-    "runtime-app.js": "9a556d28ef2fb609a5132b32e7eaa4ddc86014148340b6dd1fcfb25233624ea7",
+    "runtime-app.js": "cb23db9a2c934779034f0778e578b4d3e4b734da72afd69ea699f1631abe8fae",
     "runtime-host.css": "9c08057837569e7a5401f427391c9292c3d56b498d2098cf70074db5947ec992",
-    "runtime-host.js": "7e07f2f35154a5bad06fec4b9d89cb32ea535b3eae22a2f3f20f69887cee53d8",
+    "runtime-host.js": "4b62a451964c97c13f5f009a27fa773b0017f1be45797691bb0d73dd055ae6ec",
     "styles.css": "8528f4195fe564ccb7c3778a144309abd239127118b5aaf21f97592ba766ce6b"
   }
 }

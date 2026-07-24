@@ -36,6 +36,20 @@
         "placement": "right"
       }
     },
+    "kuro": {
+      "display_name": "Kuro",
+      "source_directory": "assets\\Kuro",
+      "package": "Kuro.purupuru",
+      "portal_directory": "Kuro",
+      "chat": {
+        "enabled": true,
+        "placement": "center"
+      },
+      "idle_chat": {
+        "enabled": false,
+        "placement": null
+      }
+    },
     "midori": {
       "display_name": "Midori",
       "source_directory": "assets\\Midori",

@@ -40,6 +40,7 @@ func TestTransformAppBuildsScopedMultiInstanceRuntime(t *testing.T) {
 		"setInput(input = {})",
 		`Object.hasOwn(input, "voiceRaw")`,
 		`runtime.mouseFollowEnabled === false`,
+		`kuro: "Kuro"`,
 		"mouseFollowEnabled: state.mouseFollowEnabled",
 		"idleMotionEnabled: state.idleMotionEnabled",
 		"meshRenderer?.dispose?.()",
@@ -57,6 +58,19 @@ func TestTransformAppBuildsScopedMultiInstanceRuntime(t *testing.T) {
 		if strings.Contains(text, stale) {
 			t.Errorf("generated runtime still contains stale PORTAL behavior %q", stale)
 		}
+	}
+}
+
+func TestConfiguredCharactersSupportsTargetedKuroSync(t *testing.T) {
+	selected, err := configuredCharacters([]string{"kuro", "KURO"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected) != 1 || selected[0] != "Kuro" {
+		t.Fatalf("selected = %#v, want []string{\"Kuro\"}", selected)
+	}
+	if _, err := configuredCharacters([]string{"unknown"}); err == nil {
+		t.Fatal("unknown character should be rejected")
 	}
 }
 

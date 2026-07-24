@@ -132,7 +132,7 @@
     async connectedCallback() {
       const token = ++this.mountToken;
       const character = String(this.getAttribute('character') || '').trim().toLowerCase();
-      if (!['mio', 'shiro', 'midori'].includes(character)) {
+      if (!['mio', 'shiro', 'kuro', 'midori'].includes(character)) {
         this.dataset.runtimeState = 'error';
         throw new Error(`Unknown PuruPuru character: ${character}`);
       }

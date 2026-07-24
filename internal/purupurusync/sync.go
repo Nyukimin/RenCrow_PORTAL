@@ -16,7 +16,7 @@ import (
 
 // Characters is the PORTAL-visible set. The directory names are part of the
 // PuruPuru package contract and intentionally retain their original casing.
-var Characters = []string{"Mio", "Shiro", "Midori"}
+var Characters = []string{"Mio", "Shiro", "Kuro", "Midori"}
 
 // CharacterPackages pins the generated model that PORTAL renders. Loose PNGs
 // in each directory can be intermediate material and are not necessarily the
@@ -24,6 +24,7 @@ var Characters = []string{"Mio", "Shiro", "Midori"}
 var CharacterPackages = map[string]string{
 	"Mio":    "Mio.purupuru",
 	"Shiro":  "Shiro02.purupuru",
+	"Kuro":   "Kuro.purupuru",
 	"Midori": "Midori02.purupuru",
 }
 
@@ -72,7 +73,7 @@ func TransformApp(source []byte) ([]byte, error) {
 
 	replace(`  const OBS_MODE = APP_MODE === "obs";`, `  const OBS_MODE = APP_MODE === "obs";
   const PORTAL_RUNTIME_MODE = Boolean(runtime.portal);
-  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", midori: "Midori" });
+  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori" });
   const PORTAL_CHARACTER = Object.hasOwn(PORTAL_CHARACTER_DIRS, String(runtime.character || "").toLowerCase())
     ? String(runtime.character).toLowerCase()
     : "mio";
@@ -302,6 +303,18 @@ func TransformApp(source []byte) ([]byte, error) {
 }
 
 func Sync(sourceRoot, destinationRoot, sourceCommit string) (*Manifest, error) {
+	return SyncSelected(sourceRoot, destinationRoot, sourceCommit, nil)
+}
+
+// SyncSelected regenerates the shared runtime while extracting only the
+// requested character packages. An empty selection preserves the historical
+// full-sync behavior. This lets a single character be updated without
+// overwriting a known non-target asset difference.
+func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []string) (*Manifest, error) {
+	targets, err := configuredCharacters(selected)
+	if err != nil {
+		return nil, err
+	}
 	app, err := os.ReadFile(filepath.Join(sourceRoot, "app.js"))
 	if err != nil {
 		return nil, fmt.Errorf("read upstream app.js: %w", err)
@@ -333,7 +346,6 @@ func Sync(sourceRoot, destinationRoot, sourceCommit string) (*Manifest, error) {
 	}
 	for _, character := range Characters {
 		sourceDir := filepath.Join(sourceRoot, "assets", character)
-		destinationDir := filepath.Join(destinationRoot, "assets", character)
 		packageName := CharacterPackages[character]
 		if packageName == "" {
 			return nil, fmt.Errorf("%s package is not configured", character)
@@ -346,6 +358,10 @@ func Sync(sourceRoot, destinationRoot, sourceCommit string) (*Manifest, error) {
 		packageHash := sha256.Sum256(packageData)
 		manifest.CharacterPackage[character] = packageName
 		manifest.PackageSHA256[character] = hex.EncodeToString(packageHash[:])
+		if !contains(targets, character) {
+			continue
+		}
+		destinationDir := filepath.Join(destinationRoot, "assets", character)
 		if err := resetGeneratedCharacterDir(destinationRoot, destinationDir); err != nil {
 			return nil, fmt.Errorf("reset %s destination: %w", character, err)
 		}
@@ -366,6 +382,36 @@ func Sync(sourceRoot, destinationRoot, sourceCommit string) (*Manifest, error) {
 		return nil, err
 	}
 	return manifest, nil
+}
+
+func configuredCharacters(selected []string) ([]string, error) {
+	if len(selected) == 0 {
+		return append([]string(nil), Characters...), nil
+	}
+	result := make([]string, 0, len(selected))
+	for _, requested := range selected {
+		requested = strings.TrimSpace(requested)
+		if requested == "" {
+			continue
+		}
+		match := ""
+		for _, character := range Characters {
+			if strings.EqualFold(character, requested) {
+				match = character
+				break
+			}
+		}
+		if match == "" {
+			return nil, fmt.Errorf("unknown character %q", requested)
+		}
+		if !contains(result, match) {
+			result = append(result, match)
+		}
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("character selection is empty")
+	}
+	return result, nil
 }
 
 func resetGeneratedCharacterDir(destinationRoot, destinationDir string) error {

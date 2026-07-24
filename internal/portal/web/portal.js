@@ -71,6 +71,7 @@
   const avatarRuntimeIDs = {
     mio: 'mioAvatar',
     shiro: 'shiroAvatar',
+    kuro: 'kuroAvatar',
     midori: 'midoriAvatar',
   };
   let latestAvatarSpeaker = 'mio';
@@ -210,7 +211,7 @@
   }
 
   function animateSpeaker(actor) {
-    const portraitIDs = {shiro: 'shiroPortrait', midori: 'midoriPortrait'};
+    const portraitIDs = {shiro: 'shiroPortrait', kuro: 'kuroPortrait', midori: 'midoriPortrait'};
     const target = document.getElementById(portraitIDs[actor] || 'mioPortrait');
     if (!target) return;
     latestAvatarSpeaker = actor;
@@ -256,7 +257,7 @@
     chat.append(row);
     while (chat.children.length > 300) chat.firstElementChild.remove();
     chat.scrollTop = chat.scrollHeight;
-    if (['mio', 'shiro', 'midori'].includes(actor)) animateSpeaker(actor);
+    if (['mio', 'shiro', 'kuro', 'midori'].includes(actor)) animateSpeaker(actor);
   }
 
   function setChip(id, active) {
@@ -280,13 +281,14 @@
     body.classList.toggle('lab-chat-mode', !isIdle);
     ['mio', 'shiro', 'kuro', 'midori'].forEach((actor) => body.classList.remove(`lab-partner-${actor}`));
     const candidateRecipient = isIdle ? normalizedRecipient : selectedRecipient;
-    const portraitRecipient = ['mio', 'shiro', 'midori'].includes(candidateRecipient) ? candidateRecipient : 'mio';
+    const portraitRecipient = ['mio', 'shiro', 'kuro', 'midori'].includes(candidateRecipient) ? candidateRecipient : 'mio';
     body.classList.add(`lab-partner-${portraitRecipient}`);
     body.dataset.labConversationMode = isIdle ? 'idle' : 'chat';
     body.dataset.labPartner = portraitRecipient;
     body.dataset.labSelectedPartner = isIdle ? selectedPartner : selectedRecipient;
     setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');
     setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');
+    setChip('labModeKuroChip', !isIdle && selectedRecipient === 'kuro');
     setChip('labModeMidoriChip', !isIdle && selectedRecipient === 'midori');
   }
 
@@ -437,7 +439,7 @@
     ttsControl.mediaSource = source;
     ttsControl.analyser = analyser;
     ttsControl.meterBuffer = new Float32Array(analyser.fftSize);
-    ttsControl.speakingActor = ['mio', 'shiro', 'midori'].includes(actor) ? actor : latestAvatarSpeaker;
+    ttsControl.speakingActor = ['mio', 'shiro', 'kuro', 'midori'].includes(actor) ? actor : latestAvatarSpeaker;
 
     const measure = () => {
       if (!ttsControl.analyser || !ttsControl.meterBuffer) return;

@@ -48,7 +48,7 @@
   const APP_MODE = String(URL_PARAMS.get("mode") || "control").toLowerCase();
   const OBS_MODE = APP_MODE === "obs";
   const PORTAL_RUNTIME_MODE = Boolean(runtime.portal);
-  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", midori: "Midori" });
+  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori" });
   const PORTAL_CHARACTER = Object.hasOwn(PORTAL_CHARACTER_DIRS, String(runtime.character || "").toLowerCase())
     ? String(runtime.character).toLowerCase()
     : "mio";
