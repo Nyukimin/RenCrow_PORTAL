@@ -3,7 +3,7 @@
 
   const body = document.body;
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
-  const mode = ['view', 'live', 'lab'].includes(requestedMode) ? requestedMode : 'view';
+  const mode = ['idlechat', 'live', 'lab'].includes(requestedMode) ? requestedMode : 'idlechat';
   const roomSurface = body.dataset.surface === 'lab';
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty');

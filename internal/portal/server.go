@@ -34,6 +34,7 @@ type pageData struct {
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
 func NewHandler(cfg Config) (http.Handler, error) {
+	cfg = cfg.normalized()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
 	switch {
-	case r.URL.Path == "/" || r.URL.Path == "/view" || r.URL.Path == "/live" || r.URL.Path == "/lab":
+	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/view" || r.URL.Path == "/live" || r.URL.Path == "/lab":
 		h.servePage(w, r)
 	case r.URL.Path == "/health/live":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "rencrow-portal"})
@@ -123,12 +124,12 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) modeFromRequest(r *http.Request) Mode {
-	raw := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("mode")))
+	raw := strings.TrimSpace(r.URL.Query().Get("mode"))
 	if raw == "" {
-		raw = strings.Trim(strings.ToLower(r.URL.Path), "/")
+		raw = strings.Trim(r.URL.Path, "/")
 	}
-	mode := Mode(raw)
-	if mode != ModeView && mode != ModeLive && mode != ModeLab {
+	mode, ok := canonicalMode(Mode(raw))
+	if !ok {
 		return h.cfg.DefaultMode
 	}
 	return mode
@@ -141,7 +142,11 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	mode := Mode(strings.ToLower(modeText))
+	mode, ok := canonicalMode(Mode(modeText))
+	if !ok {
+		http.Error(w, "mode is disabled", http.StatusForbidden)
+		return
+	}
 	targetPath = "/" + targetPath
 	if !h.cfg.modeEnabled(mode) {
 		http.Error(w, "mode is disabled", http.StatusForbidden)

@@ -45,6 +45,25 @@ func TestPortalServesLiveAsDistinctMode(t *testing.T) {
 	}
 }
 
+func TestPortalServesIdleChatAsCanonicalViewMode(t *testing.T) {
+	cfg := DefaultConfig()
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{"/?mode=IdleChat", "/?mode=view", "/view"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d", target, rec.Code)
+		}
+		if body := rec.Body.String(); !strings.Contains(body, `data-mode="idlechat"`) {
+			t.Fatalf("%s should render canonical IdleChat mode: %s", target, body)
+		}
+	}
+}
+
 func TestPortalLabRendersAIVTuberRoom(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
@@ -296,7 +315,7 @@ func TestPortalLiveAllowsReadAndRejectsWrite(t *testing.T) {
 	}
 }
 
-func TestPortalViewAllowsReadAndRejectsWrite(t *testing.T) {
+func TestPortalIdleChatAllowsReadAndRejectsWrite(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -314,18 +333,18 @@ func TestPortalViewAllowsReadAndRejectsWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	readReq := httptest.NewRequest(http.MethodGet, "/api/view/viewer/events", nil)
+	readReq := httptest.NewRequest(http.MethodGet, "/api/idlechat/viewer/events", nil)
 	readRec := httptest.NewRecorder()
 	handler.ServeHTTP(readRec, readReq)
 	if readRec.Code != http.StatusOK || calls.Load() != 1 {
 		t.Fatalf("read status=%d calls=%d", readRec.Code, calls.Load())
 	}
 
-	writeReq := httptest.NewRequest(http.MethodPost, "/api/view/viewer/send", strings.NewReader(`{"message":"hello"}`))
+	writeReq := httptest.NewRequest(http.MethodPost, "/api/idlechat/viewer/send", strings.NewReader(`{"message":"hello"}`))
 	writeRec := httptest.NewRecorder()
 	handler.ServeHTTP(writeRec, writeReq)
 	if writeRec.Code != http.StatusForbidden {
-		t.Fatalf("view write status = %d, want 403", writeRec.Code)
+		t.Fatalf("IdleChat write status = %d, want 403", writeRec.Code)
 	}
 	if calls.Load() != 1 {
 		t.Fatalf("blocked write reached core: calls=%d", calls.Load())
@@ -415,8 +434,8 @@ func TestPortalLabAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.T
 		if !portalEndpointAllowed(ModeLab, test.method, test.path) {
 			t.Errorf("lab should allow %s %s", test.method, test.path)
 		}
-		if portalEndpointAllowed(ModeView, test.method, test.path) {
-			t.Errorf("view must reject %s %s", test.method, test.path)
+		if portalEndpointAllowed(ModeIdleChat, test.method, test.path) {
+			t.Errorf("IdleChat must reject %s %s", test.method, test.path)
 		}
 		if portalEndpointAllowed(ModeLive, test.method, test.path) {
 			t.Errorf("live must reject %s %s", test.method, test.path)

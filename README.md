@@ -6,7 +6,7 @@ RenCrow_PORTALは、MioやShiroが部屋の中で会話するAI VTuber形式の�
 
 ## モード
 
-- `view`: AI VTuberの部屋を閲覧する読み取り専用画面
+- `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面。旧`view`は互換エイリアス
 - `live`: 配信用の読み取り専用画面。会話とトピックを大きく表示し、部屋や操作UIは表示しない
 - `lab`: AI VTuber画面に加えて、会話送信、会話相手の選択、IdleChat開始・停止、TTS再生、STTマイク入力
 
@@ -74,7 +74,7 @@ PORTALは、COREのChat／IdleChat能力をWebで利用するInteraction profile
 RenCrow_PORTAL
   = RenCrow Interaction Client
   + Web Renderer
-  + view / live / lab mode policy
+  + IdleChat / live / lab mode policy
 ```
 
 CORE、PORTAL、CMD、ASSISTANTの間で揃えるのは、Chat、IdleChat、recipient、event、
@@ -84,13 +84,13 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 | capability | PORTALでの表現 | 現在状態 |
 | --- | --- | --- |
 | Chat | `lab`の会話入力とmessage表示 | 実装済み |
-| IdleChat | `view`／`live`／`lab`の表示、`lab`の開始・停止 | 実装済み |
+| IdleChat | `IdleChat`／`live`／`lab`の表示、`lab`の開始・停止 | 実装済み |
 | recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
 | STT／TTS | browser microphone、audio再生、ACK | 実装済み |
 | CORE Task | 許可された状態・結果の表示 | CORE側APIに従う |
 | ASSISTANT Routine／PUSH | 予定、通知、端末、履歴のcard／設定UI | planned |
 
-同じ能力を全modeへ公開しません。`view`と`live`は読み取り専用、`lab`は明示allowlist
+同じ能力を全modeへ公開しません。`IdleChat`と`live`は読み取り専用、`lab`は明示allowlist
 だけを操作可能とし、認証scopeとserver側認可も必要です。将来ASSISTANTのPUSHを表示する
 場合も第二のmessage形式を独自に作らず、利用者、source、category、相関IDを保った
 Interaction outputをWeb cardまたはmessageとして描画します。
@@ -109,7 +109,7 @@ PORTALは状態の正本を持たず、Lab操作をCOREのPublic APIへ通知し
 - PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`を付け、接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
-- `view`と`live`はこれらの操作を許可しない
+- `IdleChat`と`live`はこれらの操作を許可しない
 
 ## 起動
 
@@ -143,12 +143,12 @@ RENCROW_PORTAL_CONFIG
 
 外部公開時はPORTALの前段に認証済みリバースプロキシまたはTailscale Serveを置いてください。既定では安全側としてloopbackだけで待ち受けます。
 
-CORE側で`RENCROW_PORTAL_URL=http://127.0.0.1:18791`を設定すると、従来の`/viewer?mode=lab|live|view`はPORTALへ移動します。通常のデバッグViewerはCOREに残ります。
+CORE側で`RENCROW_PORTAL_URL=http://127.0.0.1:18791`を設定すると、従来の`/viewer?mode=lab|live|view`はPORTALへ移動します。通常のデバッグViewerはCOREに残ります。PORTALの正規名は`IdleChat`で、旧`view`は互換エイリアスとして受理します。
 
 ```text
 http://127.0.0.1:18791/?mode=live
 http://127.0.0.1:18791/?mode=lab
-http://127.0.0.1:18791/?mode=view
+http://127.0.0.1:18791/?mode=IdleChat
 ```
 
 ## 検証

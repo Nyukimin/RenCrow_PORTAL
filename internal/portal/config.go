@@ -13,9 +13,12 @@ import (
 type Mode string
 
 const (
-	ModeView Mode = "view"
-	ModeLive Mode = "live"
-	ModeLab  Mode = "lab"
+	ModeIdleChat Mode = "idlechat"
+	ModeLive     Mode = "live"
+	ModeLab      Mode = "lab"
+
+	// ModeViewは旧名称とのソース互換用。新規コードではModeIdleChatを使う。
+	ModeView = ModeIdleChat
 )
 
 // ConfigはPORTALプロセスの設定を表す。
@@ -31,8 +34,8 @@ func DefaultConfig() Config {
 	return Config{
 		Listen:       "127.0.0.1:18791",
 		CoreURL:      "http://127.0.0.1:18790",
-		DefaultMode:  ModeView,
-		EnabledModes: []Mode{ModeView, ModeLive, ModeLab},
+		DefaultMode:  ModeIdleChat,
+		EnabledModes: []Mode{ModeIdleChat, ModeLive, ModeLab},
 	}
 }
 
@@ -57,8 +60,9 @@ func LoadConfig(path string) (Config, error) {
 		cfg.CoreURL = value
 	}
 	if value := strings.TrimSpace(os.Getenv("RENCROW_PORTAL_DEFAULT_MODE")); value != "" {
-		cfg.DefaultMode = Mode(strings.ToLower(value))
+		cfg.DefaultMode = Mode(value)
 	}
+	cfg = cfg.normalized()
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -80,24 +84,69 @@ func (c Config) Validate() error {
 	if len(c.EnabledModes) == 0 {
 		return fmt.Errorf("enabled_modesは1件以上必要です")
 	}
+	defaultMode, ok := canonicalMode(c.DefaultMode)
+	if !ok {
+		return fmt.Errorf("未対応のmodeです: %s", c.DefaultMode)
+	}
 	enabled := map[Mode]bool{}
 	for _, mode := range c.EnabledModes {
-		if mode != ModeView && mode != ModeLive && mode != ModeLab {
+		canonical, ok := canonicalMode(mode)
+		if !ok {
 			return fmt.Errorf("未対応のmodeです: %s", mode)
 		}
-		enabled[mode] = true
+		enabled[canonical] = true
 	}
-	if !enabled[c.DefaultMode] {
+	if !enabled[defaultMode] {
 		return fmt.Errorf("default_modeはenabled_modesに含めてください")
 	}
 	return nil
 }
 
 func (c Config) modeEnabled(mode Mode) bool {
+	canonical, ok := canonicalMode(mode)
+	if !ok {
+		return false
+	}
 	for _, enabled := range c.EnabledModes {
-		if enabled == mode {
+		enabledCanonical, enabledOK := canonicalMode(enabled)
+		if enabledOK && enabledCanonical == canonical {
 			return true
 		}
 	}
 	return false
+}
+
+func (c Config) normalized() Config {
+	if mode, ok := canonicalMode(c.DefaultMode); ok {
+		c.DefaultMode = mode
+	}
+	modes := make([]Mode, 0, len(c.EnabledModes))
+	seen := map[Mode]bool{}
+	for _, mode := range c.EnabledModes {
+		canonical, ok := canonicalMode(mode)
+		if !ok {
+			modes = append(modes, mode)
+			continue
+		}
+		if seen[canonical] {
+			continue
+		}
+		seen[canonical] = true
+		modes = append(modes, canonical)
+	}
+	c.EnabledModes = modes
+	return c
+}
+
+func canonicalMode(mode Mode) (Mode, bool) {
+	switch strings.ToLower(strings.TrimSpace(string(mode))) {
+	case "idlechat", "view":
+		return ModeIdleChat, true
+	case "live":
+		return ModeLive, true
+	case "lab":
+		return ModeLab, true
+	default:
+		return "", false
+	}
 }

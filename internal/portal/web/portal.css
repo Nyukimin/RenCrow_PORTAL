@@ -1977,20 +1977,20 @@ body.lab-mode.live-mode .lab-footer em{
   40%{transform:translateY(-5px) scale(1.018);filter:drop-shadow(0 30px 52px rgba(64,96,168,.34)) drop-shadow(0 0 30px rgba(113,212,255,.36))}
 }
 
-body[data-mode="view"] .lab-input-footer{
+body[data-mode="idlechat"] .lab-input-footer{
   display:none !important;
 }
 
-body[data-mode="view"] #chat{
+body[data-mode="idlechat"] #chat{
   bottom:var(--lab-edge) !important;
 }
 
-body[data-mode="view"] .lab-mode-indicator{
+body[data-mode="idlechat"] .lab-mode-indicator{
   opacity:.78;
 }
 
-/* view mode is Chat-only: Mio / Shiro のみ表示 */
-body[data-mode="view"] .lab-mode-chip-midori{
+/* IdleChat mode is Chat-only: Mio / Shiro のみ表示 */
+body[data-mode="idlechat"] .lab-mode-chip-midori{
   display:none !important;
 }
 
@@ -2469,8 +2469,8 @@ body.lab-mode.live-mode #chat{
   padding:44px 20px 18px !important;
 }
 
-/* view mode hides the input footer, so the chat log reclaims its space */
-body[data-mode="view"].lab-mode.live-mode #chat{
+/* IdleChat mode hides the input footer, so the chat log reclaims its space */
+body[data-mode="idlechat"].lab-mode.live-mode #chat{
   bottom:var(--lab-edge) !important;
 }
 
@@ -2965,7 +2965,7 @@ body.portal-live-mode main{
     padding:40px 12px 12px !important;
   }
 
-  body[data-mode="view"].lab-mode.live-mode #chat{
+  body[data-mode="idlechat"].lab-mode.live-mode #chat{
     bottom:calc(var(--lab-edge) + var(--safe-bottom)) !important;
   }
 
@@ -2985,9 +2985,9 @@ body.portal-live-mode main{
     text-align:right;
   }
 
-  /* view mode hides the input footer, so bottom-pinned pills drop to the edge */
-  body[data-mode="view"].lab-mode.live-mode .lab-brand-panel .portal-connection,
-  body[data-mode="view"].lab-mode.live-mode .portal-operation-status{
+  /* IdleChat mode hides the input footer, so bottom-pinned pills drop to the edge */
+  body[data-mode="idlechat"].lab-mode.live-mode .lab-brand-panel .portal-connection,
+  body[data-mode="idlechat"].lab-mode.live-mode .portal-operation-status{
     bottom:calc(var(--lab-edge) + var(--safe-bottom));
   }
 }
