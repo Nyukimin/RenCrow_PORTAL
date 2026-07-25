@@ -20,14 +20,17 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	if cfg.DefaultMode != Mode("idlechat") {
 		t.Fatalf("DefaultMode = %q", cfg.DefaultMode)
 	}
-	if !cfg.modeEnabled(ModeLive) {
-		t.Fatal("Live mode should be enabled by default")
+	if !cfg.modeEnabled(Mode("chat")) {
+		t.Fatal("Chat mode should be enabled by default")
+	}
+	if !cfg.modeEnabled(ModeIdleChat) {
+		t.Fatal("IdleChat mode should be enabled by default")
 	}
 }
 
 func TestLoadConfigReadsJSONAndValidatesModes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "portal.json")
-	data := []byte(`{"listen":"0.0.0.0:19091","core_url":"http://127.0.0.1:19090","default_mode":"lab","enabled_modes":["view","lab"]}`)
+	data := []byte(`{"listen":"0.0.0.0:19091","core_url":"http://127.0.0.1:19090","default_mode":"Chat","enabled_modes":["IdleChat","Chat"]}`)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -35,23 +38,24 @@ func TestLoadConfigReadsJSONAndValidatesModes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
-	if cfg.Listen != "0.0.0.0:19091" || cfg.CoreURL != "http://127.0.0.1:19090" || cfg.DefaultMode != ModeLab {
+	if cfg.Listen != "0.0.0.0:19091" || cfg.CoreURL != "http://127.0.0.1:19090" || cfg.DefaultMode != Mode("chat") {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
 }
 
-func TestLoadConfigNormalizesIdleChatNameAndLegacyViewAlias(t *testing.T) {
+func TestLoadConfigNormalizesCanonicalModeNames(t *testing.T) {
 	tests := []struct {
 		name        string
 		defaultMode string
+		want        Mode
 	}{
-		{name: "canonical name", defaultMode: "IdleChat"},
-		{name: "legacy alias", defaultMode: "view"},
+		{name: "IdleChat", defaultMode: "IdleChat", want: ModeIdleChat},
+		{name: "Chat", defaultMode: "Chat", want: Mode("chat")},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "portal.json")
-			data := []byte(`{"listen":"127.0.0.1:18791","core_url":"http://127.0.0.1:18790","default_mode":"` + test.defaultMode + `","enabled_modes":["IdleChat","live","lab"]}`)
+			data := []byte(`{"listen":"127.0.0.1:18791","core_url":"http://127.0.0.1:18790","default_mode":"` + test.defaultMode + `","enabled_modes":["IdleChat","Chat"]}`)
 			if err := os.WriteFile(path, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -59,20 +63,22 @@ func TestLoadConfigNormalizesIdleChatNameAndLegacyViewAlias(t *testing.T) {
 			if err != nil {
 				t.Fatalf("LoadConfig() error = %v", err)
 			}
-			if cfg.DefaultMode != Mode("idlechat") {
-				t.Fatalf("DefaultMode = %q, want idlechat", cfg.DefaultMode)
+			if cfg.DefaultMode != test.want {
+				t.Fatalf("DefaultMode = %q, want %q", cfg.DefaultMode, test.want)
 			}
-			if !cfg.modeEnabled(Mode("idlechat")) {
-				t.Fatal("IdleChat mode should be enabled")
+			if !cfg.modeEnabled(test.want) {
+				t.Fatalf("%s mode should be enabled", test.want)
 			}
 		})
 	}
 }
 
-func TestConfigRejectsUnsupportedMode(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.EnabledModes = []Mode{"debug"}
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() should reject debug mode")
+func TestConfigRejectsLegacyAndUnsupportedModes(t *testing.T) {
+	for _, mode := range []Mode{"view", "live", "lab", "debug"} {
+		cfg := DefaultConfig()
+		cfg.EnabledModes = []Mode{mode}
+		if err := cfg.Validate(); err == nil {
+			t.Fatalf("Validate() should reject %q mode", mode)
+		}
 	}
 }

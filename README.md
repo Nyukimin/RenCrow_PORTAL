@@ -6,12 +6,11 @@ RenCrow_PORTALは、MioやShiroが部屋の中で会話するAI VTuber形式の�
 
 ## モード
 
-- `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面。旧`view`は互換エイリアス
-- `live`: 配信用の読み取り専用画面。会話とトピックを大きく表示し、部屋や操作UIは表示しない
-- `lab`: AI VTuber画面に加えて、会話送信、会話相手の選択、IdleChat開始・停止、TTS再生、STTマイク入力
+- `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面
+- `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、IdleChat開始・停止、TTS再生、STTマイク入力
 
-`live`と`lab`は別の表示です。`live`は配信、`lab`は部屋での操作・実験に使います。
-Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatではMioを左、Shiroを右へ同時表示します。LabのキャラチップはChat時の会話送信先と単独表示キャラを選択します。
+公開modeは`Chat`と`IdleChat`の2系統だけです。旧`view`、`live`、`lab`は受理しません。
+Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatではMioを左、Shiroを右へ同時表示します。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
 
 Debug、Ops、Repair、設定変更などの管理APIは中継しません。
 
@@ -52,7 +51,7 @@ sha256sum internal/portal/web/purupuru/assets/Midori/front-hair.png
 curl -fsS http://127.0.0.1:18791/assets/purupuru/assets/Midori/front-hair.png | sha256sum
 ```
 
-7. `http://127.0.0.1:18791/?mode=lab`を実ブラウザで開き、4人の画像欠損、透過、動き、画面内配置をdesktop幅とnarrow幅で確認する。
+7. `http://127.0.0.1:18791/?mode=Chat`を実ブラウザで開き、4人の画像欠損、透過、動き、画面内配置をdesktop幅とnarrow幅で確認する。
 
 PORTALは`//go:embed web/*`でassetをbinaryへ埋め込むため、ファイルを置き換えただけでは稼働中の表示は変わりません。必ず再ビルド・再起動します。`internal/portal/web/`配下の未参照ファイルもbinaryへ埋め込まれるため、旧画像や作業用バックアップはこのディレクトリへ残しません。vendored PuruPuruのライセンスとPortal固有差分は`internal/portal/web/purupuru/README.md`に記録します。
 
@@ -74,7 +73,7 @@ PORTALは、COREのChat／IdleChat能力をWebで利用するInteraction profile
 RenCrow_PORTAL
   = RenCrow Interaction Client
   + Web Renderer
-  + IdleChat / live / lab mode policy
+  + Chat / IdleChat mode policy
 ```
 
 CORE、PORTAL、CMD、ASSISTANTの間で揃えるのは、Chat、IdleChat、recipient、event、
@@ -83,14 +82,14 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 
 | capability | PORTALでの表現 | 現在状態 |
 | --- | --- | --- |
-| Chat | `lab`の会話入力とmessage表示 | 実装済み |
-| IdleChat | `IdleChat`／`live`／`lab`の表示、`lab`の開始・停止 | 実装済み |
+| Chat | `Chat`の会話入力とmessage表示 | 実装済み |
+| IdleChat | `IdleChat`の読み取り表示、`Chat`からの開始・停止 | 実装済み |
 | recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
 | STT／TTS | browser microphone、audio再生、ACK | 実装済み |
 | CORE Task | 許可された状態・結果の表示 | CORE側APIに従う |
 | ASSISTANT Routine／PUSH | 予定、通知、端末、履歴のcard／設定UI | planned |
 
-同じ能力を全modeへ公開しません。`IdleChat`と`live`は読み取り専用、`lab`は明示allowlist
+同じ能力を全modeへ公開しません。`IdleChat`は読み取り専用、`Chat`は明示allowlist
 だけを操作可能とし、認証scopeとserver側認可も必要です。将来ASSISTANTのPUSHを表示する
 場合も第二のmessage形式を独自に作らず、利用者、source、category、相関IDを保った
 Interaction outputをWeb cardまたはmessageとして描画します。
@@ -101,7 +100,7 @@ ASSISTANTの配信経路やschedulerにはならず、ASSISTANT Public APIのVie
 
 ## COREとの操作契約
 
-PORTALは状態の正本を持たず、Lab操作をCOREのPublic APIへ通知します。
+PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知します。
 
 - 会話相手の切替は`POST /viewer/recipient-selection`で観測eventを発行し、実際の送信先は`POST /viewer/send`の`to`で確定する
 - `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
@@ -109,7 +108,7 @@ PORTALは状態の正本を持たず、Lab操作をCOREのPublic APIへ通知し
 - PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`を付け、接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
-- `IdleChat`と`live`はこれらの操作を許可しない
+- `IdleChat`はこれらの操作を許可しない
 
 ## 起動
 
@@ -143,11 +142,10 @@ RENCROW_PORTAL_CONFIG
 
 外部公開時はPORTALの前段に認証済みリバースプロキシまたはTailscale Serveを置いてください。既定では安全側としてloopbackだけで待ち受けます。
 
-CORE側で`RENCROW_PORTAL_URL=http://127.0.0.1:18791`を設定すると、従来の`/viewer?mode=lab|live|view`はPORTALへ移動します。通常のデバッグViewerはCOREに残ります。PORTALの正規名は`IdleChat`で、旧`view`は互換エイリアスとして受理します。
+通常のDebug ViewerはCOREの`/viewer`に残ります。外部利用者向けViewerはPORTALが所有し、次の2 URLだけを公開します。
 
 ```text
-http://127.0.0.1:18791/?mode=live
-http://127.0.0.1:18791/?mode=lab
+http://127.0.0.1:18791/?mode=Chat
 http://127.0.0.1:18791/?mode=IdleChat
 ```
 

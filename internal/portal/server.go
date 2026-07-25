@@ -74,7 +74,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
 	switch {
-	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/view" || r.URL.Path == "/live" || r.URL.Path == "/lab":
+	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat":
 		h.servePage(w, r)
 	case r.URL.Path == "/health/live":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "rencrow-portal"})
@@ -95,8 +95,8 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	mode := h.modeFromRequest(r)
-	if !h.cfg.modeEnabled(mode) {
+	mode, ok := h.modeFromRequest(r)
+	if !ok || !h.cfg.modeEnabled(mode) {
 		http.Error(w, "mode is disabled", http.StatusNotFound)
 		return
 	}
@@ -108,31 +108,26 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	}
 	data := pageData{
 		Mode:      mode,
-		Surface:   "lab",
-		BodyClass: "theme-modern live-mode lab-mode lab-chat-mode lab-partner-shiro portal-view-mode",
+		Surface:   string(mode),
+		BodyClass: "theme-modern portal-room-mode live-mode lab-mode lab-chat-mode lab-partner-shiro",
 	}
-	if mode == ModeLab {
-		data.BodyClass = "theme-modern live-mode lab-mode lab-chat-mode lab-partner-shiro"
-	}
-	if mode == ModeLive {
-		data.Surface = "live"
-		data.BodyClass = "theme-modern live-mode portal-live-mode"
+	if mode == ModeIdleChat {
+		data.BodyClass = "theme-modern portal-room-mode live-mode lab-mode lab-idle-mode lab-partner-shiro portal-idlechat-mode"
 	}
 	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)
 	}
 }
 
-func (h *handler) modeFromRequest(r *http.Request) Mode {
+func (h *handler) modeFromRequest(r *http.Request) (Mode, bool) {
 	raw := strings.TrimSpace(r.URL.Query().Get("mode"))
 	if raw == "" {
 		raw = strings.Trim(r.URL.Path, "/")
 	}
-	mode, ok := canonicalMode(Mode(raw))
-	if !ok {
-		return h.cfg.DefaultMode
+	if raw == "" {
+		return h.cfg.DefaultMode, true
 	}
-	return mode
+	return canonicalMode(Mode(raw))
 }
 
 func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +175,7 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	if method == http.MethodGet && readEndpoints[path] {
 		return true
 	}
-	if mode != ModeLab {
+	if mode != ModeChat {
 		return false
 	}
 	if method == http.MethodGet {

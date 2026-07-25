@@ -14,11 +14,7 @@ type Mode string
 
 const (
 	ModeIdleChat Mode = "idlechat"
-	ModeLive     Mode = "live"
-	ModeLab      Mode = "lab"
-
-	// ModeViewは旧名称とのソース互換用。新規コードではModeIdleChatを使う。
-	ModeView = ModeIdleChat
+	ModeChat     Mode = "chat"
 )
 
 // ConfigはPORTALプロセスの設定を表す。
@@ -35,7 +31,7 @@ func DefaultConfig() Config {
 		Listen:       "127.0.0.1:18791",
 		CoreURL:      "http://127.0.0.1:18790",
 		DefaultMode:  ModeIdleChat,
-		EnabledModes: []Mode{ModeIdleChat, ModeLive, ModeLab},
+		EnabledModes: []Mode{ModeIdleChat, ModeChat},
 	}
 }
 
@@ -140,12 +136,10 @@ func (c Config) normalized() Config {
 
 func canonicalMode(mode Mode) (Mode, bool) {
 	switch strings.ToLower(strings.TrimSpace(string(mode))) {
-	case "idlechat", "view":
+	case "idlechat":
 		return ModeIdleChat, true
-	case "live":
-		return ModeLive, true
-	case "lab":
-		return ModeLab, true
+	case "chat":
+		return ModeChat, true
 	default:
 		return "", false
 	}

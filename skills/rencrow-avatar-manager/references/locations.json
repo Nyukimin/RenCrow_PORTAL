@@ -5,7 +5,7 @@
   "portal_assets_relative": "internal\\portal\\web\\purupuru\\assets",
   "portal_manifest_relative": "internal\\portal\\web\\purupuru\\manifest.json",
   "portal_binary_relative": "build\\rencrow-portal.exe",
-  "portal_url": "http://127.0.0.1:18791/?mode=lab",
+  "portal_url": "http://127.0.0.1:18791/?mode=Chat",
   "portal_port": 18791,
   "characters": {
     "mio": {

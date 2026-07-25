@@ -9,50 +9,33 @@ import (
 	"testing"
 )
 
-func TestPortalServesLiveAsDistinctMode(t *testing.T) {
-	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" {
-			w.WriteHeader(http.StatusOK)
-			_, _ = io.WriteString(w, `{"ok":true}`)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer core.Close()
-
-	cfg := DefaultConfig()
-	cfg.CoreURL = core.URL
-	handler, err := NewHandler(cfg)
-	if err != nil {
-		t.Fatalf("NewHandler() error = %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/?mode=live", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d", rec.Code)
-	}
-	body := rec.Body.String()
-	if !strings.Contains(body, `data-mode="live"`) {
-		t.Fatalf("live mode should remain distinct: %s", body)
-	}
-	if !strings.Contains(body, `data-surface="live"`) {
-		t.Fatalf("live surface marker is missing: %s", body)
-	}
-	if strings.Contains(body, `class="theme-modern live-mode lab-mode`) {
-		t.Fatalf("live mode must not include lab-mode class: %s", body)
-	}
-}
-
-func TestPortalServesIdleChatAsCanonicalViewMode(t *testing.T) {
+func TestPortalRejectsLegacyViewerModes(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, target := range []string{"/?mode=IdleChat", "/?mode=view", "/view"} {
+	for _, target := range []string{
+		"/?mode=view", "/?mode=live", "/?mode=lab",
+		"/view", "/live", "/lab",
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s status = %d, want 404", target, rec.Code)
+		}
+	}
+}
+
+func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
+	cfg := DefaultConfig()
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{"/", "/?mode=IdleChat", "/idlechat"} {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
 		if rec.Code != http.StatusOK {
@@ -64,56 +47,58 @@ func TestPortalServesIdleChatAsCanonicalViewMode(t *testing.T) {
 	}
 }
 
-func TestPortalLabRendersAIVTuberRoom(t *testing.T) {
+func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/?mode=lab", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d", rec.Code)
-	}
-	body := rec.Body.String()
-	for _, marker := range []string{
-		`data-mode="lab"`,
-		`data-surface="lab"`,
-		`class="theme-modern live-mode lab-mode`,
-		`class="lab-stream-shell"`,
-		`class="lab-world"`,
-		`class="lab-mio-portrait purupuru-avatar"`,
-		`class="lab-shiro-portrait purupuru-avatar"`,
-		`class="lab-kuro-portrait purupuru-avatar"`,
-		`class="lab-midori-portrait purupuru-avatar"`,
-		`id="mioAvatar" character="mio"`,
-		`id="shiroAvatar" character="shiro"`,
-		`id="kuroAvatar" character="kuro"`,
-		`id="midoriAvatar" character="midori"`,
-		`id="chat"`,
-		`id="labInp"`,
-		`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
-		`id="labModeShiroChip" type="button" data-lab-switch="shiro" aria-current="false"`,
-		`id="labModeKuroChip" type="button" data-lab-switch="kuro" aria-current="false"`,
-		`id="labModeMidoriChip" type="button" data-lab-switch="midori" aria-current="false"`,
-		`id="labAudioBtn"`,
-		`id="labMicBtn"`,
-		`id="labAttachBtn"`,
-		`id="labScreenBtn"`,
-		`id="labCameraBtn"`,
-		`id="labCameraLivePreview"`,
-	} {
-		if !strings.Contains(body, marker) {
-			t.Fatalf("AI VTuber room marker %q is missing", marker)
+	for _, target := range []string{"/?mode=Chat", "/chat"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d", target, rec.Code)
 		}
-	}
-	if strings.Contains(body, `class="lab-icon-btn portal-send-btn"`) {
-		t.Fatal("Lab footer must use the established five controls, not a replacement send button")
+		body := rec.Body.String()
+		for _, marker := range []string{
+			`data-mode="chat"`,
+			`data-surface="chat"`,
+			`class="theme-modern portal-room-mode`,
+			`class="lab-stream-shell"`,
+			`class="lab-world"`,
+			`class="lab-mio-portrait purupuru-avatar"`,
+			`class="lab-shiro-portrait purupuru-avatar"`,
+			`class="lab-kuro-portrait purupuru-avatar"`,
+			`class="lab-midori-portrait purupuru-avatar"`,
+			`id="mioAvatar" character="mio"`,
+			`id="shiroAvatar" character="shiro"`,
+			`id="kuroAvatar" character="kuro"`,
+			`id="midoriAvatar" character="midori"`,
+			`id="chat"`,
+			`id="labInp"`,
+			`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
+			`id="labModeShiroChip" type="button" data-lab-switch="shiro" aria-current="false"`,
+			`id="labModeKuroChip" type="button" data-lab-switch="kuro" aria-current="false"`,
+			`id="labModeMidoriChip" type="button" data-lab-switch="midori" aria-current="false"`,
+			`id="labAudioBtn"`,
+			`id="labMicBtn"`,
+			`id="labAttachBtn"`,
+			`id="labScreenBtn"`,
+			`id="labCameraBtn"`,
+			`id="labCameraLivePreview"`,
+		} {
+			if !strings.Contains(body, marker) {
+				t.Fatalf("%s AI VTuber room marker %q is missing", target, marker)
+			}
+		}
+		if strings.Contains(body, `class="lab-icon-btn portal-send-btn"`) {
+			t.Fatalf("%s Chat footer must use the established five controls, not a replacement send button", target)
+		}
 	}
 }
 
-func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
+func TestPortalChatSwitcherUsesConfirmedCoreState(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +115,7 @@ func TestPortalLabSwitcherUsesConfirmedCoreState(t *testing.T) {
 		`setModeSwitcherBusy(false);`,
 	} {
 		if !strings.Contains(body, marker) {
-			t.Fatalf("Lab switcher contract marker %q is missing", marker)
+			t.Fatalf("Chat switcher contract marker %q is missing", marker)
 		}
 	}
 }
@@ -179,21 +164,17 @@ func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
 	}
 	content := string(script) + string(stylesheet)
 	for _, required := range []string{
-		`if (!roomSurface && body.dataset.surface !== 'live') return;`,
+		`if (!roomSurface) return;`,
 		`body.classList.toggle('lab-idle-mode', isIdle);`,
 		`body.classList.toggle('lab-chat-mode', !isIdle);`,
 		`setConversationState(false, selectedRecipient);`,
 		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,`,
 		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,`,
 		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #kuroPortrait,`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait,`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #mioPortrait,`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait{`,
+		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #mioPortrait{`,
 		`body.lab-mode.live-mode.lab-idle-mode #mioPortrait,`,
-		`body.lab-mode.live-mode.lab-idle-mode #shiroPortrait,`,
-		`body.portal-live-mode.lab-idle-mode #mioPortrait,`,
-		`body.portal-live-mode.lab-idle-mode #shiroPortrait{`,
-		`body.portal-live-mode.lab-idle-mode #mioPortrait{left:27%}`,
-		`body.portal-live-mode.lab-idle-mode #shiroPortrait{left:73%}`,
+		`body.lab-mode.live-mode.lab-idle-mode #shiroPortrait{`,
 	} {
 		if !strings.Contains(content, required) {
 			t.Errorf("Chat/IdleChat avatar layout marker %q is missing", required)
@@ -221,7 +202,7 @@ func TestPuruPuruRendererAssetsRemainNonFrameable(t *testing.T) {
 	}
 
 	page := httptest.NewRecorder()
-	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/?mode=lab", nil))
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/?mode=Chat", nil))
 	if got := page.Header().Get("X-Frame-Options"); got != "DENY" {
 		t.Fatalf("portal page X-Frame-Options = %q", got)
 	}
@@ -279,14 +260,11 @@ func TestPortalRendersNamedAgentHandoffSpeakers(t *testing.T) {
 	}
 }
 
-func TestPortalLiveAllowsReadAndRejectsWrite(t *testing.T) {
+func TestPortalRejectsLegacyAPIModes(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		if r.URL.Path != "/viewer/events" {
-			t.Fatalf("core path = %q", r.URL.Path)
-		}
-		_, _ = io.WriteString(w, "data: {}\n\n")
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer core.Close()
 
@@ -297,21 +275,16 @@ func TestPortalLiveAllowsReadAndRejectsWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	readReq := httptest.NewRequest(http.MethodGet, "/api/live/viewer/events", nil)
-	readRec := httptest.NewRecorder()
-	handler.ServeHTTP(readRec, readReq)
-	if readRec.Code != http.StatusOK || calls.Load() != 1 {
-		t.Fatalf("read status=%d calls=%d", readRec.Code, calls.Load())
+	for _, legacyMode := range []string{"view", "live", "lab"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/"+legacyMode+"/viewer/events", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("%s API status = %d, want 403", legacyMode, rec.Code)
+		}
 	}
-
-	writeReq := httptest.NewRequest(http.MethodPost, "/api/live/viewer/send", strings.NewReader(`{"message":"hello"}`))
-	writeRec := httptest.NewRecorder()
-	handler.ServeHTTP(writeRec, writeReq)
-	if writeRec.Code != http.StatusForbidden {
-		t.Fatalf("live write status = %d, want 403", writeRec.Code)
-	}
-	if calls.Load() != 1 {
-		t.Fatalf("blocked write reached core: calls=%d", calls.Load())
+	if calls.Load() != 0 {
+		t.Fatalf("legacy API reached CORE: calls=%d", calls.Load())
 	}
 }
 
@@ -351,7 +324,7 @@ func TestPortalIdleChatAllowsReadAndRejectsWrite(t *testing.T) {
 	}
 }
 
-func TestPortalLabAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
+func TestPortalChatAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 	var gotPath string
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
@@ -366,7 +339,7 @@ func TestPortalLabAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sendReq := httptest.NewRequest(http.MethodPost, "/api/lab/viewer/send", strings.NewReader(`{"message":"hello","to":"mio"}`))
+	sendReq := httptest.NewRequest(http.MethodPost, "/api/chat/viewer/send", strings.NewReader(`{"message":"hello","to":"mio"}`))
 	sendReq.Header.Set("Origin", "http://example.com")
 	sendRec := httptest.NewRecorder()
 	handler.ServeHTTP(sendRec, sendReq)
@@ -374,7 +347,7 @@ func TestPortalLabAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 		t.Fatalf("send status=%d path=%q", sendRec.Code, gotPath)
 	}
 
-	debugReq := httptest.NewRequest(http.MethodGet, "/api/lab/viewer/debug/system", nil)
+	debugReq := httptest.NewRequest(http.MethodGet, "/api/chat/viewer/debug/system", nil)
 	debugRec := httptest.NewRecorder()
 	handler.ServeHTTP(debugRec, debugReq)
 	if debugRec.Code != http.StatusForbidden {
@@ -398,7 +371,7 @@ func TestPortalProxyAddsTrustedOperationSourceAndClientIP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/lab/viewer/send", strings.NewReader(`{"message":"hello","to":"mio"}`))
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/viewer/send", strings.NewReader(`{"message":"hello","to":"mio"}`))
 	req.RemoteAddr = "203.0.113.42:4567"
 	req.Header.Set("Origin", "http://portal.example")
 	req.Header.Set("User-Agent", "Mozilla/5.0 test-browser")
@@ -419,7 +392,7 @@ func TestPortalProxyAddsTrustedOperationSourceAndClientIP(t *testing.T) {
 	}
 }
 
-func TestPortalLabAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.T) {
+func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.T) {
 	tests := []struct {
 		method string
 		path   string
@@ -431,24 +404,21 @@ func TestPortalLabAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.T
 		{http.MethodGet, "/stt"},
 	}
 	for _, test := range tests {
-		if !portalEndpointAllowed(ModeLab, test.method, test.path) {
-			t.Errorf("lab should allow %s %s", test.method, test.path)
+		if !portalEndpointAllowed(Mode("chat"), test.method, test.path) {
+			t.Errorf("Chat should allow %s %s", test.method, test.path)
 		}
 		if portalEndpointAllowed(ModeIdleChat, test.method, test.path) {
 			t.Errorf("IdleChat must reject %s %s", test.method, test.path)
 		}
-		if portalEndpointAllowed(ModeLive, test.method, test.path) {
-			t.Errorf("live must reject %s %s", test.method, test.path)
-		}
 	}
 	for _, path := range []string{"/viewer/stt/admin/restart", "/viewer/debug/system", "/viewer/llm-ops/restart"} {
-		if portalEndpointAllowed(ModeLab, http.MethodPost, path) || portalEndpointAllowed(ModeLab, http.MethodGet, path) {
-			t.Errorf("lab must reject administrative endpoint %s", path)
+		if portalEndpointAllowed(Mode("chat"), http.MethodPost, path) || portalEndpointAllowed(Mode("chat"), http.MethodGet, path) {
+			t.Errorf("Chat must reject administrative endpoint %s", path)
 		}
 	}
 }
 
-func TestPortalLabScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
+func TestPortalChatScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -502,7 +472,7 @@ func TestPuruPuruHostPreservesUpstreamMotionInputs(t *testing.T) {
 	}
 }
 
-func TestPortalLabGuardsRecipientUntilMatchingResponse(t *testing.T) {
+func TestPortalChatGuardsRecipientUntilMatchingResponse(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -526,7 +496,7 @@ func TestPortalLabGuardsRecipientUntilMatchingResponse(t *testing.T) {
 	}
 }
 
-func TestPortalLabRejectsCrossOriginWrite(t *testing.T) {
+func TestPortalChatRejectsCrossOriginWrite(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -541,7 +511,7 @@ func TestPortalLabRejectsCrossOriginWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/lab/viewer/send", strings.NewReader(`{"message":"hello"}`))
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/viewer/send", strings.NewReader(`{"message":"hello"}`))
 	req.Header.Set("Origin", "https://evil.example")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -553,7 +523,7 @@ func TestPortalLabRejectsCrossOriginWrite(t *testing.T) {
 	}
 }
 
-func TestPortalLabRejectsCrossOriginSTTWebSocket(t *testing.T) {
+func TestPortalChatRejectsCrossOriginSTTWebSocket(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -568,7 +538,7 @@ func TestPortalLabRejectsCrossOriginSTTWebSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "http://portal.example/api/lab/stt", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://portal.example/api/chat/stt", nil)
 	req.Header.Set("Origin", "https://evil.example")
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "websocket")

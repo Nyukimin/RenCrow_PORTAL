@@ -2,5 +2,5 @@
   "listen": "127.0.0.1:18791",
   "core_url": "http://127.0.0.1:18790",
   "default_mode": "IdleChat",
-  "enabled_modes": ["IdleChat", "live", "lab"]
+  "enabled_modes": ["IdleChat", "Chat"]
 }

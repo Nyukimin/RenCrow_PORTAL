@@ -3,8 +3,8 @@
 
   const body = document.body;
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
-  const mode = ['idlechat', 'live', 'lab'].includes(requestedMode) ? requestedMode : 'idlechat';
-  const roomSurface = body.dataset.surface === 'lab';
+  const mode = ['idlechat', 'chat'].includes(requestedMode) ? requestedMode : 'idlechat';
+  const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty');
   const input = document.getElementById('labInp');
@@ -154,9 +154,9 @@
     window.clearTimeout(pendingRequest.timeoutID);
     pendingRequest = null;
     setModeSwitcherBusy(modeSwitchBusy);
-    input.disabled = mode !== 'lab';
+    input.disabled = mode !== 'chat';
     if (message) setOperation(message, isError);
-    if (mode === 'lab') input.focus();
+    if (mode === 'chat') input.focus();
   }
 
   function beginRequestGuard(recipient) {
@@ -269,7 +269,7 @@
   }
 
   function setConversationState(isIdle, recipient = selectedRecipient) {
-    if (!roomSurface && body.dataset.surface !== 'live') return;
+    if (!roomSurface) return;
     let normalizedRecipient = normalizeActor(recipient);
     if (pendingRequest && normalizedRecipient !== pendingRequest.recipient) normalizedRecipient = pendingRequest.recipient;
     if (!isIdle && (normalizedRecipient === 'mio' || isPartnerActor(normalizedRecipient))) {
@@ -345,7 +345,7 @@
   }
 
   async function post(path, payload) {
-    if (mode !== 'lab') throw new Error(`${mode}モードは閲覧専用です`);
+    if (mode !== 'chat') throw new Error(`${mode}モードは閲覧専用です`);
     const options = {method: 'POST'};
     if (payload) {
       options.headers = {'Content-Type': 'application/json'};
@@ -761,7 +761,7 @@
 
   async function send(inputSource = 'text') {
     const message = input.value.trim();
-    if (!message || mode !== 'lab') return;
+    if (!message || mode !== 'chat') return;
     if (pendingRequest) {
       setOperation(`${actorInfo[pendingRequest.recipient].label}の応答を待っています`, true);
       return;
@@ -804,14 +804,14 @@
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
     document.querySelectorAll('[data-lab-switch]').forEach((control) => {
-      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'lab';
+      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat';
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
   }
 
   async function switchConversation(nextMode, partner) {
     if (pendingRequest) return;
-    if (mode !== 'lab' || modeSwitchBusy) return;
+    if (mode !== 'chat' || modeSwitchBusy) return;
     const isIdle = nextMode === 'idle';
     const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);
     if (!isIdle) {
@@ -845,7 +845,7 @@
     }).format(now);
   }
 
-  if (mode === 'lab') {
+  if (mode === 'chat') {
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
@@ -868,8 +868,6 @@
     document.querySelectorAll('.lab-footer-controls .lab-icon-btn').forEach((control) => { control.disabled = true; });
     document.querySelectorAll('.lab-mode-chip').forEach((chip) => chip.disabled = true);
     setConversationState(true, selectedRecipient);
-  } else if (body.dataset.surface === 'live') {
-    setConversationState(false, selectedRecipient);
   }
 
   document.addEventListener('purupuru-ready', (event) => {
