@@ -17,6 +17,8 @@ import (
 //go:embed web/*
 var webFiles embed.FS
 
+const interactionProfileHeader = "X-RenCrow-Interaction-Profile"
+
 type handler struct {
 	cfg       Config
 	coreURL   *url.URL
@@ -109,10 +111,10 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	data := pageData{
 		Mode:      mode,
 		Surface:   string(mode),
-		BodyClass: "theme-modern portal-room-mode live-mode lab-mode lab-chat-mode lab-partner-shiro",
+		BodyClass: "theme-modern portal-room-mode room-stage room-mode room-chat-mode room-partner-shiro",
 	}
 	if mode == ModeIdleChat {
-		data.BodyClass = "theme-modern portal-room-mode live-mode lab-mode lab-idle-mode lab-partner-shiro portal-idlechat-mode"
+		data.BodyClass = "theme-modern portal-room-mode room-stage room-mode room-idlechat-mode room-partner-shiro portal-idlechat-mode"
 	}
 	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)
@@ -160,8 +162,16 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
 	}
+	r.Header.Set(interactionProfileHeader, interactionProfileForMode(mode))
 	r.URL.Path = targetPath
 	h.proxy.ServeHTTP(w, r)
+}
+
+func interactionProfileForMode(mode Mode) string {
+	if mode == ModeChat {
+		return "portal-chat"
+	}
+	return "portal-idlechat"
 }
 
 func portalEndpointAllowed(mode Mode, method, path string) bool {

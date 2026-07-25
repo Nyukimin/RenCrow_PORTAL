@@ -7,13 +7,13 @@
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty');
-  const input = document.getElementById('labInp');
+  const input = document.getElementById('roomInput');
   const topicText = document.getElementById('topicText');
   const connectionDot = document.getElementById('connectionDot');
   const connectionText = document.getElementById('connectionText');
   const operationStatus = document.getElementById('operationStatus');
   const seenEvents = new Set();
-  const partnerStorageKey = 'labConversation.selectedPartner';
+  const partnerStorageKey = 'roomConversation.selectedPartner';
   const storedRecipient = normalizeActor(localStorage.getItem(partnerStorageKey)) || normalizeActor(localStorage.getItem('rencrow.portal.partner')) || 'shiro';
   let selectedRecipient = storedRecipient;
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
@@ -124,7 +124,7 @@
     connectionDot.dataset.state = state;
     connectionText.textContent = text;
     document.querySelectorAll('[data-live-connection-dot]').forEach((dot) => { dot.dataset.state = state; });
-    document.querySelectorAll('[data-live-connection-text]').forEach((label) => { label.textContent = text; });
+    document.querySelectorAll('[data-room-connection-text]').forEach((label) => { label.textContent = text; });
   }
 
   function setOperation(text, isError = false) {
@@ -277,19 +277,19 @@
       if (isPartnerActor(normalizedRecipient)) selectedPartner = normalizedRecipient;
       storeSelectedRecipient(selectedRecipient);
     }
-    body.classList.toggle('lab-idle-mode', isIdle);
-    body.classList.toggle('lab-chat-mode', !isIdle);
-    ['mio', 'shiro', 'kuro', 'midori'].forEach((actor) => body.classList.remove(`lab-partner-${actor}`));
+    body.classList.toggle('room-idlechat-mode', isIdle);
+    body.classList.toggle('room-chat-mode', !isIdle);
+    ['mio', 'shiro', 'kuro', 'midori'].forEach((actor) => body.classList.remove(`room-partner-${actor}`));
     const candidateRecipient = isIdle ? normalizedRecipient : selectedRecipient;
     const portraitRecipient = ['mio', 'shiro', 'kuro', 'midori'].includes(candidateRecipient) ? candidateRecipient : 'mio';
-    body.classList.add(`lab-partner-${portraitRecipient}`);
-    body.dataset.labConversationMode = isIdle ? 'idle' : 'chat';
-    body.dataset.labPartner = portraitRecipient;
-    body.dataset.labSelectedPartner = isIdle ? selectedPartner : selectedRecipient;
-    setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');
-    setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');
-    setChip('labModeKuroChip', !isIdle && selectedRecipient === 'kuro');
-    setChip('labModeMidoriChip', !isIdle && selectedRecipient === 'midori');
+    body.classList.add(`room-partner-${portraitRecipient}`);
+    body.dataset.roomConversationMode = isIdle ? 'idle' : 'chat';
+    body.dataset.roomPartner = portraitRecipient;
+    body.dataset.roomSelectedPartner = isIdle ? selectedPartner : selectedRecipient;
+    setChip('roomMioChip', !isIdle && selectedRecipient === 'mio');
+    setChip('roomShiroChip', !isIdle && selectedRecipient === 'shiro');
+    setChip('roomKuroChip', !isIdle && selectedRecipient === 'kuro');
+    setChip('roomMidoriChip', !isIdle && selectedRecipient === 'midori');
   }
 
   function idleStatusActive(status) {
@@ -549,7 +549,7 @@
   }
 
   async function enableTTS() {
-    const control = document.getElementById('labAudioBtn');
+    const control = document.getElementById('roomAudioBtn');
     try {
       await setActiveControl('audio', 'claim', 'portal_tts_on');
       ttsControl.enabled = true;
@@ -581,7 +581,7 @@
   }
 
   async function disableTTS(release = true, message = 'TTSをOFFにしました') {
-    const control = document.getElementById('labAudioBtn');
+    const control = document.getElementById('roomAudioBtn');
     ttsControl.enabled = false;
     window.clearInterval(ttsControl.heartbeat);
     ttsControl.heartbeat = null;
@@ -650,7 +650,7 @@
   }
 
   async function startSTT() {
-    const control = document.getElementById('labMicBtn');
+    const control = document.getElementById('roomMicBtn');
     if (sttControl.stopTimer) {
       setOperation('STTの終了処理中です', true);
       return;
@@ -726,7 +726,7 @@
   }
 
   function stopSTT(release = true, message = 'STTをOFFにしました', isError = false) {
-    const control = document.getElementById('labMicBtn');
+    const control = document.getElementById('roomMicBtn');
     sttControl.enabled = false;
     sttControl.releaseOnCleanup = release;
     setToggleState(control, 'STT', false);
@@ -740,7 +740,7 @@
   }
 
   function bindTTSControl() {
-    const control = document.getElementById('labAudioBtn');
+    const control = document.getElementById('roomAudioBtn');
     if (!control) return;
     setToggleState(control, 'TTS', false);
     control.addEventListener('click', () => {
@@ -750,7 +750,7 @@
   }
 
   function bindSTTControl() {
-    const control = document.getElementById('labMicBtn');
+    const control = document.getElementById('roomMicBtn');
     if (!control) return;
     setToggleState(control, 'STT', false);
     control.addEventListener('click', () => {
@@ -803,7 +803,7 @@
 
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
-    document.querySelectorAll('[data-lab-switch]').forEach((control) => {
+    document.querySelectorAll('[data-room-switch]').forEach((control) => {
       control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat';
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
@@ -836,7 +836,7 @@
   }
 
   function updateDateTime() {
-    const element = document.getElementById('labDateTimePanel');
+    const element = document.getElementById('roomDateTimePanel');
     const now = new Date();
     element.dateTime = now.toISOString();
     element.textContent = new Intl.DateTimeFormat('ja-JP', {
@@ -852,21 +852,21 @@
         send('text');
       }
     });
-    document.querySelectorAll('[data-lab-switch]').forEach((chip) => {
+    document.querySelectorAll('[data-room-switch]').forEach((chip) => {
       chip.addEventListener('click', () => {
-        switchConversation('chat', chip.dataset.labSwitch);
+        switchConversation('chat', chip.dataset.roomSwitch);
       });
     });
     bindTTSControl();
     bindSTTControl();
-    bindCoreViewerControl('labAttachBtn', 'ファイル添付');
-    bindCoreViewerControl('labScreenBtn', '画面入力');
-    bindCoreViewerControl('labCameraBtn', 'カメラ入力');
+    bindCoreViewerControl('roomAttachBtn', 'ファイル添付');
+    bindCoreViewerControl('roomScreenBtn', '画面入力');
+    bindCoreViewerControl('roomCameraBtn', 'カメラ入力');
     setConversationState(false, selectedRecipient);
   } else if (roomSurface) {
     input.disabled = true;
-    document.querySelectorAll('.lab-footer-controls .lab-icon-btn').forEach((control) => { control.disabled = true; });
-    document.querySelectorAll('.lab-mode-chip').forEach((chip) => chip.disabled = true);
+    document.querySelectorAll('.room-footer-controls .room-icon-btn').forEach((control) => { control.disabled = true; });
+    document.querySelectorAll('.room-partner-chip').forEach((chip) => chip.disabled = true);
     setConversationState(true, selectedRecipient);
   }
 

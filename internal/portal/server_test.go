@@ -65,34 +65,34 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 			`data-mode="chat"`,
 			`data-surface="chat"`,
 			`class="theme-modern portal-room-mode`,
-			`class="lab-stream-shell"`,
-			`class="lab-world"`,
-			`class="lab-mio-portrait purupuru-avatar"`,
-			`class="lab-shiro-portrait purupuru-avatar"`,
-			`class="lab-kuro-portrait purupuru-avatar"`,
-			`class="lab-midori-portrait purupuru-avatar"`,
+			`class="room-stream-shell"`,
+			`class="room-world"`,
+			`class="room-mio-portrait purupuru-avatar"`,
+			`class="room-shiro-portrait purupuru-avatar"`,
+			`class="room-kuro-portrait purupuru-avatar"`,
+			`class="room-midori-portrait purupuru-avatar"`,
 			`id="mioAvatar" character="mio"`,
 			`id="shiroAvatar" character="shiro"`,
 			`id="kuroAvatar" character="kuro"`,
 			`id="midoriAvatar" character="midori"`,
 			`id="chat"`,
-			`id="labInp"`,
-			`id="labModeMioChip" type="button" data-lab-switch="mio" aria-current="true"`,
-			`id="labModeShiroChip" type="button" data-lab-switch="shiro" aria-current="false"`,
-			`id="labModeKuroChip" type="button" data-lab-switch="kuro" aria-current="false"`,
-			`id="labModeMidoriChip" type="button" data-lab-switch="midori" aria-current="false"`,
-			`id="labAudioBtn"`,
-			`id="labMicBtn"`,
-			`id="labAttachBtn"`,
-			`id="labScreenBtn"`,
-			`id="labCameraBtn"`,
-			`id="labCameraLivePreview"`,
+			`id="roomInput"`,
+			`id="roomMioChip" type="button" data-room-switch="mio" aria-current="true"`,
+			`id="roomShiroChip" type="button" data-room-switch="shiro" aria-current="false"`,
+			`id="roomKuroChip" type="button" data-room-switch="kuro" aria-current="false"`,
+			`id="roomMidoriChip" type="button" data-room-switch="midori" aria-current="false"`,
+			`id="roomAudioBtn"`,
+			`id="roomMicBtn"`,
+			`id="roomAttachBtn"`,
+			`id="roomScreenBtn"`,
+			`id="roomCameraBtn"`,
+			`id="roomCameraLivePreview"`,
 		} {
 			if !strings.Contains(body, marker) {
 				t.Fatalf("%s AI VTuber room marker %q is missing", target, marker)
 			}
 		}
-		if strings.Contains(body, `class="lab-icon-btn portal-send-btn"`) {
+		if strings.Contains(body, `class="room-icon-btn portal-send-btn"`) {
 			t.Fatalf("%s Chat footer must use the established five controls, not a replacement send button", target)
 		}
 	}
@@ -105,10 +105,10 @@ func TestPortalChatSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`setChip('labModeMioChip', !isIdle && selectedRecipient === 'mio');`,
-		`setChip('labModeShiroChip', !isIdle && selectedRecipient === 'shiro');`,
-		`setChip('labModeKuroChip', !isIdle && selectedRecipient === 'kuro');`,
-		`setChip('labModeMidoriChip', !isIdle && selectedRecipient === 'midori');`,
+		`setChip('roomMioChip', !isIdle && selectedRecipient === 'mio');`,
+		`setChip('roomShiroChip', !isIdle && selectedRecipient === 'shiro');`,
+		`setChip('roomKuroChip', !isIdle && selectedRecipient === 'kuro');`,
+		`setChip('roomMidoriChip', !isIdle && selectedRecipient === 'midori');`,
 		`const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);`,
 		`setModeSwitcherBusy(true);`,
 		`await refreshStatus();`,
@@ -165,19 +165,35 @@ func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
 	content := string(script) + string(stylesheet)
 	for _, required := range []string{
 		`if (!roomSurface) return;`,
-		`body.classList.toggle('lab-idle-mode', isIdle);`,
-		`body.classList.toggle('lab-chat-mode', !isIdle);`,
+		`body.classList.toggle('room-idlechat-mode', isIdle);`,
+		`body.classList.toggle('room-chat-mode', !isIdle);`,
 		`setConversationState(false, selectedRecipient);`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-mio #mioPortrait,`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-shiro #shiroPortrait,`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #kuroPortrait,`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-midori #midoriPortrait{`,
-		`body.lab-mode.live-mode.lab-chat-mode.lab-partner-kuro #mioPortrait{`,
-		`body.lab-mode.live-mode.lab-idle-mode #mioPortrait,`,
-		`body.lab-mode.live-mode.lab-idle-mode #shiroPortrait{`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-mio #mioPortrait,`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-shiro #shiroPortrait,`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-kuro #kuroPortrait,`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-kuro #mioPortrait{`,
+		`body.room-mode.room-stage.room-idlechat-mode #mioPortrait,`,
+		`body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{`,
 	} {
 		if !strings.Contains(content, required) {
 			t.Errorf("Chat/IdleChat avatar layout marker %q is missing", required)
+		}
+	}
+}
+
+func TestPortalRoomAssetsDoNotUseLegacyLabOrLiveModeNames(t *testing.T) {
+	var content strings.Builder
+	for _, name := range []string{"web/index.html", "web/portal.css", "web/portal.js"} {
+		data, err := webFiles.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content.Write(data)
+	}
+	for _, legacy := range []string{"lab-", "labMode", "labInp", "live-mode"} {
+		if strings.Contains(content.String(), legacy) {
+			t.Errorf("legacy internal name %q remains in PORTAL room assets", legacy)
 		}
 	}
 }
@@ -355,10 +371,11 @@ func TestPortalChatAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 	}
 }
 
-func TestPortalProxyAddsTrustedOperationSourceAndClientIP(t *testing.T) {
-	var gotClient, gotForwardedFor, gotUserAgent string
+func TestPortalProxyAddsTrustedOperationSourceProfileAndClientIP(t *testing.T) {
+	var gotClient, gotProfile, gotForwardedFor, gotUserAgent string
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotClient = r.Header.Get("X-RenCrow-Client")
+		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
 		gotForwardedFor = r.Header.Get("X-Forwarded-For")
 		gotUserAgent = r.Header.Get("User-Agent")
 		w.WriteHeader(http.StatusAccepted)
@@ -376,6 +393,7 @@ func TestPortalProxyAddsTrustedOperationSourceAndClientIP(t *testing.T) {
 	req.Header.Set("Origin", "http://portal.example")
 	req.Header.Set("User-Agent", "Mozilla/5.0 test-browser")
 	req.Header.Set("X-RenCrow-Client", "spoofed-client")
+	req.Header.Set("X-RenCrow-Interaction-Profile", "spoofed-profile")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusAccepted {
@@ -384,11 +402,38 @@ func TestPortalProxyAddsTrustedOperationSourceAndClientIP(t *testing.T) {
 	if gotClient != "RenCrow_PORTAL" {
 		t.Fatalf("X-RenCrow-Client = %q, want RenCrow_PORTAL", gotClient)
 	}
+	if gotProfile != "portal-chat" {
+		t.Fatalf("X-RenCrow-Interaction-Profile = %q, want portal-chat", gotProfile)
+	}
 	if !strings.Contains(gotForwardedFor, "203.0.113.42") {
 		t.Fatalf("X-Forwarded-For = %q, want source IP", gotForwardedFor)
 	}
 	if gotUserAgent != "Mozilla/5.0 test-browser" {
 		t.Fatalf("User-Agent = %q", gotUserAgent)
+	}
+}
+
+func TestPortalIdleChatProxyUsesReadOnlyInteractionProfile(t *testing.T) {
+	var gotProfile string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/idlechat/viewer/idlechat/status", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if gotProfile != "portal-idlechat" {
+		t.Fatalf("X-RenCrow-Interaction-Profile = %q, want portal-idlechat", gotProfile)
 	}
 }
 

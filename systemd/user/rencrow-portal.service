@@ -1,0 +1,18 @@
+[Unit]
+Description=RenCrow PORTAL
+After=network-online.target rencrow.service
+Wants=network-online.target rencrow.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/RenCrow/RenCrow_PORTAL
+ExecStart=%h/.local/bin/rencrow-portal
+Environment=RENCROW_PORTAL_LISTEN=127.0.0.1:18791
+Environment=RENCROW_CORE_URL=http://127.0.0.1:18790
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
