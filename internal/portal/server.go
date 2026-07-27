@@ -70,7 +70,9 @@ func NewHandler(cfg Config) (http.Handler, error) {
 			http.Error(w, "COREへ接続できません: "+proxyErr.Error(), http.StatusBadGateway)
 		},
 	}
-	return h, nil
+	// PORTAL が自身で拒否したリクエストと CORE へ到達できなかったリクエストは
+	// CORE のログに現れない。PORTAL が唯一の証拠元であるため記録する。
+	return withAccessLog(newAccessLogger(nil), h), nil
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
