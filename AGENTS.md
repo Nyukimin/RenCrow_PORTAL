@@ -45,14 +45,14 @@ Windows 環境では、セキュリティソフトが `go test` の生成する�
 断続的にブロックすることがある（`Access is denied`）。テスト内容とは無関係に
 発生し、ファイル操作を含まない package でも再現する。
 
-- `go test -c -o <一時ディレクトリ>/x.exe` による回避を行わない。一時領域への
-  実行ファイル生成と即時実行はマルウェアの典型的な挙動であり、検知を迂回する
-  行為はセキュリティソフトの判断を無効化することと同じである。
-- ブロックされた package は「未検証」として理由とともに報告する。「通過」と
-  書かない。
-- `go vet` は実行ファイルを生成しないため型チェックには使えるが、テスト通過の
-  代わりにはならない。実際のコンパイルエラーとの切り分けに使う。
-- 恒久対策はセキュリティソフト側のプロセス除外設定であり、コード側では解決
-  できない。
+- ローカルWindowsでは`go test`を実行しない。
+- Native Windows検証は`.github/workflows/go-test.yml`のGitHub管理
+  `windows-latest` runnerで実行する。Linux jobと同じ`go test ./...`を使い、
+  テストをskip、削除、弱体化しない。
+- Push前はUbuntu環境で`go test ./...`を実行し、ローカルWindowsでは`go vet ./...`
+  を実行する。Windows CIが未実施または失敗ならWindows側は未検証と報告する。
+- Windowsからの手動実行は`scripts/test-windows-ci.ps1`を使い、Push済みの
+  `origin`と同一commitだけを対象にする。
+- カスペルスキーの停止、除外設定、`go test -c`などの検知迂回は行わない。
 
 詳細は `RenCrow_CORE/rules/common/rules_testing.md` の 9.2 を参照する。

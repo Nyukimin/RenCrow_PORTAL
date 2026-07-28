@@ -166,3 +166,13 @@ go test ./...
 go vet ./...
 make build
 ```
+
+ローカルWindowsでは、カスペルスキーがGoの一時テスト実行ファイルを検知するため
+`go test`を直接実行しません。Push前はUbuntuで同じ`go test ./...`を実行し、
+Native Windows検証はPush済みcommitに対して次のscriptから起動します。
+
+```powershell
+.\scripts\test-windows-ci.ps1
+```
+
+GitHub管理の`windows-latest` runnerがLinuxと同じテスト内容を実行します。
