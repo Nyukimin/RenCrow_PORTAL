@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestPortalRejectsLegacyViewerModes(t *testing.T) {
+func TestPortalRejectsUnknownViewerMode(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
 	if err != nil {
@@ -17,8 +17,8 @@ func TestPortalRejectsLegacyViewerModes(t *testing.T) {
 	}
 
 	for _, target := range []string{
-		"/?mode=view", "/?mode=live", "/?mode=lab",
-		"/view", "/live", "/lab",
+		"/?mode=unsupported",
+		"/unsupported",
 	} {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
@@ -182,22 +182,6 @@ func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
 	}
 }
 
-func TestPortalRoomAssetsDoNotUseLegacyLabOrLiveModeNames(t *testing.T) {
-	var content strings.Builder
-	for _, name := range []string{"web/index.html", "web/portal.css", "web/portal.js"} {
-		data, err := webFiles.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		content.Write(data)
-	}
-	for _, legacy := range []string{"lab-", "labMode", "labInp", "live-mode"} {
-		if strings.Contains(content.String(), legacy) {
-			t.Errorf("legacy internal name %q remains in PORTAL room assets", legacy)
-		}
-	}
-}
-
 func TestPuruPuruRendererAssetsRemainNonFrameable(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
@@ -276,7 +260,7 @@ func TestPortalRendersNamedAgentHandoffSpeakers(t *testing.T) {
 	}
 }
 
-func TestPortalRejectsLegacyAPIModes(t *testing.T) {
+func TestPortalRejectsUnknownAPIMode(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
@@ -291,16 +275,14 @@ func TestPortalRejectsLegacyAPIModes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, legacyMode := range []string{"view", "live", "lab"} {
-		req := httptest.NewRequest(http.MethodGet, "/api/"+legacyMode+"/viewer/events", nil)
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("%s API status = %d, want 403", legacyMode, rec.Code)
-		}
+	req := httptest.NewRequest(http.MethodGet, "/api/unsupported/viewer/events", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unsupported API status = %d, want 403", rec.Code)
 	}
 	if calls.Load() != 0 {
-		t.Fatalf("legacy API reached CORE: calls=%d", calls.Load())
+		t.Fatalf("unsupported API reached CORE: calls=%d", calls.Load())
 	}
 }
 

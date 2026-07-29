@@ -9,7 +9,7 @@ RenCrow_PORTALは、MioやShiroが部屋の中で会話するAI VTuber形式の�
 - `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面
 - `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、IdleChat開始・停止、TTS再生、STTマイク入力
 
-公開modeは`Chat`と`IdleChat`の2系統だけです。旧`view`、`live`、`lab`は受理しません。
+公開modeは`Chat`と`IdleChat`の2系統です。
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatではMioを左、Shiroを右へ同時表示します。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
 
 Debug、Ops、Repair、設定変更などの管理APIは中継しません。
@@ -29,7 +29,7 @@ PORTALは[PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)の描�
 
 各キャラは、6表情、前髪、後ろ髪、packageで定義されたitem layer、`default-settings.json`を持ちます。画像は透過PNGで同じキャンバス寸法に揃えます。表示サイズと4人の配置は`portal.css`が所有します。
 
-口パクはテキスト長から疑似生成しません。COREから受け取ったTTS audioをWeb Audio APIの`AnalyserNode`へ接続し、実音声のRMS振幅を発話者の`AvatarInstance`へ渡します。会話の送信先は`lab-partner-mio`、`lab-partner-shiro`、`lab-partner-kuro`、`lab-partner-midori`で示します。
+口パクはテキスト長から疑似生成しません。COREから受け取ったTTS audioをWeb Audio APIの`AnalyserNode`へ接続し、実音声のRMS振幅を発話者の`AvatarInstance`へ渡します。会話の送信先はCOREの公開Agent IDである`mio`、`shiro`、`kuro`、`midori`を使い、画面上では`room-partner-mio`、`room-partner-shiro`、`room-partner-kuro`、`room-partner-midori`で示します。
 
 PuruPuru更新時は手編集で差分を移植せず、同期コマンドで原版と生成runtimeを更新します。キャラの正本はフォルダ直下のLoose PNGではなく、上表の生成済み`.purupuru`です。同期処理がpackage内の表情、前後髪、item layer、`settings.json`を展開します。生成テストは、同梱した原版`app.js`から`runtime-app.js`が再現できることも検証します。
 

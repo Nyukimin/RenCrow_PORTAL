@@ -890,13 +890,7 @@ body.theme-compact .input-wrap textarea{min-height:38px;max-height:86px}
   .input-wrap textarea{max-height:76px}
 }
 
-/* === Live2D Mode (mode=live2d: 全画面キャラクターステージ) === */
-body.live2d-mode > :not(#live2dStage){display:none !important}
-#live2dStage{position:fixed;inset:0;z-index:1000;background:#12101c}
-#live2dStage[hidden]{display:none}
-#live2dStageFrame{width:100%;height:100%;border:0;display:block}
-
-/* === Live Mode (配信用 1920x1080) === */
+/* === Room stage (配信用 1920x1080) === */
 body.room-stage header{display:none}
 body.room-stage .logo{font-size:26px;gap:14px}
 body.room-stage .logo img{height:96px !important}
@@ -1134,7 +1128,7 @@ body.room-stage .room-audio-btn{
   height: 256px;
 }
 
-/* === RenCrow Lab Mode: white sci-fi fantasy lab === */
+/* === RenCrow room theme: white sci-fi fantasy === */
 .room-mio-portrait,
 .room-shiro-portrait,
 .room-midori-portrait{display:none}
@@ -1356,7 +1350,7 @@ body.room-mode.room-stage main .lipsync-stage{display:none}
   }
 }
 
-/* === RenCrow Lab Broadcast Layout: image-reference composition === */
+/* === RenCrow room layout: image-reference composition === */
 .room-stream-shell,
 .room-shiro-portrait{display:none}
 
@@ -1812,7 +1806,7 @@ body.room-mode.room-stage .room-audio-btn{
   .room-footer small{display:none}
 }
 
-/* === RenCrow Lab readability pass === */
+/* === RenCrow room readability pass === */
 body.room-mode.room-stage{
   font-size:16px;
   letter-spacing:0;
@@ -2038,7 +2032,7 @@ body[data-mode="idlechat"] .room-partner-chip-midori{
 
 }
 
-/* === RenCrow Lab fit pass: keep card contents inside their frames === */
+/* === RenCrow room fit pass: keep card contents inside their frames === */
 body.room-mode.room-stage{
   font-size:14px;
 }
@@ -2130,7 +2124,7 @@ body.room-mode.room-stage .room-footer em{
 
 }
 
-/* === RenCrow Lab conversation-mode pass === */
+/* === RenCrow room conversation pass === */
 .room-partner-indicator{
   display:none;
 }
@@ -2438,7 +2432,7 @@ body.room-mode.room-stage.room-idlechat-mode.room-partner-midori .room-midori-po
   }
 }
 
-/* === RenCrow Lab input footer === */
+/* === RenCrow room input footer === */
 body.room-mode.room-stage .input-bar{
   display:none;
 }
@@ -2696,7 +2690,7 @@ body.room-mode.room-stage .room-icon-btn:disabled{
 }
 }
 
-/* Lab mode: keep the small mark, use the brand text area for the topic. */
+/* Keep the small mark and use the brand text area for the topic. */
 body.room-mode.room-stage .room-logo-row > div{
   display:none !important;
 }

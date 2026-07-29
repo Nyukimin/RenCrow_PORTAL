@@ -73,8 +73,8 @@ func TestLoadConfigNormalizesCanonicalModeNames(t *testing.T) {
 	}
 }
 
-func TestConfigRejectsLegacyAndUnsupportedModes(t *testing.T) {
-	for _, mode := range []Mode{"view", "live", "lab", "debug"} {
+func TestConfigRejectsUnsupportedModes(t *testing.T) {
+	for _, mode := range []Mode{"unsupported", "debug"} {
 		cfg := DefaultConfig()
 		cfg.EnabledModes = []Mode{mode}
 		if err := cfg.Validate(); err == nil {
