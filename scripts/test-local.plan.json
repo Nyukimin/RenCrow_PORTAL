@@ -5,7 +5,8 @@
       "name": "go",
       "workingDirectory": ".",
       "filePath": "go",
-      "arguments": ["test", "./..."]
+      "arguments": ["test", "./..."],
+      "testFiles": ["*_test.go"]
     }
   ]
 }
