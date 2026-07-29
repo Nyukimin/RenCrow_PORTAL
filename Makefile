@@ -20,7 +20,11 @@ install-service: install
 	@systemctl --user daemon-reload
 
 test:
+ifeq ($(OS),Windows_NT)
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-local.ps1 -Step go
+else
 	@go test ./...
+endif
 
 vet:
 	@go vet ./...

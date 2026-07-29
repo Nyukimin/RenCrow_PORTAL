@@ -12,7 +12,7 @@
 
 ## Repository-local test runtime
 
-- ローカルWindowsでは`.\scripts\test-local.ps1 go -- test ./...`を使う。
+- ローカルWindowsでは`.\scripts\test-local.ps1`を使う。
 - runnerは`TEMP`、`TMP`、`TMPDIR`、`GOTMPDIR`、各種cacheをrepo内の
   `Tmp/test-runtime/`へ向ける。`t.TempDir()`やcompilerの一時実行fileもこの配下に置く。
 - `Tmp/`はGit管理外とし、security softwareを有効にしたままtestする。

@@ -170,7 +170,7 @@ make build
 ローカルWindowsでは、test生成物をrepo内の`Tmp/test-runtime/`へ限定して実行します。
 
 ```powershell
-.\scripts\test-local.ps1 go -- test ./...
+.\scripts\test-local.ps1
 ```
 
 Push前はUbuntuでも同じ`go test ./...`を実行し、Push済みcommitのNative Windows
