@@ -163,23 +163,19 @@ http://127.0.0.1:18791/?mode=IdleChat
 
 ## 検証
 
-```bash
-go test ./...
-go vet ./...
-make build
-```
-
-ローカルWindowsでは、test生成物をrepo内の`Tmp/test-runtime/`へ限定して実行します。
+Linux／macOSでは`go test ./...`で振る舞いを検証します。ローカルWindowsでは
+`.test.exe`を生成する`go test`を使わず、repo内の`Tmp/test-runtime/`へ限定して
+`go vet ./...`と`go build ./...`を実行します。
 
 ```powershell
 .\scripts\test-local.ps1
 ```
 
-Push前はUbuntuでも同じ`go test ./...`を実行し、Push済みcommitのNative Windows
-CI検証は次のscriptから起動します。
+Push済みcommitのUbuntu testとWindows build/vetは次のscriptから起動・確認します。
 
 ```powershell
-.\scripts\test-windows-ci.ps1
+.\scripts\test-github-ci.ps1
 ```
 
-GitHub管理の`windows-latest` runnerがLinuxと同じテスト内容を実行します。
+GitHub管理の`ubuntu-latest` runnerが`go test ./...`と`go vet ./...`を、
+`windows-latest` runnerが`go build ./...`と`go vet ./...`を実行します。

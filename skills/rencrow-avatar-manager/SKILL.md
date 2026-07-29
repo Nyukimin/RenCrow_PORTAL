@@ -43,8 +43,9 @@ go run .\cmd\sync-purupuru -source C:\Users\nyuki\Documents\GenerativeAI\PuruPur
 ```
 
 5. Run `inspect --all` again. Require zero package-to-PORTAL mismatches.
-6. Run `go test ./... -count=1`, `go vet ./...`, `git diff --check`, and a
-temporary binary build.
+6. On local Windows, run `.\scripts\test-local.ps1`, `git diff --check`, and a
+temporary binary build. Do not generate or execute `.test.exe`; use the Ubuntu
+behavior-test job for the pushed revision.
 7. Resolve the exact process listening on port 18791, stop only that process,
 build `build\rencrow-portal.exe`, and restart it hidden.
 8. Fetch the changed HTTP asset with cache disabled and compare its SHA-256 to

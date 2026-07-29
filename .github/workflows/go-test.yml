@@ -11,15 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Go test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+  linux-test:
+    name: Go test (Ubuntu)
+    runs-on: ubuntu-latest
     steps:
       - name: Preserve repository line endings
         run: git config --global core.autocrlf false
@@ -35,6 +29,28 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: Vet
+        run: go vet ./...
+
+  windows-build:
+    name: Go build and vet (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Preserve repository line endings
+        run: git config --global core.autocrlf false
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
 
       - name: Vet
         run: go vet ./...

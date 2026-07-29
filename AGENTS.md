@@ -12,11 +12,13 @@
 
 ## Repository-local test runtime
 
-- ローカルWindowsでは`.\scripts\test-local.ps1`を使う。
+- ローカルWindowsでは`.\scripts\test-local.ps1`を使い、`go vet ./...`と
+  `go build ./...`だけを実行する。`.test.exe`を生成・実行する`go test`は使わない。
 - runnerは`TEMP`、`TMP`、`TMPDIR`、`GOTMPDIR`、各種cacheをrepo内の
   `Tmp/test-runtime/`へ向ける。`t.TempDir()`やcompilerの一時実行fileもこの配下に置く。
 - `Tmp/`はGit管理外とし、security softwareを有効にしたままtestする。
-- repo内`Tmp`でもblockされた場合は、errorを記録してUbuntuまたはWindows CIへ切り替える。
+- repo内`Tmp`でもblockされた場合は、errorとpathを記録し、renameや再実行をせず、
+  GitHub ActionsのUbuntu testへ切り替える。
 
 このリポジトリは、RenCrowを外部利用者へ公開するWeb画面を所有する。
 
@@ -49,11 +51,11 @@ ASSISTANT APIを中継する場合も同じ境界を適用し、他利用者のp
 
 ## Windows test policy
 
-- system tempへ生成物を置く裸の`go test`は実行せず、repository-local runnerを使う。
-- Native Windows検証はローカルrunnerと`.github/workflows/go-test.yml`の
-  `windows-latest` runnerの両方で確認できる。
-- Push前はUbuntu環境でも`go test ./...`を実行する。
-- Push済みcommitのCI確認には`scripts/test-windows-ci.ps1`を使う。
+- ローカルWindowsでは`.test.exe`を生成する`go test`を実行せず、
+  repository-local runnerで`go vet ./...`と`go build ./...`を実行する。
+- Goの振る舞いtestはGitHub ActionsのUbuntu jobで`go test ./...`を実行する。
+- Windows jobは`go build ./...`と`go vet ./...`を実行する。
+- Push済みcommitのCI確認には`scripts/test-github-ci.ps1`を使う。
 - security softwareの停止、除外設定、testのskip・削除・弱体化は行わない。
 
 詳細は `RenCrow_CORE/rules/common/rules_testing.md` の 9.2 を参照する。
