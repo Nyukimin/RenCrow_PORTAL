@@ -82,7 +82,7 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 
 | capability | PORTALでの表現 | 現在状態 |
 | --- | --- | --- |
-| Chat | `Chat`の会話入力とmessage表示 | 実装済み |
+| Chat | `Chat`の会話・添付入力とmessage表示 | 実装済み |
 | IdleChat | `IdleChat`の読み取り表示、`Chat`からの開始・停止 | 実装済み |
 | recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
 | STT／TTS | browser microphone、audio再生、ACK | 実装済み |
@@ -104,6 +104,8 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 
 - 会話相手の切替は`POST /viewer/recipient-selection`で観測eventを発行し、実際の送信先は`POST /viewer/send`の`to`で確定する
 - `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
+- ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
+- 会話欄へ表示するeventは`message.received`、利用者向け`agent.response`、`idlechat.message`に限定し、`message_id`をSSE再接続時の重複排除へ使う。`agent.thinking`やrouting／worker eventは会話本文として残さない
 - `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。現行は認証UIを持たないため`user_id=viewer-user`、`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
 - PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat`を付ける。profileは能力policyであり認証credentialではない
 - 接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する

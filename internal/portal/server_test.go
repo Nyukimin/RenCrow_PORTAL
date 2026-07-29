@@ -84,6 +84,7 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 			`id="roomAudioBtn"`,
 			`id="roomMicBtn"`,
 			`id="roomAttachBtn"`,
+			`id="roomAttachmentInput" type="file" multiple hidden`,
 			`id="roomScreenBtn"`,
 			`id="roomCameraBtn"`,
 			`id="roomCameraLivePreview"`,
@@ -238,24 +239,30 @@ func TestPortalLipSyncUsesTTSAudioAmplitude(t *testing.T) {
 	}
 }
 
-func TestPortalRendersNamedAgentHandoffSpeakers(t *testing.T) {
+func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`coder1: {label: 'Coder1'`,
-		`coder2: {label: 'Coder2'`,
-		`coder3: {label: 'Coder3'`,
-		`coder4: {label: 'Coder4'`,
-		`coder_loop: {label: 'CoderLoop'`,
+		`['message.received', 'agent.response', 'idlechat.message'].includes(type)`,
+		`return ` + "`message:${messageID}`",
+		`type === 'agent.thinking'`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("public conversation marker %q is missing", marker)
+		}
+	}
+	for _, forbidden := range []string{
+		`text === 'chatworker'`,
 		`text === 'heavy'`,
 		`text === 'wild'`,
 		`/^coder[1-4]$/.test(text)`,
+		`coder_loop: {label:`,
 	} {
-		if !strings.Contains(body, marker) {
-			t.Fatalf("Agent handoff speaker marker %q is missing", marker)
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("internal execution alias marker %q must not remain", forbidden)
 		}
 	}
 }
@@ -458,6 +465,9 @@ func TestPortalChatScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 		`post('/viewer/tts/playback-ack'`,
 		`api('/stt')`,
 		`navigator.mediaDevices.getUserMedia`,
+		`navigator.mediaDevices.getDisplayMedia`,
+		`form.append('attachments', file, file.name)`,
+		`Number(accepted.attachment_count || 0) !== attachments.length`,
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL control contract marker %q is missing", marker)
@@ -579,9 +589,9 @@ func TestPortalChatRejectsCrossOriginSTTWebSocket(t *testing.T) {
 	}
 }
 
-func TestPortalReadinessReflectsCoreHealth(t *testing.T) {
+func TestPortalReadinessReflectsCoreReady(t *testing.T) {
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health" {
+		if r.URL.Path != "/ready" {
 			http.NotFound(w, r)
 			return
 		}
@@ -599,5 +609,42 @@ func TestPortalReadinessReflectsCoreHealth(t *testing.T) {
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health/ready", nil))
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
+func TestPortalAllowsCoreSizedMultipartViewerSend(t *testing.T) {
+	var received int64
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/viewer/send" {
+			http.NotFound(w, r)
+			return
+		}
+		n, err := io.Copy(io.Discard, r.Body)
+		if err != nil {
+			t.Fatalf("read proxied multipart body: %v", err)
+		}
+		received = n
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := strings.NewReader(strings.Repeat("x", 3<<20))
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/viewer/send", body)
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=portal-test")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 body=%s", rec.Code, rec.Body.String())
+	}
+	if received != 3<<20 {
+		t.Fatalf("CORE received %d bytes, want %d", received, 3<<20)
 	}
 }

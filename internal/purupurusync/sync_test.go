@@ -31,6 +31,7 @@ func TestTransformAppBuildsScopedMultiInstanceRuntime(t *testing.T) {
 		"const PORTAL_RUNTIME_MODE = Boolean(runtime.portal)",
 		"if (PORTAL_RUNTIME_MODE || mainAnimationPaused",
 		"OBS_MODE && !PORTAL_RUNTIME_MODE",
+		"if (OBS_MODE || PORTAL_RUNTIME_MODE) return false;",
 		"function portalVoiceLevel(nowMs)",
 		"(OBS_MODE || PORTAL_RUNTIME_MODE)",
 		"runtime.controlPanelLeft",

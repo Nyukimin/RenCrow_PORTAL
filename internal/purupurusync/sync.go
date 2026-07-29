@@ -187,6 +187,9 @@ func TransformApp(source []byte) ([]byte, error) {
 	replace(`  function connectObsEventSource() {
     if (!OBS_MODE || obsEventSource) return;`, `  function connectObsEventSource() {
     if (!OBS_MODE || PORTAL_RUNTIME_MODE || obsEventSource) return;`, "OBS event boundary")
+	replace(`  async function pushObsConfig() {
+    if (OBS_MODE) return false;`, `  async function pushObsConfig() {
+    if (OBS_MODE || PORTAL_RUNTIME_MODE) return false;`, "OBS config write boundary")
 
 	startup := `  scheduleBlink();
   loadAssets()

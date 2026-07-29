@@ -17,7 +17,11 @@ import (
 //go:embed web/*
 var webFiles embed.FS
 
-const interactionProfileHeader = "X-RenCrow-Interaction-Profile"
+const (
+	interactionProfileHeader = "X-RenCrow-Interaction-Profile"
+	controlBodyLimit         = 2 << 20
+	viewerSendBodyLimit      = 121 << 20
+)
 
 type handler struct {
 	cfg       Config
@@ -162,7 +166,14 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if r.Method == http.MethodPost {
-		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+		bodyLimit := int64(controlBodyLimit)
+		if targetPath == "/viewer/send" && strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+			// CORE accepts up to 120 MiB of attachments. Keep one MiB for
+			// multipart boundaries and metadata while retaining the smaller
+			// limit for ordinary control requests.
+			bodyLimit = viewerSendBodyLimit
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
 	}
 	r.Header.Set(interactionProfileHeader, interactionProfileForMode(mode))
 	r.URL.Path = targetPath
@@ -240,7 +251,7 @@ func (h *handler) serveReadiness(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(h.cfg.CoreURL, "/")+"/health", nil)
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(h.cfg.CoreURL, "/")+"/ready", nil)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
 		return

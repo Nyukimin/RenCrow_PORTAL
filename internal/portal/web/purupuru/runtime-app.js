@@ -3053,7 +3053,7 @@
   }
 
   async function pushObsConfig() {
-    if (OBS_MODE) return false;
+    if (OBS_MODE || PORTAL_RUNTIME_MODE) return false;
     try {
       const response = await fetch("/api/obs/config", {
         method: "POST",

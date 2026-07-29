@@ -24,6 +24,13 @@
   const viewerClientID = getViewerClientID();
   const viewerUserID = 'viewer-user';
   const viewerDeviceName = getViewerDeviceName();
+  const attachmentControl = {
+    files: [],
+    maxTotalBytes: 120 * 1024 * 1024,
+    maxFileBytes: 10 * 1024 * 1024,
+    maxImageBytes: 20 * 1024 * 1024,
+    maxVideoBytes: 100 * 1024 * 1024,
+  };
   const ttsControl = {
     enabled: false,
     queue: [],
@@ -62,11 +69,6 @@
     shiro: {label: 'Shiro', mark: 'S', color: '#7c62d7'},
     kuro: {label: 'Kuro', mark: 'K', color: '#334155'},
     midori: {label: 'Midori', mark: 'M', color: '#16846b'},
-    coder1: {label: 'Coder1', mark: 'C1', color: '#a16207'},
-    coder2: {label: 'Coder2', mark: 'C2', color: '#a16207'},
-    coder3: {label: 'Coder3', mark: 'C3', color: '#a16207'},
-    coder4: {label: 'Coder4', mark: 'C4', color: '#a16207'},
-    coder_loop: {label: 'CoderLoop', mark: 'CL', color: '#a16207'},
   };
   const avatarRuntimeIDs = {
     mio: 'mioAvatar',
@@ -101,12 +103,10 @@
 
   function normalizeActor(value) {
     const text = String(value || '').trim().toLowerCase();
-    if (text.includes('shiro') || text.includes('しろ') || text === 'chatworker') return 'shiro';
-    if (text.includes('kuro') || text.includes('くろ') || text === 'heavy') return 'kuro';
-    if (text.includes('midori') || text.includes('みどり') || text === 'wild') return 'midori';
-    if (text.includes('mio') || text.includes('みお') || text === 'chat') return 'mio';
-    if (text === 'coder_loop') return 'coder_loop';
-    if (/^coder[1-4]$/.test(text)) return text;
+    if (text === 'shiro' || text === 'しろ') return 'shiro';
+    if (text === 'kuro' || text === 'くろ') return 'kuro';
+    if (text === 'midori' || text === 'みどり') return 'midori';
+    if (text === 'mio' || text === 'みお') return 'mio';
     if (text === 'user' || text === 'human') return 'user';
     return '';
   }
@@ -187,15 +187,24 @@
   }
 
   function eventKey(event) {
+    const messageID = String(event && event.message_id || '').trim();
+    if (messageID && ['message.received', 'agent.response', 'idlechat.message'].includes(String(event.type || ''))) {
+      return `message:${messageID}`;
+    }
+    const eventID = String(event && event.event_id || '').trim();
+    if (eventID) return `event:${eventID}`;
     return [event.seq, event.event_id, event.message_id, event.timestamp, event.type, event.from, event.content].map((value) => String(value || '')).join('|');
   }
 
   function shouldRenderEvent(event) {
     const content = String(event && event.content || '').trim();
-    if (!content || ['tts.audio_chunk', 'tts.session_completed', 'metrics.latency', 'viewer.active_control', 'viewer.recipient_selected'].includes(event.type)) return false;
+    const type = String(event && event.type || '');
+    if (!content || !['message.received', 'agent.response', 'idlechat.message'].includes(type)) return false;
     const from = normalizeActor(event.from);
     const to = normalizeActor(event.to);
-    return Boolean(from || to) && (from !== '' || to === 'user');
+    if (type === 'message.received') return from === 'user';
+    if (type === 'agent.response') return to === 'user' && ['mio', 'shiro', 'kuro', 'midori'].includes(from);
+    return ['mio', 'shiro', 'kuro', 'midori'].includes(from);
   }
 
   function formatTime(value) {
@@ -334,6 +343,9 @@
     events.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
+        if (pendingRequest && event.type === 'agent.thinking' && String(event.job_id || '') === pendingRequest.jobID) {
+          setOperation(`${actorInfo[pendingRequest.recipient].label}が応答を生成中です`);
+        }
         handleRequestTerminalEvent(event);
         handleControlEvent(event);
         renderEvent(event);
@@ -347,7 +359,9 @@
   async function post(path, payload) {
     if (mode !== 'chat') throw new Error(`${mode}モードは閲覧専用です`);
     const options = {method: 'POST'};
-    if (payload) {
+    if (payload instanceof FormData) {
+      options.body = payload;
+    } else if (payload) {
       options.headers = {'Content-Type': 'application/json'};
       options.body = JSON.stringify(payload);
     }
@@ -759,9 +773,164 @@
     });
   }
 
+  function attachmentLimit(file) {
+    const type = String(file && file.type || '').toLowerCase();
+    const name = String(file && file.name || '');
+    if (type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(name)) return attachmentControl.maxImageBytes;
+    if (type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(name)) return attachmentControl.maxVideoBytes;
+    return attachmentControl.maxFileBytes;
+  }
+
+  function isSupportedAttachment(file) {
+    const type = String(file && file.type || '').toLowerCase();
+    if (type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/') || type.startsWith('text/')) return true;
+    if (['application/pdf', 'application/json', 'application/x-yaml', 'application/yaml', 'application/xml'].includes(type)) return true;
+    return /\.(png|jpe?g|gif|webp|bmp|mp4|mov|webm|m4v|wav|mp3|flac|ogg|m4a|pdf|txt|md|json|csv|ya?ml|xml)$/i.test(String(file && file.name || ''));
+  }
+
+  function updateAttachmentControl() {
+    const control = document.getElementById('roomAttachBtn');
+    if (!control) return;
+    const count = attachmentControl.files.length;
+    control.classList.toggle('is-active', count > 0);
+    control.setAttribute('aria-pressed', count > 0 ? 'true' : 'false');
+    control.setAttribute('aria-label', count > 0 ? `添付ファイル ${count}件` : 'ファイルを添付');
+    control.title = count > 0 ? `添付ファイル ${count}件（Enterで送信）` : 'ファイルを添付';
+  }
+
+  function addAttachments(files) {
+    const incoming = Array.from(files || []);
+    if (!incoming.length) return;
+    const next = attachmentControl.files.slice();
+    const known = new Set(next.map((file) => `${file.name}|${file.size}|${file.lastModified}`));
+    for (const file of incoming) {
+      if (!isSupportedAttachment(file)) throw new Error(`${file.name}はCOREが対応していない形式です`);
+      if (file.size > attachmentLimit(file)) throw new Error(`${file.name}がCOREのファイル上限を超えています`);
+      const key = `${file.name}|${file.size}|${file.lastModified}`;
+      if (!known.has(key)) {
+        known.add(key);
+        next.push(file);
+      }
+    }
+    const total = next.reduce((sum, file) => sum + file.size, 0);
+    if (total > attachmentControl.maxTotalBytes) throw new Error('添付ファイルの合計がCOREの120 MiB上限を超えています');
+    attachmentControl.files = next;
+    updateAttachmentControl();
+    setOperation(`${next.length}件を添付しました。メッセージを入力してEnterで送信できます`);
+  }
+
+  function clearAttachments() {
+    attachmentControl.files = [];
+    const picker = document.getElementById('roomAttachmentInput');
+    if (picker) picker.value = '';
+    updateAttachmentControl();
+  }
+
+  function buildViewerSendPayload(message, recipient, inputSource, attachments) {
+    const fields = {
+      message,
+      to: recipient,
+      viewer_client_id: viewerClientID,
+      input_source: inputSource === 'stt' ? 'stt' : 'text',
+      user_id: viewerUserID,
+      device_name: viewerDeviceName,
+    };
+    if (!attachments.length) return fields;
+    const form = new FormData();
+    Object.entries(fields).forEach(([name, value]) => form.append(name, value));
+    attachments.forEach((file) => form.append('attachments', file, file.name));
+    return form;
+  }
+
+  function bindAttachmentControl() {
+    const control = document.getElementById('roomAttachBtn');
+    const picker = document.getElementById('roomAttachmentInput');
+    if (!control || !picker) return;
+    updateAttachmentControl();
+    control.addEventListener('click', () => picker.click());
+    picker.addEventListener('change', () => {
+      try {
+        addAttachments(picker.files);
+      } catch (error) {
+        setOperation(`添付できません: ${error.message}`, true);
+      } finally {
+        picker.value = '';
+      }
+    });
+  }
+
+  function waitForVideoFrame(video) {
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timeoutID = window.setTimeout(() => reject(new Error('映像を取得できませんでした')), 10000);
+      video.addEventListener('loadeddata', () => {
+        window.clearTimeout(timeoutID);
+        resolve();
+      }, {once: true});
+    });
+  }
+
+  function videoFrameFile(video, source) {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return Promise.reject(new Error('画像を作成できませんでした'));
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('画像を作成できませんでした'));
+          return;
+        }
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        resolve(new File([blob], `${source}-${stamp}.png`, {type: 'image/png', lastModified: Date.now()}));
+      }, 'image/png');
+    });
+  }
+
+  async function captureAttachment(source) {
+    if (!navigator.mediaDevices) throw new Error('このブラウザはメディア取得に対応していません');
+    const stream = source === 'screen'
+      ? await navigator.mediaDevices.getDisplayMedia({video: true, audio: false})
+      : await navigator.mediaDevices.getUserMedia({video: true, audio: false});
+    const preview = document.getElementById('roomCameraLivePreview');
+    const video = document.getElementById('roomCameraLiveVideo');
+    try {
+      if (!video) throw new Error('プレビューを初期化できませんでした');
+      video.srcObject = stream;
+      if (preview) preview.classList.add('is-visible');
+      await video.play();
+      await waitForVideoFrame(video);
+      addAttachments([await videoFrameFile(video, source)]);
+    } finally {
+      stream.getTracks().forEach((track) => track.stop());
+      if (video) video.srcObject = null;
+      if (preview) preview.classList.remove('is-visible');
+    }
+  }
+
+  function bindCaptureControl(id, source, label) {
+    const control = document.getElementById(id);
+    if (!control) return;
+    control.addEventListener('click', async () => {
+      if (pendingRequest) {
+        setOperation(`${actorInfo[pendingRequest.recipient].label}の応答を待っています`, true);
+        return;
+      }
+      setOperation(`${label}を取得中`);
+      try {
+        await captureAttachment(source);
+      } catch (error) {
+        setOperation(`${label}を取得できません: ${error.message}`, true);
+      }
+    });
+  }
+
   async function send(inputSource = 'text') {
     const message = input.value.trim();
-    if (!message || mode !== 'chat') return;
+    const attachments = attachmentControl.files.slice();
+    if ((!message && !attachments.length) || mode !== 'chat') return;
     if (pendingRequest) {
       setOperation(`${actorInfo[pendingRequest.recipient].label}の応答を待っています`, true);
       return;
@@ -770,18 +939,13 @@
     if (!beginRequestGuard(recipient)) return;
     setOperation('送信中');
     try {
-      const accepted = await post('/viewer/send', {
-        message,
-        to: recipient,
-        viewer_client_id: viewerClientID,
-        input_source: inputSource === 'stt' ? 'stt' : 'text',
-        user_id: viewerUserID,
-        device_name: viewerDeviceName,
-      });
+      const accepted = await post('/viewer/send', buildViewerSendPayload(message, recipient, inputSource, attachments));
       pendingRequest.jobID = String(accepted.job_id || '').trim();
       if (!pendingRequest.jobID) throw new Error('CORE応答にjob_idがありません');
       if (normalizeActor(accepted.recipient) !== recipient) throw new Error('CORE受付先が選択中の相手と一致しません');
+      if (Number(accepted.attachment_count || 0) !== attachments.length) throw new Error('COREで受理された添付数が一致しません');
       input.value = '';
+      clearAttachments();
       if (earlyTerminalJobIDs.delete(pendingRequest.jobID)) {
         finishRequestGuard('応答を受信しました');
         return;
@@ -793,17 +957,13 @@
     }
   }
 
-  function bindCoreViewerControl(id, label) {
-    const control = document.getElementById(id);
-    if (!control) return;
-    control.addEventListener('click', () => {
-      setOperation(`${label}は現在CORE Viewer側の機能です`, true);
-    });
-  }
-
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
     document.querySelectorAll('[data-room-switch]').forEach((control) => {
+      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat';
+      control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
+    });
+    document.querySelectorAll('#roomAttachBtn, #roomScreenBtn, #roomCameraBtn').forEach((control) => {
       control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat';
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
@@ -859,9 +1019,9 @@
     });
     bindTTSControl();
     bindSTTControl();
-    bindCoreViewerControl('roomAttachBtn', 'ファイル添付');
-    bindCoreViewerControl('roomScreenBtn', '画面入力');
-    bindCoreViewerControl('roomCameraBtn', 'カメラ入力');
+    bindAttachmentControl();
+    bindCaptureControl('roomScreenBtn', 'screen', '画面');
+    bindCaptureControl('roomCameraBtn', 'camera', 'カメラ画像');
     setConversationState(false, selectedRecipient);
   } else if (roomSurface) {
     input.disabled = true;
