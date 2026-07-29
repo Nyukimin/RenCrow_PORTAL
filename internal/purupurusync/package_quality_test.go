@@ -2,7 +2,6 @@ package purupurusync
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"image"
@@ -138,7 +137,7 @@ func TestVendoredManifestMatchesFiles(t *testing.T) {
 			t.Errorf("manifest file %s: %v", relative, err)
 			continue
 		}
-		hash := sha256.Sum256(file)
+		hash := contentSHA256(file)
 		if actual := hex.EncodeToString(hash[:]); actual != expected {
 			t.Errorf("manifest hash %s = %s, want %s", relative, actual, expected)
 		}

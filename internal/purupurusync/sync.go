@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // Characters is the PORTAL-visible set. The directory names are part of the
@@ -336,7 +337,7 @@ func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []s
 		PackageSHA256:    map[string]string{},
 		Files:            map[string]string{},
 	}
-	appHash := sha256.Sum256(app)
+	appHash := contentSHA256(app)
 	manifest.AppSHA256 = hex.EncodeToString(appHash[:])
 
 	for _, name := range []string{"app.js", "index.html", "styles.css", "LICENSE"} {
@@ -585,10 +586,17 @@ func hashTree(root string, hashes map[string]string) error {
 		if err != nil {
 			return err
 		}
-		hash := sha256.Sum256(data)
+		hash := contentSHA256(data)
 		hashes[filepath.ToSlash(relative)] = hex.EncodeToString(hash[:])
 		return nil
 	})
+}
+
+func contentSHA256(data []byte) [sha256.Size]byte {
+	if utf8.Valid(data) && bytes.IndexByte(data, 0) < 0 {
+		data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	}
+	return sha256.Sum256(data)
 }
 
 func EqualNormalized(a, b []byte) bool {

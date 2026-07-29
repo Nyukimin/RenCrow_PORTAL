@@ -7,6 +7,15 @@ import (
 	"testing"
 )
 
+func TestContentSHA256NormalizesTextLineEndingsOnly(t *testing.T) {
+	if contentSHA256([]byte("first\r\nsecond\r\n")) != contentSHA256([]byte("first\nsecond\n")) {
+		t.Fatal("text hashes should be independent of checkout line endings")
+	}
+	if contentSHA256([]byte{0, '\r', '\n'}) == contentSHA256([]byte{0, '\n'}) {
+		t.Fatal("binary hashes must preserve raw bytes")
+	}
+}
+
 func TestTransformAppBuildsScopedMultiInstanceRuntime(t *testing.T) {
 	sourcePath := filepath.Join("..", "portal", "web", "purupuru", "app.js")
 	runtimePath := filepath.Join("..", "portal", "web", "purupuru", "runtime-app.js")
