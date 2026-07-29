@@ -10,6 +10,14 @@
 - ユーザーが明示的に指示しない限り、新しい Git ブランチを作成してはいけない。
 - 作業は現在のブランチで継続する。
 
+## Repository-local test runtime
+
+- ローカルWindowsでは`.\scripts\test-local.ps1 go -- test ./...`を使う。
+- runnerは`TEMP`、`TMP`、`TMPDIR`、`GOTMPDIR`、各種cacheをrepo内の
+  `Tmp/test-runtime/`へ向ける。`t.TempDir()`やcompilerの一時実行fileもこの配下に置く。
+- `Tmp/`はGit管理外とし、security softwareを有効にしたままtestする。
+- repo内`Tmp`でもblockされた場合は、errorを記録してUbuntuまたはWindows CIへ切り替える。
+
 このリポジトリは、RenCrowを外部利用者へ公開するWeb画面を所有する。
 
 - `mode=IdleChat`: AI VTuberの会話を閲覧する読み取り専用画面。COREへの更新要求を許可しない。
@@ -39,20 +47,13 @@ ASSISTANT APIを中継する場合も同じ境界を適用し、他利用者のp
 - 実行権限、symlink、大文字小文字を区別する filesystem を前提にしない。
 - 完了とする前に Windows と Linux の両方でテストを実行するか、CI の該当ジョブ結果を確認する。片方だけの結果で完了と報告しない。
 
-## テスト実行のブロックについて
+## Windows test policy
 
-Windows 環境では、セキュリティソフトが `go test` の生成する一時実行ファイルを
-断続的にブロックすることがある（`Access is denied`）。テスト内容とは無関係に
-発生し、ファイル操作を含まない package でも再現する。
-
-- ローカルWindowsでは`go test`を実行しない。
-- Native Windows検証は`.github/workflows/go-test.yml`のGitHub管理
-  `windows-latest` runnerで実行する。Linux jobと同じ`go test ./...`を使い、
-  テストをskip、削除、弱体化しない。
-- Push前はUbuntu環境で`go test ./...`を実行し、ローカルWindowsでは`go vet ./...`
-  を実行する。Windows CIが未実施または失敗ならWindows側は未検証と報告する。
-- Windowsからの手動実行は`scripts/test-windows-ci.ps1`を使い、Push済みの
-  `origin`と同一commitだけを対象にする。
-- カスペルスキーの停止、除外設定、`go test -c`などの検知迂回は行わない。
+- system tempへ生成物を置く裸の`go test`は実行せず、repository-local runnerを使う。
+- Native Windows検証はローカルrunnerと`.github/workflows/go-test.yml`の
+  `windows-latest` runnerの両方で確認できる。
+- Push前はUbuntu環境でも`go test ./...`を実行する。
+- Push済みcommitのCI確認には`scripts/test-windows-ci.ps1`を使う。
+- security softwareの停止、除外設定、testのskip・削除・弱体化は行わない。
 
 詳細は `RenCrow_CORE/rules/common/rules_testing.md` の 9.2 を参照する。

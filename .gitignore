@@ -1,4 +1,5 @@
 build/
+/Tmp/
 portal.json
 *.log
 .env

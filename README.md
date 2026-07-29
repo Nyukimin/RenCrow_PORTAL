@@ -167,9 +167,14 @@ go vet ./...
 make build
 ```
 
-ローカルWindowsでは、カスペルスキーがGoの一時テスト実行ファイルを検知するため
-`go test`を直接実行しません。Push前はUbuntuで同じ`go test ./...`を実行し、
-Native Windows検証はPush済みcommitに対して次のscriptから起動します。
+ローカルWindowsでは、test生成物をrepo内の`Tmp/test-runtime/`へ限定して実行します。
+
+```powershell
+.\scripts\test-local.ps1 go -- test ./...
+```
+
+Push前はUbuntuでも同じ`go test ./...`を実行し、Push済みcommitのNative Windows
+CI検証は次のscriptから起動します。
 
 ```powershell
 .\scripts\test-windows-ci.ps1
