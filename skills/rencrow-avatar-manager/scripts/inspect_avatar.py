@@ -32,6 +32,13 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def normalized_output_bytes(relative: str, data: bytes) -> bytes:
+    if Path(relative).suffix.lower() != ".json":
+        return data
+    text = data.decode("utf-8-sig")
+    return text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+
+
 def load_config() -> dict[str, Any]:
     with CONFIG_PATH.open("r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -124,7 +131,7 @@ def inspect_character(config: dict[str, Any], actor: str) -> dict[str, Any]:
             if relative is None:
                 continue
             expected_outputs.add(relative)
-            source_data = archive.read(archive_name)
+            source_data = normalized_output_bytes(relative, archive.read(archive_name))
             if relative.lower().endswith(".png") and not source_data.startswith(
                 PNG_SIGNATURE
             ):

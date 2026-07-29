@@ -11,6 +11,9 @@ func TestContentSHA256NormalizesTextLineEndingsOnly(t *testing.T) {
 	if contentSHA256([]byte("first\r\nsecond\r\n")) != contentSHA256([]byte("first\nsecond\n")) {
 		t.Fatal("text hashes should be independent of checkout line endings")
 	}
+	if got := string(normalizeUTF8Text([]byte{0xEF, 0xBB, 0xBF, 'a', '\r', 'b', '\r', '\n'})); got != "a\nb\n" {
+		t.Fatalf("normalizeUTF8Text() = %q, want UTF-8 without BOM and LF only", got)
+	}
 	if contentSHA256([]byte{0, '\r', '\n'}) == contentSHA256([]byte{0, '\n'}) {
 		t.Fatal("binary hashes must preserve raw bytes")
 	}

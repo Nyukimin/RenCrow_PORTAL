@@ -1,0 +1,12 @@
+# PuruPuru text assets are UTF-8 with LF line endings.
+LICENSE text eol=lf working-tree-encoding=UTF-8
+*.css text eol=lf working-tree-encoding=UTF-8
+*.html text eol=lf working-tree-encoding=UTF-8
+*.js text eol=lf working-tree-encoding=UTF-8
+*.json text eol=lf working-tree-encoding=UTF-8
+*.md text eol=lf working-tree-encoding=UTF-8
+**/*.json text eol=lf working-tree-encoding=UTF-8
+
+# Preserve rendered avatar assets byte-for-byte.
+*.png -text
+**/*.png -text

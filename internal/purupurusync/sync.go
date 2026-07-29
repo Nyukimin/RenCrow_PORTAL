@@ -511,6 +511,13 @@ func extractPackageFile(entry *zip.File, destinationRoot, relative string) error
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return err
 	}
+	if strings.EqualFold(filepath.Ext(clean), ".json") {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, normalizeUTF8Text(data), 0o644)
+	}
 	output, err := os.Create(target)
 	if err != nil {
 		return err
@@ -593,13 +600,18 @@ func hashTree(root string, hashes map[string]string) error {
 }
 
 func contentSHA256(data []byte) [sha256.Size]byte {
-	if utf8.Valid(data) && bytes.IndexByte(data, 0) < 0 {
-		data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
-	}
-	return sha256.Sum256(data)
+	return sha256.Sum256(normalizeUTF8Text(data))
 }
 
 func EqualNormalized(a, b []byte) bool {
-	normalize := func(value []byte) []byte { return bytes.ReplaceAll(value, []byte("\r\n"), []byte("\n")) }
-	return bytes.Equal(normalize(a), normalize(b))
+	return bytes.Equal(normalizeUTF8Text(a), normalizeUTF8Text(b))
+}
+
+func normalizeUTF8Text(data []byte) []byte {
+	if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
+		return data
+	}
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	return bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
 }
