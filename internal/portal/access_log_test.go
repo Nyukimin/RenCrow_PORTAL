@@ -98,6 +98,33 @@ func TestAccessLogCarriesCorrelation(t *testing.T) {
 	if entry.InteractionProfile != "portal-chat" {
 		t.Fatalf("interaction_profile = %q, want portal-chat", entry.InteractionProfile)
 	}
+	if entry.OperationSource != "RenCrow_PORTAL" {
+		t.Fatalf("operation_source = %q, want RenCrow_PORTAL", entry.OperationSource)
+	}
+}
+
+func TestAccessLogRecordsCoreSendCorrelation(t *testing.T) {
+	var buf bytes.Buffer
+	handler := withAccessLog(newAccessLogger(&buf), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"ok":true,"job_id":"job-123","trace_id":"trace-456","viewer_client_id":"portal-789"}`))
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/Chat/viewer/send", nil)
+	req.Header.Set(interactionProfileHeader, "portal-chat")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	entry := decodeAccessLog(t, buf.String())
+	if entry.JobID != "job-123" {
+		t.Fatalf("job_id = %q, want job-123", entry.JobID)
+	}
+	if entry.TraceID != "trace-456" {
+		t.Fatalf("trace_id = %q, want trace-456", entry.TraceID)
+	}
+	if entry.ViewerClientID != "portal-789" {
+		t.Fatalf("viewer_client_id = %q, want portal-789", entry.ViewerClientID)
+	}
 }
 
 // TestAccessLogSkipsHealthProbes は監視用の probe を記録しないことを確認する
@@ -127,6 +154,9 @@ type accessLogEntry struct {
 	DurationMS         int64  `json:"duration_ms"`
 	ViewerClientID     string `json:"viewer_client_id"`
 	InteractionProfile string `json:"interaction_profile"`
+	OperationSource    string `json:"operation_source"`
+	JobID              string `json:"job_id"`
+	TraceID            string `json:"trace_id"`
 }
 
 func decodeAccessLog(t *testing.T, raw string) accessLogEntry {
