@@ -70,6 +70,15 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	h.proxy = &httputil.ReverseProxy{
 		Director:      h.directProxyRequest,
 		FlushInterval: -1,
+		ModifyResponse: func(response *http.Response) error {
+			if response.Request != nil && response.Request.URL.Path == "/viewer/games/observer" {
+				response.Header.Del("Content-Security-Policy")
+				response.Header.Del("Referrer-Policy")
+				response.Header.Del("X-Content-Type-Options")
+				response.Header.Del("X-Frame-Options")
+			}
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, proxyErr error) {
 			http.Error(w, "COREへ接続できません: "+proxyErr.Error(), http.StatusBadGateway)
 		},
@@ -82,7 +91,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
 	switch {
-	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat":
+	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat" || r.URL.Path == "/games":
 		h.servePage(w, r)
 	case r.URL.Path == "/health/live":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "rencrow-portal"})
@@ -93,6 +102,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.assets.ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		h.serveAPI(w, r)
+	case r.URL.Path == "/viewer/games/observer" || strings.HasPrefix(r.URL.Path, "/viewer/games/observer-api/"):
+		h.serveGamesObserverProxy(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -121,6 +132,9 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	}
 	if mode == ModeIdleChat {
 		data.BodyClass = "theme-modern portal-room-mode room-stage room-mode room-idlechat-mode room-partner-shiro portal-idlechat-mode"
+	}
+	if mode == ModeGames {
+		data.BodyClass = "theme-modern portal-games-mode"
 	}
 	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)
@@ -184,10 +198,16 @@ func interactionProfileForMode(mode Mode) string {
 	if mode == ModeChat {
 		return "portal-chat"
 	}
+	if mode == ModeGames {
+		return "portal-games"
+	}
 	return "portal-idlechat"
 }
 
 func portalEndpointAllowed(mode Mode, method, path string) bool {
+	if mode == ModeGames {
+		return portalGamesEndpointAllowed(method, path)
+	}
 	readEndpoints := map[string]bool{
 		"/health":                  true,
 		"/viewer/events":           true,
@@ -223,6 +243,63 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	default:
 		return false
 	}
+}
+
+func portalGamesEndpointAllowed(method, path string) bool {
+	if method == http.MethodGet || method == http.MethodHead {
+		switch path {
+		case "/health",
+			"/viewer/games/status",
+			"/viewer/games/sessions",
+			"/viewer/games/events",
+			"/viewer/games/observer":
+			return true
+		default:
+			return strings.HasPrefix(path, "/viewer/games/observer-api/")
+		}
+	}
+	if method != http.MethodPost {
+		return false
+	}
+	if path == "/viewer/games/launch" {
+		return true
+	}
+	return portalGamesSessionActionAllowed(path)
+}
+
+func portalGamesSessionActionAllowed(path string) bool {
+	const prefix = "/viewer/games/observer-api/games/sessions/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	parts := strings.Split(strings.TrimPrefix(path, prefix), "/")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
+		return false
+	}
+	return parts[1] == "retry" || parts[1] == "start_over"
+}
+
+func (h *handler) serveGamesObserverProxy(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.modeEnabled(ModeGames) {
+		http.Error(w, "mode is disabled", http.StatusForbidden)
+		return
+	}
+	if !portalGamesEndpointAllowed(r.Method, r.URL.Path) {
+		http.Error(w, "Gamesでは許可されていない操作です", http.StatusForbidden)
+		return
+	}
+	if r.Method == http.MethodPost {
+		if !sameOriginOrNonBrowser(r) {
+			http.Error(w, "cross-origin controlは許可されていません", http.StatusForbidden)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, controlBodyLimit)
+	}
+	if r.URL.Path == "/viewer/games/observer" {
+		setGamesObserverSecurityHeaders(w.Header())
+	}
+	r.Header.Set(interactionProfileHeader, interactionProfileForMode(ModeGames))
+	h.proxy.ServeHTTP(w, r)
 }
 
 func (h *handler) directProxyRequest(r *http.Request) {
@@ -271,10 +348,17 @@ func (h *handler) serveReadiness(w http.ResponseWriter, r *http.Request) {
 }
 
 func setSecurityHeaders(w http.ResponseWriter) {
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
+}
+
+func setGamesObserverSecurityHeaders(header http.Header) {
+	header.Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'")
+	header.Set("Referrer-Policy", "no-referrer")
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("X-Frame-Options", "SAMEORIGIN")
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

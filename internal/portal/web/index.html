@@ -8,6 +8,12 @@
   <link rel="stylesheet" href="/assets/portal.css">
 </head>
 <body class="{{.BodyClass}}" data-mode="{{.Mode}}" data-surface="{{.Surface}}">
+  <nav class="portal-surface-nav" aria-label="PORTAL">
+    <a href="/chat"{{if eq .Mode "chat"}} aria-current="page"{{end}}>Chat</a>
+    <a href="/idlechat"{{if eq .Mode "idlechat"}} aria-current="page"{{end}}>IdleChat</a>
+    <a href="/games"{{if eq .Mode "games"}} aria-current="page"{{end}}>Games</a>
+  </nav>
+
   <div class="room-topic-bar" id="liveTopicBar">
     <span class="room-topic-label">TOPIC</span>
     <span class="room-topic-text" id="topicText">-</span>
@@ -137,11 +143,115 @@
           </section>
         </div>
       </section>
+      <section id="panel-games" class="games-desk-panel" aria-label="Games">
+        <header class="games-heading">
+          <div>
+            <p class="games-eyebrow">AGENT PLAYGROUND</p>
+            <h1>Games</h1>
+            <p>ゲームとAgentを選び、起動したsessionをこの画面で観戦します。ゲーム中の判断と操作はAgentが行います。</p>
+          </div>
+          <div id="gamesBridgeStatus" class="games-bridge-status" aria-live="polite">COREを確認中</div>
+        </header>
+
+        <div class="games-layout">
+          <aside class="games-launch-panel">
+            <section>
+              <div class="games-section-title">
+                <span>1</span>
+                <div><strong>ゲーム選択</strong><small>Agent E2E対応タイトルのみ起動できます</small></div>
+              </div>
+              <div id="gamesCatalog" class="games-catalog" role="list">
+                <button class="games-card is-selected" type="button" data-game-id="nethack" aria-pressed="true">
+                  <strong>NetHack</strong>
+                  <span>Dungeon exploration</span>
+                  <small data-game-capability="nethack">対応状況を確認中</small>
+                </button>
+                <button class="games-card" type="button" data-game-id="survival_garden" aria-pressed="false" disabled>
+                  <strong>Survival Garden</strong>
+                  <span>Survival simulation</span>
+                  <small>Agent E2E対応待ち</small>
+                </button>
+                <button class="games-card" type="button" data-game-id="herzog_zwei" aria-pressed="false" disabled>
+                  <strong>Herzog Zwei</strong>
+                  <span>Realtime strategy</span>
+                  <small>Agent E2E対応待ち</small>
+                </button>
+                <button class="games-card" type="button" data-game-id="falling_blocks" aria-pressed="false" disabled>
+                  <strong>Falling Blocks</strong>
+                  <span>Puzzle</span>
+                  <small>Agent E2E対応待ち</small>
+                </button>
+              </div>
+            </section>
+
+            <form id="gamesLaunchForm" class="games-launch-form">
+              <div class="games-section-title">
+                <span>2</span>
+                <div><strong>Agent</strong><small>NetHackは1 Agentで遊びます</small></div>
+              </div>
+              <label>
+                操作するAgent
+                <select id="gamesAgentSelect" name="persona">
+                  <option value="mio">Mio</option>
+                  <option value="shiro">Shiro</option>
+                  <option value="kuro">Kuro</option>
+                  <option value="midori">Midori</option>
+                </select>
+              </label>
+              <label>
+                最大turn
+                <input id="gamesTurns" name="turns" type="number" min="1" max="500" value="32">
+              </label>
+              <label>
+                起動理由
+                <textarea id="gamesReason" name="reason" rows="2" maxlength="500" placeholder="NetHackを探索して"></textarea>
+              </label>
+              <button id="gamesLaunchButton" class="games-primary-button" type="submit">Agentに遊んでもらう</button>
+              <p id="gamesOperationStatus" class="games-operation-status" aria-live="polite"></p>
+            </form>
+
+            <section class="games-session-panel">
+              <div class="games-section-title">
+                <span>3</span>
+                <div><strong>Sessions</strong><small>実行中・最近のゲーム</small></div>
+              </div>
+              <div id="gamesSessionList" class="games-session-list" aria-live="polite">
+                <p>sessionを確認中</p>
+              </div>
+            </section>
+          </aside>
+
+          <section class="games-stage-panel" aria-label="Game screen">
+            <div class="games-stage-toolbar">
+              <div>
+                <strong id="gamesStageTitle">NetHack</strong>
+                <span id="gamesStageSession">session未選択</span>
+              </div>
+              <div class="games-session-actions">
+                <button id="gamesRetryButton" type="button" disabled>Retry</button>
+                <button id="gamesStartOverButton" type="button" disabled>Start over</button>
+              </div>
+            </div>
+            <div class="games-screen-shell">
+              <div id="gamesScreenEmpty" class="games-screen-empty">
+                <strong>Agentのゲーム画面</strong>
+                <span>NetHackとAgentを選択して起動してください。</span>
+              </div>
+              <iframe id="gamesObserverFrame" title="RenCrow Games Observer" loading="eager"></iframe>
+              <div id="gamesAgentOverlay" class="games-agent-overlay" data-games-agent-overlay aria-live="polite">
+                <div class="games-agent-speech" id="gamesAgentSpeech" hidden></div>
+              </div>
+            </div>
+            <p class="games-agent-note"><strong>Agentが操作します。</strong> PORTALのRetry／Start overはsession管理です。移動や攻撃などのturn判断はCORE上のAgentへ渡されます。</p>
+          </section>
+        </div>
+      </section>
     </div>
   </main>
 
   <script src="/assets/purupuru/runtime-app.js" defer></script>
   <script src="/assets/purupuru/runtime-host.js" defer></script>
   <script src="/assets/portal.js" defer></script>
+  <script src="/assets/games.js" defer></script>
 </body>
 </html>

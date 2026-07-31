@@ -15,6 +15,7 @@ type Mode string
 const (
 	ModeIdleChat Mode = "idlechat"
 	ModeChat     Mode = "chat"
+	ModeGames    Mode = "games"
 )
 
 // ConfigはPORTALプロセスの設定を表す。
@@ -31,7 +32,7 @@ func DefaultConfig() Config {
 		Listen:       "127.0.0.1:18791",
 		CoreURL:      "http://127.0.0.1:18790",
 		DefaultMode:  ModeIdleChat,
-		EnabledModes: []Mode{ModeIdleChat, ModeChat},
+		EnabledModes: []Mode{ModeIdleChat, ModeChat, ModeGames},
 	}
 }
 
@@ -140,6 +141,8 @@ func canonicalMode(mode Mode) (Mode, bool) {
 		return ModeIdleChat, true
 	case "chat":
 		return ModeChat, true
+	case "games":
+		return ModeGames, true
 	default:
 		return "", false
 	}

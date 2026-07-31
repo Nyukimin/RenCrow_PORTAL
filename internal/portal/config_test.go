@@ -26,6 +26,9 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	if !cfg.modeEnabled(ModeIdleChat) {
 		t.Fatal("IdleChat mode should be enabled by default")
 	}
+	if !cfg.modeEnabled(ModeGames) {
+		t.Fatal("Games mode should be enabled by default")
+	}
 }
 
 func TestLoadConfigReadsJSONAndValidatesModes(t *testing.T) {
@@ -51,11 +54,12 @@ func TestLoadConfigNormalizesCanonicalModeNames(t *testing.T) {
 	}{
 		{name: "IdleChat", defaultMode: "IdleChat", want: ModeIdleChat},
 		{name: "Chat", defaultMode: "Chat", want: Mode("chat")},
+		{name: "Games", defaultMode: "Games", want: ModeGames},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "portal.json")
-			data := []byte(`{"listen":"127.0.0.1:18791","core_url":"http://127.0.0.1:18790","default_mode":"` + test.defaultMode + `","enabled_modes":["IdleChat","Chat"]}`)
+			data := []byte(`{"listen":"127.0.0.1:18791","core_url":"http://127.0.0.1:18790","default_mode":"` + test.defaultMode + `","enabled_modes":["IdleChat","Chat","Games"]}`)
 			if err := os.WriteFile(path, data, 0o600); err != nil {
 				t.Fatal(err)
 			}

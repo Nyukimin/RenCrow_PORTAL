@@ -99,6 +99,37 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 	}
 }
 
+func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
+	cfg := DefaultConfig()
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/games", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`data-mode="games"`,
+		`data-surface="games"`,
+		`id="gamesCatalog"`,
+		`data-game-id="nethack"`,
+		`id="gamesLaunchForm"`,
+		`id="gamesAgentSelect"`,
+		`id="gamesObserverFrame"`,
+		`id="gamesAgentOverlay"`,
+		`Agentが操作します`,
+		`href="/games" aria-current="page"`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("Games marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalChatSwitcherUsesConfirmedCoreState(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
@@ -423,6 +454,121 @@ func TestPortalIdleChatProxyUsesReadOnlyInteractionProfile(t *testing.T) {
 	}
 	if gotProfile != "portal-idlechat" {
 		t.Fatalf("X-RenCrow-Interaction-Profile = %q, want portal-idlechat", gotProfile)
+	}
+}
+
+func TestPortalGamesUsesDedicatedProfileAndAllowlist(t *testing.T) {
+	var gotProfile, gotPath string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/games/viewer/games/launch", strings.NewReader(`{"game_id":"nethack","personas":["mio"],"turns":8,"mode":"auto"}`))
+	req.Header.Set("Origin", "http://portal.example")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("launch status = %d, want 202 body=%s", rec.Code, rec.Body.String())
+	}
+	if gotProfile != "portal-games" || gotPath != "/viewer/games/launch" {
+		t.Fatalf("profile=%q path=%q", gotProfile, gotPath)
+	}
+
+	for _, blocked := range []string{
+		"/api/games/viewer/games/decision",
+		"/api/games/viewer/games/result",
+		"/api/games/viewer/debug/system",
+		"/api/games/viewer/games/observer-api/games/sessions/nh-1/summary",
+	} {
+		blockedRec := httptest.NewRecorder()
+		blockedReq := httptest.NewRequest(http.MethodPost, blocked, strings.NewReader(`{}`))
+		handler.ServeHTTP(blockedRec, blockedReq)
+		if blockedRec.Code != http.StatusForbidden {
+			t.Errorf("%s status = %d, want 403", blocked, blockedRec.Code)
+		}
+	}
+}
+
+func TestPortalGamesObserverProxyIsSameOriginFrameable(t *testing.T) {
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/viewer/games/observer" {
+			t.Fatalf("core path = %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = io.WriteString(w, "<!doctype html><title>Observer</title>")
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/viewer/games/observer?session=nh-1", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("X-Frame-Options"); got != "SAMEORIGIN" {
+		t.Fatalf("X-Frame-Options = %q", got)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "frame-ancestors 'self'") {
+		t.Fatalf("observer CSP = %q", got)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "style-src 'self' 'unsafe-inline'") {
+		t.Fatalf("observer CSP must allow title-owned dynamic styles: %q", got)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); strings.Contains(got, "script-src 'self' 'unsafe-inline'") {
+		t.Fatalf("observer CSP must not allow inline scripts: %q", got)
+	}
+}
+
+func TestPortalGamesEndpointAllowlist(t *testing.T) {
+	allowed := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/health"},
+		{http.MethodGet, "/viewer/games/status"},
+		{http.MethodGet, "/viewer/games/sessions"},
+		{http.MethodGet, "/viewer/games/events"},
+		{http.MethodGet, "/viewer/games/observer"},
+		{http.MethodGet, "/viewer/games/observer-api/games/sessions/nh-1/frames"},
+		{http.MethodPost, "/viewer/games/launch"},
+		{http.MethodPost, "/viewer/games/observer-api/games/sessions/nh-1/retry"},
+		{http.MethodPost, "/viewer/games/observer-api/games/sessions/nh-1/start_over"},
+	}
+	for _, test := range allowed {
+		if !portalEndpointAllowed(ModeGames, test.method, test.path) {
+			t.Errorf("Games should allow %s %s", test.method, test.path)
+		}
+	}
+	blocked := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/viewer/games/decision"},
+		{http.MethodPost, "/viewer/games/result"},
+		{http.MethodPost, "/viewer/games/observer-api/games/sessions/nh-1/summary"},
+		{http.MethodPost, "/viewer/games/observer-api/games/launch"},
+		{http.MethodGet, "/viewer/debug/system"},
+	}
+	for _, test := range blocked {
+		if portalEndpointAllowed(ModeGames, test.method, test.path) {
+			t.Errorf("Games must reject %s %s", test.method, test.path)
+		}
 	}
 }
 

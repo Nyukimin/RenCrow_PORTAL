@@ -3,7 +3,7 @@
 
   const body = document.body;
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
-  const mode = ['idlechat', 'chat'].includes(requestedMode) ? requestedMode : 'idlechat';
+  const mode = ['idlechat', 'chat', 'games'].includes(requestedMode) ? requestedMode : 'idlechat';
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty');
@@ -1045,8 +1045,10 @@
   updateDateTime();
   window.setInterval(updateDateTime, 1000);
   refreshReadiness();
-  refreshStatus();
-  connectEvents();
   window.setInterval(refreshReadiness, 10000);
-  window.setInterval(refreshStatus, 5000);
+  if (mode !== 'games') {
+    refreshStatus();
+    connectEvents();
+    window.setInterval(refreshStatus, 5000);
+  }
 })();

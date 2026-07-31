@@ -8,9 +8,11 @@ RenCrow_PORTALは、MioやShiroが部屋の中で会話するAI VTuber形式の�
 
 - `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面
 - `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、IdleChat開始・停止、TTS再生、STTマイク入力
+- `Games`: ゲームとAgentの選択、Agent-owned sessionの起動、GAMES Observerの観戦、Retry／Start over
 
-公開modeは`Chat`と`IdleChat`の2系統です。
+公開modeは`Chat`、`IdleChat`、`Games`の3系統です。
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatではMioを左、Shiroを右へ同時表示します。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
+GamesではCOREの`supported_games`に含まれるタイトルだけを起動できます。現在のAgent E2E対象はNetHackです。盤面とturn結果はGAMES Observer、Agent identityと判断はCOREを正本とし、PORTALは利用者向けの選択・session・観戦UIだけを持ちます。
 
 Debug、Ops、Repair、設定変更などの管理APIは中継しません。
 
@@ -67,16 +69,16 @@ SkillはPuruPuru package、PORTAL展開Asset、Chat／IdleChat配置、テスト
 
 ## Interaction profile
 
-PORTALは、COREのChat／IdleChat能力をWebで利用するInteraction profileです。
+PORTALは、COREのChat／IdleChat／Games能力をWebで利用するInteraction profileです。
 
 ```text
 RenCrow_PORTAL
   = RenCrow Interaction Client
   + Web Renderer
-  + Chat / IdleChat mode policy
+  + Chat / IdleChat / Games mode policy
 ```
 
-CORE、PORTAL、CMD、ASSISTANTの間で揃えるのは、Chat、IdleChat、recipient、event、
+CORE、PORTAL、CMD、ASSISTANTの間で揃えるのは、Chat、IdleChat、Games、recipient、event、
 session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画面へ投影しますが、
 別の会話runtime、会話履歴、IdleChat状態、Task状態を持ちません。
 
@@ -84,12 +86,13 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 | --- | --- | --- |
 | Chat | `Chat`の会話・添付入力とmessage表示 | 実装済み |
 | IdleChat | `IdleChat`の読み取り表示、`Chat`からの開始・停止 | 実装済み |
+| Games | Agent-owned gameの選択・起動・観戦・session lifecycle | 実装済み |
 | recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
 | STT／TTS | browser microphone、audio再生、ACK | 実装済み |
 | CORE Task | 許可された状態・結果の表示 | CORE側APIに従う |
 | ASSISTANT Routine／PUSH | 予定、通知、端末、履歴のcard／設定UI | planned |
 
-同じ能力を全modeへ公開しません。`IdleChat`は読み取り専用、`Chat`は明示allowlist
+同じ能力を全modeへ公開しません。`IdleChat`は読み取り専用、`Chat`と`Games`は各modeの明示allowlist
 だけを操作可能とし、認証scopeとserver側認可も必要です。将来ASSISTANTのPUSHを表示する
 場合も第二のmessage形式を独自に作らず、利用者、source、category、相関IDを保った
 Interaction outputをWeb cardまたはmessageとして描画します。
@@ -107,7 +110,11 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
 - 会話欄へ表示するeventは`message.received`、利用者向け`agent.response`、`idlechat.message`に限定し、`message_id`をSSE再接続時の重複排除へ使う。`agent.thinking`やrouting／worker eventは会話本文として残さない
 - `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。現行は認証UIを持たないため`user_id=viewer-user`、`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
-- PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat`を付ける。profileは能力policyであり認証credentialではない
+- PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat | portal-games`を付ける。profileは能力policyであり認証credentialではない
+- Gamesはstatus、sessions、events、Observer、launch、sessionのRetry／Start overだけを許可する。`/viewer/games/decision`、`/viewer/games/result`、Observerのlaunch／frame／summary ingestは中継しない
+- Games画面は`/viewer/games/observer`を同一origin iframeへ表示する。Observer responseだけを`SAMEORIGIN`とし、PORTAL pageとPuruPuru assetは引き続きframe不可とする
+- Observerの動的style属性はObserver responseの`style-src`だけで許可し、inline scriptは許可しない。PORTAL本体のCSPへ`unsafe-inline`を追加しない
+- PuruPuru overlayはiframe外へ置き、`bridge.decision_mode=agent`かつ`decision.agent_id=frame.persona`のObserverFrameにある`result.speech`だけをAgent発話候補とする。`decision.reason`やlocal brain出力を発話へ変換しない
 - 接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
@@ -154,11 +161,12 @@ RENCROW_PORTAL_CONFIG
 
 外部公開時はPORTALの前段に認証済みリバースプロキシまたはTailscale Serveを置いてください。既定では安全側としてloopbackだけで待ち受けます。
 
-通常のDebug ViewerはCOREの`/viewer`に残ります。外部利用者向けViewerはPORTALが所有し、次の2 URLだけを公開します。
+通常のDebug ViewerはCOREの`/viewer`に残ります。外部利用者向けViewerはPORTALが所有し、次の3 URLを公開します。
 
 ```text
 http://127.0.0.1:18791/?mode=Chat
 http://127.0.0.1:18791/?mode=IdleChat
+http://127.0.0.1:18791/games
 ```
 
 ## 検証
