@@ -152,6 +152,23 @@ func TestPortalChatSwitcherUsesConfirmedCoreState(t *testing.T) {
 	}
 }
 
+func TestPortalChatAgentSwitchDoesNotDependOnIdleChatRuntime(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`const confirmed = await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});`,
+		`if (normalizeActor(confirmed.recipient) !== nextRecipient) throw new Error('CORE recipient selection mismatch');`,
+		`if (mode === 'idlechat') {`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("independent Chat switch contract marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalMountsFourPuruPuruAvatarInstances(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
@@ -266,6 +283,26 @@ func TestPortalLipSyncUsesTTSAudioAmplitude(t *testing.T) {
 	} {
 		if strings.Contains(body, forbidden) {
 			t.Errorf("synthetic/iframe lip sync marker %q must not remain", forbidden)
+		}
+	}
+}
+
+func TestPortalChatTTSSpeakerUsesCoreCharacterID(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	const speakerResolution = `payload.character_id || payload.characterId || payload.actor || payload.speaker || payload.from || event.from`
+	if !strings.Contains(body, speakerResolution) {
+		t.Fatalf("TTS speaker must prefer CORE character_id: %q", speakerResolution)
+	}
+	if strings.Index(body, "payload.character_id") > strings.Index(body, "payload.actor") {
+		t.Fatal("TTS speaker must not prefer a legacy actor field over CORE character_id")
+	}
+	for _, actor := range []string{"mio", "shiro", "kuro", "midori"} {
+		if !strings.Contains(body, `"`+actor+`": '`+actor+`Avatar'`) {
+			t.Errorf("avatar runtime for %s is missing", actor)
 		}
 	}
 }
@@ -388,6 +425,46 @@ func TestPortalChatAllowsOnlyExplicitOperationEndpoints(t *testing.T) {
 	handler.ServeHTTP(debugRec, debugReq)
 	if debugRec.Code != http.StatusForbidden {
 		t.Fatalf("debug status = %d, want 403", debugRec.Code)
+	}
+}
+
+func TestPortalChatProxiesEachPublicRecipientUnchanged(t *testing.T) {
+	var gotPath, gotBody string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read proxied request: %v", err)
+		}
+		gotBody = string(body)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, recipient := range []string{"mio", "shiro", "kuro", "midori"} {
+		t.Run(recipient, func(t *testing.T) {
+			payload := `{"message":"hello","to":"` + recipient + `"}`
+			req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/viewer/send", strings.NewReader(payload))
+			req.Header.Set("Origin", "http://portal.example")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusAccepted {
+				t.Fatalf("status = %d, want 202 body=%s", rec.Code, rec.Body.String())
+			}
+			if gotPath != "/viewer/send" {
+				t.Fatalf("CORE path = %q, want /viewer/send", gotPath)
+			}
+			if gotBody != payload {
+				t.Fatalf("proxied body = %q, want %q", gotBody, payload)
+			}
+		})
 	}
 }
 
@@ -614,6 +691,12 @@ func TestPortalChatScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 		`navigator.mediaDevices.getDisplayMedia`,
 		`form.append('attachments', file, file.name)`,
 		`Number(accepted.attachment_count || 0) !== attachments.length`,
+		`payload.character_id || payload.characterId || payload.actor || payload.speaker || payload.from || event.from`,
+		`const ttsPreferenceStorageKey = 'rencrow.portal.ttsPreference';`,
+		`localStorage.getItem(ttsPreferenceStorageKey) === 'off'`,
+		`await unlockTTSPlayback();`,
+		`await setActiveControl('audio', 'claim', 'portal_tts_on');`,
+		"if (!await enableTTS()) {\n        finishRequestGuard();\n        return;",
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL control contract marker %q is missing", marker)

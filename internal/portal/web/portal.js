@@ -14,6 +14,7 @@
   const operationStatus = document.getElementById('operationStatus');
   const seenEvents = new Set();
   const partnerStorageKey = 'roomConversation.selectedPartner';
+  const ttsPreferenceStorageKey = 'rencrow.portal.ttsPreference';
   const storedRecipient = normalizeActor(localStorage.getItem(partnerStorageKey)) || normalizeActor(localStorage.getItem('rencrow.portal.partner')) || 'shiro';
   let selectedRecipient = storedRecipient;
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
@@ -118,6 +119,10 @@
   function storeSelectedRecipient(actor) {
     localStorage.setItem(partnerStorageKey, actor);
     localStorage.setItem('rencrow.portal.partner', actor);
+  }
+
+  function isTTSExplicitlyDisabled() {
+    return localStorage.getItem(ttsPreferenceStorageKey) === 'off';
   }
 
   function setConnection(state, text) {
@@ -422,7 +427,7 @@
       utteranceId: String(payload.utterance_id || '').trim(),
       chunkIndex: Number.isFinite(Number(payload.chunk_index)) ? Number(payload.chunk_index) : -1,
       url: resolveTTSAudioURL(payload),
-      actor: normalizeActor(payload.actor || payload.speaker || payload.from || event.from) || latestAvatarSpeaker,
+      actor: normalizeActor(payload.character_id || payload.characterId || payload.actor || payload.speaker || payload.from || event.from) || latestAvatarSpeaker,
     };
   }
 
@@ -438,11 +443,15 @@
     ttsControl.meterBuffer = null;
   }
 
-  async function startTTSMeter(audio, actor) {
+  async function unlockTTSPlayback() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
+    if (!AudioContextClass) throw new Error('このブラウザは音声再生に対応していません');
     if (!ttsControl.audioContext) ttsControl.audioContext = new AudioContextClass();
     await ttsControl.audioContext.resume();
+  }
+
+  async function startTTSMeter(audio, actor) {
+    await unlockTTSPlayback();
     stopTTSMeter();
     const source = ttsControl.audioContext.createMediaElementSource(audio);
     const analyser = ttsControl.audioContext.createAnalyser();
@@ -565,16 +574,21 @@
   async function enableTTS() {
     const control = document.getElementById('roomAudioBtn');
     try {
+      await unlockTTSPlayback();
       await setActiveControl('audio', 'claim', 'portal_tts_on');
       ttsControl.enabled = true;
+      localStorage.setItem(ttsPreferenceStorageKey, 'on');
       setToggleState(control, 'TTS', true);
       window.clearInterval(ttsControl.heartbeat);
       ttsControl.heartbeat = window.setInterval(() => {
         setActiveControl('audio', 'heartbeat', 'portal_tts_heartbeat').catch(() => disableTTS(false, 'TTS再生権を維持できません'));
       }, 30000);
       setOperation('TTSをONにしました');
+      return true;
     } catch (error) {
+      setToggleState(control, 'TTS', false);
       setOperation(`TTSをONにできません: ${error.message}`, true);
+      return false;
     }
   }
 
@@ -594,9 +608,10 @@
     ttsControl.sessionResponses.clear();
   }
 
-  async function disableTTS(release = true, message = 'TTSをOFFにしました') {
+  async function disableTTS(release = true, message = 'TTSをOFFにしました', persistPreference = release) {
     const control = document.getElementById('roomAudioBtn');
     ttsControl.enabled = false;
+    if (persistPreference) localStorage.setItem(ttsPreferenceStorageKey, 'off');
     window.clearInterval(ttsControl.heartbeat);
     ttsControl.heartbeat = null;
     clearTTSPlayback();
@@ -937,6 +952,12 @@
     }
     const recipient = selectedRecipient;
     if (!beginRequestGuard(recipient)) return;
+    if (!ttsControl.enabled && !isTTSExplicitlyDisabled()) {
+      if (!await enableTTS()) {
+        finishRequestGuard();
+        return;
+      }
+    }
     setOperation('送信中');
     try {
       const accepted = await post('/viewer/send', buildViewerSendPayload(message, recipient, inputSource, attachments));
@@ -974,21 +995,21 @@
     if (mode !== 'chat' || modeSwitchBusy) return;
     const isIdle = nextMode === 'idle';
     const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);
-    if (!isIdle) {
-      setConversationState(false, nextRecipient);
-      input.focus();
-    }
     setModeSwitcherBusy(true);
     setOperation(isIdle ? 'IdleChatを開始中' : 'Chatへ切り替え中');
     try {
-      await post(isIdle ? '/viewer/idlechat/start' : '/viewer/idlechat/stop');
-      if (!isIdle) {
-        await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});
+      if (isIdle) {
+        await post('/viewer/idlechat/start');
+        await refreshStatus();
+      } else {
+        const confirmed = await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});
+        if (normalizeActor(confirmed.recipient) !== nextRecipient) throw new Error('CORE recipient selection mismatch');
+        setConversationState(false, nextRecipient);
+        input.focus();
       }
-      await refreshStatus();
       setOperation(isIdle ? 'IdleChatを開始しました' : `${actorInfo[nextRecipient].label}とのChatへ切り替えました`);
     } catch (error) {
-      await refreshStatus();
+      if (isIdle) await refreshStatus();
       setOperation(`切り替えできません: ${error.message}`, true);
     } finally {
       setModeSwitcherBusy(false);
@@ -1047,8 +1068,10 @@
   refreshReadiness();
   window.setInterval(refreshReadiness, 10000);
   if (mode !== 'games') {
-    refreshStatus();
     connectEvents();
-    window.setInterval(refreshStatus, 5000);
+    if (mode === 'idlechat') {
+      refreshStatus();
+      window.setInterval(refreshStatus, 5000);
+    }
   }
 })();
