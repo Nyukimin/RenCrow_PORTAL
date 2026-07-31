@@ -301,7 +301,7 @@ func TestPortalChatTTSSpeakerUsesCoreCharacterID(t *testing.T) {
 		t.Fatal("TTS speaker must not prefer a legacy actor field over CORE character_id")
 	}
 	for _, actor := range []string{"mio", "shiro", "kuro", "midori"} {
-		if !strings.Contains(body, `"`+actor+`": '`+actor+`Avatar'`) {
+		if !strings.Contains(body, actor+`: '`+actor+`Avatar'`) {
 			t.Errorf("avatar runtime for %s is missing", actor)
 		}
 	}
