@@ -3176,7 +3176,7 @@ body.portal-games-mode .purupuru-avatar.games-overlay-active{
   }
 }
 
-/* Chat is authored on one 1920x1080 canvas and fitted to the viewport as a unit. */
+/* Chat is authored on one landscape canvas and fitted to the viewport as a unit. */
 html.portal-chat-fixed-canvas{
   width:100%;
   height:100%;
@@ -3185,6 +3185,7 @@ html.portal-chat-fixed-canvas{
   background:#d7e9ff;
 }
 
+@media (orientation:landscape){
 html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]{
   --safe-top:0px;
   --safe-bottom:0px;
@@ -3398,4 +3399,5 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   width:760px !important;
   height:626.4px !important;
   transform:translateX(-50%);
+}
 }

@@ -7,6 +7,22 @@
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
   const chatCanvasWidth = 1920;
   const chatCanvasHeight = 1080;
+  const viewportProfiles = Object.freeze({
+    landscape: Object.freeze({
+      id: 'landscape',
+      physicalWidth: 1920,
+      physicalHeight: 1080,
+      logicalWidth: 1920,
+      logicalHeight: 1080,
+    }),
+    portrait: Object.freeze({
+      id: 'portrait',
+      physicalWidth: 1179,
+      physicalHeight: 2556,
+      logicalWidth: 393,
+      logicalHeight: 852,
+    }),
+  });
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty');
   const input = document.getElementById('roomInput');
@@ -81,6 +97,30 @@
   };
   let latestAvatarSpeaker = 'mio';
 
+  function readViewportSize() {
+    const viewport = window.visualViewport;
+    return {
+      width: Math.max(1, viewport ? viewport.width : window.innerWidth),
+      height: Math.max(1, viewport ? viewport.height : window.innerHeight),
+    };
+  }
+
+  function resolveViewportProfile() {
+    const viewport = readViewportSize();
+    return viewport.width >= viewport.height ? viewportProfiles.landscape : viewportProfiles.portrait;
+  }
+
+  function setViewportProfileMetadata(profile) {
+    body.dataset.viewportProfile = profile.id;
+    body.dataset.viewportPhysicalWidth = String(profile.physicalWidth);
+    body.dataset.viewportPhysicalHeight = String(profile.physicalHeight);
+    body.dataset.viewportLogicalWidth = String(profile.logicalWidth);
+    body.dataset.viewportLogicalHeight = String(profile.logicalHeight);
+    body.dataset.viewportDevicePixelRatio = String(window.devicePixelRatio || 1);
+    document.documentElement.classList.toggle('portal-chat-landscape', profile.id === 'landscape');
+    document.documentElement.classList.toggle('portal-chat-portrait', profile.id === 'portrait');
+  }
+
   function fitChatCanvas() {
     if (mode !== 'chat') return;
     const viewport = window.visualViewport;
@@ -100,6 +140,23 @@
     body.dataset.chatCanvasScale = String(scale);
   }
 
+  function applyChatViewportProfile() {
+    if (mode !== 'chat') return;
+    const profile = resolveViewportProfile();
+    setViewportProfileMetadata(profile);
+    if (profile.id === 'landscape') {
+      fitChatCanvas();
+      return;
+    }
+
+    body.style.removeProperty('--chat-canvas-scale');
+    body.style.removeProperty('--chat-canvas-offset-x');
+    body.style.removeProperty('--chat-canvas-offset-y');
+    body.dataset.chatCanvasWidth = String(profile.logicalWidth);
+    body.dataset.chatCanvasHeight = String(profile.logicalHeight);
+    body.dataset.chatCanvasScale = '1';
+  }
+
   function initializeChatCanvas() {
     if (mode !== 'chat') return;
     document.documentElement.classList.add('portal-chat-fixed-canvas');
@@ -108,11 +165,11 @@
       window.cancelAnimationFrame(pendingFrame);
       pendingFrame = window.requestAnimationFrame(() => {
         pendingFrame = 0;
-        fitChatCanvas();
+        applyChatViewportProfile();
       });
     };
 
-    fitChatCanvas();
+    applyChatViewportProfile();
     window.addEventListener('resize', requestFit, {passive: true});
     window.addEventListener('pageshow', requestFit, {passive: true});
     if (window.visualViewport) {

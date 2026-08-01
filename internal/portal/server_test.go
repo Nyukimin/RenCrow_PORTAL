@@ -110,7 +110,7 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 	}
 }
 
-func TestPortalChatUsesFixedFullHDCanvas(t *testing.T) {
+func TestPortalChatUsesSeparateLandscapeAndPortraitProfiles(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +123,12 @@ func TestPortalChatUsesFixedFullHDCanvas(t *testing.T) {
 	for _, marker := range []string{
 		`const chatCanvasWidth = 1920;`,
 		`const chatCanvasHeight = 1080;`,
+		`physicalWidth: 1179,`,
+		`physicalHeight: 2556,`,
+		`logicalWidth: 393,`,
+		`logicalHeight: 852,`,
+		`function resolveViewportProfile()`,
+		`body.dataset.viewportProfile = profile.id;`,
 		`const scale = Math.min(viewportWidth / chatCanvasWidth, viewportHeight / chatCanvasHeight);`,
 		`document.documentElement.classList.add('portal-chat-fixed-canvas');`,
 		`if (mode !== 'chat') return;`,
@@ -130,9 +136,10 @@ func TestPortalChatUsesFixedFullHDCanvas(t *testing.T) {
 		`width:1920px;`,
 		`height:1080px;`,
 		`transform:scale(var(--chat-canvas-scale));`,
+		`@media (orientation:landscape){`,
 	} {
 		if !strings.Contains(content, marker) {
-			t.Errorf("fixed Full HD Chat canvas marker %q is missing", marker)
+			t.Errorf("Chat viewport profile marker %q is missing", marker)
 		}
 	}
 }
