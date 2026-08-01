@@ -8,12 +8,6 @@
   <link rel="stylesheet" href="/assets/portal.css">
 </head>
 <body class="{{.BodyClass}}" data-mode="{{.Mode}}" data-surface="{{.Surface}}">
-  <nav class="portal-surface-nav" aria-label="PORTAL">
-    <a href="/chat"{{if eq .Mode "chat"}} aria-current="page"{{end}}>Chat</a>
-    <a href="/idlechat"{{if eq .Mode "idlechat"}} aria-current="page"{{end}}>IdleChat</a>
-    <a href="/games"{{if eq .Mode "games"}} aria-current="page"{{end}}>Games</a>
-  </nav>
-
   <div class="room-topic-bar" id="liveTopicBar">
     <span class="room-topic-label">TOPIC</span>
     <span class="room-topic-text" id="topicText">-</span>

@@ -41,8 +41,12 @@ func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s status = %d", target, rec.Code)
 		}
-		if body := rec.Body.String(); !strings.Contains(body, `data-mode="idlechat"`) {
+		body := rec.Body.String()
+		if !strings.Contains(body, `data-mode="idlechat"`) {
 			t.Fatalf("%s should render canonical IdleChat mode: %s", target, body)
+		}
+		if strings.Contains(body, `portal-surface-nav`) {
+			t.Fatalf("%s should not render a mode selector", target)
 		}
 	}
 }
@@ -96,6 +100,9 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 		if strings.Contains(body, `class="room-icon-btn portal-send-btn"`) {
 			t.Fatalf("%s Chat footer must use the established five controls, not a replacement send button", target)
 		}
+		if strings.Contains(body, `portal-surface-nav`) {
+			t.Fatalf("%s should not render a mode selector", target)
+		}
 	}
 }
 
@@ -122,11 +129,13 @@ func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 		`id="gamesObserverFrame"`,
 		`id="gamesAgentOverlay"`,
 		`Agentが操作します`,
-		`href="/games" aria-current="page"`,
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("Games marker %q is missing", marker)
 		}
+	}
+	if strings.Contains(body, `portal-surface-nav`) {
+		t.Fatal("Games should not render a mode selector")
 	}
 }
 

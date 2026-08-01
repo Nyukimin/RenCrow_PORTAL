@@ -3007,37 +3007,6 @@ body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
   body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:73%}
 }
 
-/* Public PORTAL surface navigation */
-.portal-surface-nav{
-  position:fixed;
-  top:max(14px,calc(var(--safe-top) + 10px));
-  right:20px;
-  z-index:220;
-  display:flex;
-  gap:4px;
-  padding:4px;
-  border:1px solid rgba(155,190,255,.25);
-  border-radius:999px;
-  background:rgba(7,12,29,.76);
-  box-shadow:0 12px 34px rgba(0,0,0,.28);
-  backdrop-filter:blur(16px);
-}
-.portal-surface-nav a{
-  color:var(--t2);
-  text-decoration:none;
-  font-size:12px;
-  font-weight:750;
-  line-height:1;
-  padding:9px 13px;
-  border-radius:999px;
-}
-.portal-surface-nav a:hover{color:var(--t1);background:rgba(255,255,255,.07)}
-.portal-surface-nav a[aria-current="page"]{
-  color:#fff;
-  background:linear-gradient(135deg,rgba(100,145,255,.42),rgba(80,220,255,.22));
-  box-shadow:inset 0 0 0 1px rgba(171,214,255,.24);
-}
-
 /* Games surface */
 .games-desk-panel{display:none}
 body.portal-games-mode{
@@ -3193,8 +3162,6 @@ body.portal-games-mode .purupuru-avatar.games-overlay-active{
   .games-session-panel{grid-column:1/-1}
 }
 @media (max-width:640px){
-  .portal-surface-nav{top:8px;right:8px}
-  .portal-surface-nav a{padding:8px 10px;font-size:11px}
   body.portal-games-mode main{padding:62px 8px 18px}
   .games-heading{display:block;padding-inline:8px}
   .games-bridge-status{display:inline-flex;margin-top:14px}
