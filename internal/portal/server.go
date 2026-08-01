@@ -36,6 +36,7 @@ type pageData struct {
 	Mode      Mode
 	Surface   string
 	BodyClass string
+	HTMLClass string
 }
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
@@ -129,12 +130,15 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 		Mode:      mode,
 		Surface:   string(mode),
 		BodyClass: "theme-modern portal-room-mode room-stage room-mode room-chat-mode room-partner-shiro",
+		HTMLClass: "portal-chat-fixed-canvas",
 	}
 	if mode == ModeIdleChat {
 		data.BodyClass = "theme-modern portal-room-mode room-stage room-mode room-idlechat-mode room-partner-shiro portal-idlechat-mode"
+		data.HTMLClass = ""
 	}
 	if mode == ModeGames {
 		data.BodyClass = "theme-modern portal-games-mode"
+		data.HTMLClass = ""
 	}
 	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)

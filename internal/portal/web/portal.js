@@ -5,6 +5,8 @@
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
   const mode = ['idlechat', 'chat', 'games'].includes(requestedMode) ? requestedMode : 'idlechat';
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
+  const chatCanvasWidth = 1920;
+  const chatCanvasHeight = 1080;
   const chat = document.getElementById('chat');
   const empty = document.getElementById('empty');
   const input = document.getElementById('roomInput');
@@ -78,6 +80,48 @@
     midori: 'midoriAvatar',
   };
   let latestAvatarSpeaker = 'mio';
+
+  function fitChatCanvas() {
+    if (mode !== 'chat') return;
+    const viewport = window.visualViewport;
+    const viewportWidth = Math.max(1, viewport ? viewport.width : window.innerWidth);
+    const viewportHeight = Math.max(1, viewport ? viewport.height : window.innerHeight);
+    const viewportLeft = viewport ? viewport.offsetLeft : 0;
+    const viewportTop = viewport ? viewport.offsetTop : 0;
+    const scale = Math.min(viewportWidth / chatCanvasWidth, viewportHeight / chatCanvasHeight);
+    const offsetX = viewportLeft + ((viewportWidth - (chatCanvasWidth * scale)) / 2);
+    const offsetY = viewportTop + ((viewportHeight - (chatCanvasHeight * scale)) / 2);
+
+    body.style.setProperty('--chat-canvas-scale', String(scale));
+    body.style.setProperty('--chat-canvas-offset-x', `${offsetX}px`);
+    body.style.setProperty('--chat-canvas-offset-y', `${offsetY}px`);
+    body.dataset.chatCanvasWidth = String(chatCanvasWidth);
+    body.dataset.chatCanvasHeight = String(chatCanvasHeight);
+    body.dataset.chatCanvasScale = String(scale);
+  }
+
+  function initializeChatCanvas() {
+    if (mode !== 'chat') return;
+    document.documentElement.classList.add('portal-chat-fixed-canvas');
+    let pendingFrame = 0;
+    const requestFit = () => {
+      window.cancelAnimationFrame(pendingFrame);
+      pendingFrame = window.requestAnimationFrame(() => {
+        pendingFrame = 0;
+        fitChatCanvas();
+      });
+    };
+
+    fitChatCanvas();
+    window.addEventListener('resize', requestFit, {passive: true});
+    window.addEventListener('pageshow', requestFit, {passive: true});
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', requestFit, {passive: true});
+      window.visualViewport.addEventListener('scroll', requestFit, {passive: true});
+    }
+  }
+
+  initializeChatCanvas();
 
   function api(path) {
     return `/api/${mode}${path}`;

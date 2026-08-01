@@ -1,4 +1,4 @@
-.PHONY: build install install-service test vet fmt check clean
+.PHONY: build stage-release-licenses install install-service test vet fmt check clean
 
 BINARY_NAME=rencrow-portal
 BUILD_DIR=build
@@ -9,6 +9,10 @@ SYSTEMD_USER_DIR?=$(HOME)/.config/systemd/user
 build:
 	@mkdir -p $(BUILD_DIR)
 	@go build -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	@go run ./cmd/stage-release-licenses -destination $(BUILD_DIR)
+
+stage-release-licenses:
+	@go run ./cmd/stage-release-licenses -destination $(BUILD_DIR)
 
 install: build
 	@install -d $(PREFIX)/bin
@@ -21,7 +25,7 @@ install-service: install
 
 test:
 ifeq ($(OS),Windows_NT)
-	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-local.ps1 -Step go
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-local.ps1
 else
 	@go test ./...
 endif

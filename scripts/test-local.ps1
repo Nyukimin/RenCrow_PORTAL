@@ -70,7 +70,7 @@ function Test-IsTrackedTestFile([string]$RelativePath) {
     $fileName = [IO.Path]::GetFileName($RelativePath)
     $isTestDirectoryCode = (
         $normalizedPath -match "(^|/)(test|tests|scripts/tests)/" -and
-        $fileName -match "\.(go|py|[cm]?js|sh)$"
+        $fileName -match "\.(go|py|[cm]?js|ps1|sh)$"
     )
     return (
         $isTestDirectoryCode -or

@@ -13,6 +13,13 @@
       "workingDirectory": ".",
       "filePath": "go",
       "arguments": ["build", "./..."]
+    },
+    {
+      "name": "release-license-layout",
+      "workingDirectory": ".",
+      "filePath": "powershell",
+      "arguments": ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "scripts/tests/release-license-layout.ps1"],
+      "testFiles": ["scripts/tests/*.ps1"]
     }
   ]
 }

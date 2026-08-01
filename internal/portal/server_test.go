@@ -48,6 +48,9 @@ func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
 		if strings.Contains(body, `portal-surface-nav`) {
 			t.Fatalf("%s should not render a mode selector", target)
 		}
+		if strings.Contains(body, `portal-chat-fixed-canvas`) {
+			t.Fatalf("%s must not enable the fixed Chat canvas", target)
+		}
 	}
 }
 
@@ -68,6 +71,7 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 		for _, marker := range []string{
 			`data-mode="chat"`,
 			`data-surface="chat"`,
+			`<html lang="ja" class="portal-chat-fixed-canvas">`,
 			`class="theme-modern portal-room-mode`,
 			`class="room-stream-shell"`,
 			`class="room-world"`,
@@ -106,6 +110,33 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 	}
 }
 
+func TestPortalChatUsesFixedFullHDCanvas(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(script) + string(stylesheet)
+	for _, marker := range []string{
+		`const chatCanvasWidth = 1920;`,
+		`const chatCanvasHeight = 1080;`,
+		`const scale = Math.min(viewportWidth / chatCanvasWidth, viewportHeight / chatCanvasHeight);`,
+		`document.documentElement.classList.add('portal-chat-fixed-canvas');`,
+		`if (mode !== 'chat') return;`,
+		`html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]`,
+		`width:1920px;`,
+		`height:1080px;`,
+		`transform:scale(var(--chat-canvas-scale));`,
+	} {
+		if !strings.Contains(content, marker) {
+			t.Errorf("fixed Full HD Chat canvas marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
@@ -136,6 +167,9 @@ func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	}
 	if strings.Contains(body, `portal-surface-nav`) {
 		t.Fatal("Games should not render a mode selector")
+	}
+	if strings.Contains(body, `portal-chat-fixed-canvas`) {
+		t.Fatal("Games must not enable the fixed Chat canvas")
 	}
 }
 

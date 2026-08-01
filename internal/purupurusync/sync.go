@@ -29,6 +29,34 @@ var CharacterPackages = map[string]string{
 	"Midori": "Midori02.purupuru",
 }
 
+const puruPuruJSNotice = `// SPDX-License-Identifier: Apache-2.0
+// PuruPuru PNGTuber
+// Copyright 2026 masa
+// Licensed under the Apache License, Version 2.0.
+// Source: https://github.com/rotejin/PuruPuruPNGTuber
+// Modified for RenCrow_PORTAL; derived from PuruPuru PNGTuber.
+`
+
+const puruPuruHTMLNotice = `<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!--
+PuruPuru PNGTuber
+Copyright 2026 masa
+Licensed under the Apache License, Version 2.0.
+Source: https://github.com/rotejin/PuruPuruPNGTuber
+Modified for RenCrow_PORTAL; derived from PuruPuru PNGTuber.
+-->
+`
+
+const puruPuruCSSNotice = `/* SPDX-License-Identifier: Apache-2.0 */
+/*
+PuruPuru PNGTuber
+Copyright 2026 masa
+Licensed under the Apache License, Version 2.0.
+Source: https://github.com/rotejin/PuruPuruPNGTuber
+Modified for RenCrow_PORTAL; derived from PuruPuru PNGTuber.
+*/
+`
+
 type Manifest struct {
 	SourceCommit     string            `json:"source_commit"`
 	AppSHA256        string            `json:"app_sha256"`
@@ -42,8 +70,11 @@ type Manifest struct {
 // inside the wrapper; only boot, asset routing and external input boundaries are
 // adapted for PORTAL.
 func TransformApp(source []byte) ([]byte, error) {
-	s := strings.ReplaceAll(string(source), "\r\n", "\n")
-	var err error
+	decorated, err := addPuruPuruNotice("app.js", source)
+	if err != nil {
+		return nil, err
+	}
+	s := string(decorated)
 	replace := func(old, replacement, label string) {
 		if err != nil {
 			return
@@ -55,8 +86,7 @@ func TransformApp(source []byte) ([]byte, error) {
 		s = strings.Replace(s, old, replacement, 1)
 	}
 
-	replace("// SPDX-License-Identifier: Apache-2.0\n(() => {\n  \"use strict\";", `// SPDX-License-Identifier: Apache-2.0
-// Generated from upstream app.js by internal/purupurusync. Do not edit by hand.
+	replace(puruPuruJSNotice+"(() => {\n  \"use strict\";", puruPuruJSNotice+`// Generated from upstream app.js by internal/purupurusync. Do not edit by hand.
 (function registerPuruPuruRuntime(hostWindow) {
   "use strict";
 
@@ -319,6 +349,9 @@ func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []s
 	if err != nil {
 		return nil, err
 	}
+	if err := requireReviewedUpstreamNotice(sourceRoot); err != nil {
+		return nil, err
+	}
 	app, err := os.ReadFile(filepath.Join(sourceRoot, "app.js"))
 	if err != nil {
 		return nil, fmt.Errorf("read upstream app.js: %w", err)
@@ -340,10 +373,13 @@ func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []s
 	appHash := contentSHA256(app)
 	manifest.AppSHA256 = hex.EncodeToString(appHash[:])
 
-	for _, name := range []string{"app.js", "index.html", "styles.css", "LICENSE"} {
-		if err := copyFile(filepath.Join(sourceRoot, name), filepath.Join(destinationRoot, name)); err != nil {
+	for _, name := range []string{"app.js", "index.html", "styles.css"} {
+		if err := copyPuruPuruCodeFile(filepath.Join(sourceRoot, name), filepath.Join(destinationRoot, name), name); err != nil {
 			return nil, err
 		}
+	}
+	if err := copyFile(filepath.Join(sourceRoot, "LICENSE"), filepath.Join(destinationRoot, "LICENSE")); err != nil {
+		return nil, err
 	}
 	if err := os.WriteFile(filepath.Join(destinationRoot, "runtime-app.js"), runtimeApp, 0o644); err != nil {
 		return nil, err
@@ -386,6 +422,59 @@ func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []s
 		return nil, err
 	}
 	return manifest, nil
+}
+
+func requireReviewedUpstreamNotice(sourceRoot string) error {
+	noticePath := filepath.Join(sourceRoot, "NOTICE")
+	_, err := os.Stat(noticePath)
+	if err == nil {
+		return fmt.Errorf("upstream NOTICE exists at %s; review and inherit its applicable notices before syncing", noticePath)
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect upstream NOTICE: %w", err)
+	}
+	return nil
+}
+
+func addPuruPuruNotice(name string, data []byte) ([]byte, error) {
+	text := string(normalizeUTF8Text(data))
+	if strings.Contains(text, "Modified for RenCrow_PORTAL; derived from PuruPuru PNGTuber.") {
+		return []byte(text), nil
+	}
+
+	var original, notice string
+	switch name {
+	case "app.js":
+		original = "// SPDX-License-Identifier: Apache-2.0\n"
+		notice = puruPuruJSNotice
+	case "index.html":
+		original = "<!-- SPDX-License-Identifier: Apache-2.0 -->\n"
+		notice = puruPuruHTMLNotice
+	case "styles.css":
+		original = "/* SPDX-License-Identifier: Apache-2.0 */\n"
+		notice = puruPuruCSSNotice
+	default:
+		return nil, fmt.Errorf("unsupported PuruPuru code file %q", name)
+	}
+	if strings.Count(text, original) != 1 {
+		return nil, fmt.Errorf("%s SPDX marker count = %d, want 1", name, strings.Count(text, original))
+	}
+	return []byte(strings.Replace(text, original, notice, 1)), nil
+}
+
+func copyPuruPuruCodeFile(source, destination, name string) error {
+	data, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	decorated, err := addPuruPuruNotice(name, data)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(destination, decorated, 0o644)
 }
 
 func configuredCharacters(selected []string) ([]string, error) {

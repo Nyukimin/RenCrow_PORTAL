@@ -15,8 +15,8 @@
   },
   "files": {
     "LICENSE": "8895a4c628bc3eda9f5ae2864aa586fbf3faaf63588f8c8501b756123945c494",
-    "README.md": "be264edf51bd7d394c0df16326682d3e7c4df70e6ad3191879dc918241aa2e0b",
-    "app.js": "16ce47d4d56bddfea6663ba7c8a15fe529c3b864fafaa4455e6a1f270953d367",
+    "README.md": "6447f8c07099188c6de2757844003c2d9d679ceb61a4c3d94196647cdb0b6ffd",
+    "app.js": "14501334ee3e9eaa2b0c83fbf35f70d3aca03f28abee925b7e425200357fed9c",
     "assets/Kuro/back-hair.png": "3ca92a32ec9fbbc674d4b6d9686af381b28128acbb4692c6a7e5e21faba480a2",
     "assets/Kuro/default-settings.json": "52a0f198c07cb8f59796fdb9eeff23bb6a2e7098112f7ed113276c536bad15ea",
     "assets/Kuro/eyes-closed-mouth-closed.png": "281d0b6710a5a1fcada58e795d41f82fe158d322274d1d0ca7bf34f3932fe7bf",
@@ -70,10 +70,10 @@
     "assets/Shiro/items/item-2-accessories.png": "588fec0f97dea7e83124bd8bf435611d9fec5c3fd0f8fc9dba3f1adf96de2d7a",
     "assets/Shiro/package-manifest.json": "510eca84e7c143f271001ef5f45fec43288eac495969e2b40f61491251569d89",
     "assets/Shiro/package-thumbnail.png": "79d1d3a30d6c7f477849140d87b5df3baa7a3980bbc8ad0fb65cbd02fe9dfe5f",
-    "index.html": "c8b389e2113351f0337d6b182832ce534dc6bfefcde09c0526682a42a3d75e86",
-    "runtime-app.js": "94e6275e03ff274ace3f2a82138c161beac07e5e44b5329dae8195465eb566d5",
+    "index.html": "055a8d1a58b9c39d6b4c6dc523a34e992009da4c67e7171925ea114e99811942",
+    "runtime-app.js": "ad997b702699c42bf0a8550e7d1b98a6b79dbf8cdbb8448de9e0dbe517274c5b",
     "runtime-host.css": "9c08057837569e7a5401f427391c9292c3d56b498d2098cf70074db5947ec992",
     "runtime-host.js": "4b62a451964c97c13f5f009a27fa773b0017f1be45797691bb0d73dd055ae6ec",
-    "styles.css": "8528f4195fe564ccb7c3778a144309abd239127118b5aaf21f97592ba766ce6b"
+    "styles.css": "1087f89a64058255a70450f183989fe3d1ad8d16bb0718510ba34e74b693009f"
   }
 }

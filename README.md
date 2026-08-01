@@ -33,7 +33,7 @@ PORTALは[PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)の描�
 
 口パクはテキスト長から疑似生成しません。COREから受け取ったTTS audioをWeb Audio APIの`AnalyserNode`へ接続し、実音声のRMS振幅を発話者の`AvatarInstance`へ渡します。会話の送信先はCOREの公開Agent IDである`mio`、`shiro`、`kuro`、`midori`を使い、画面上では`room-partner-mio`、`room-partner-shiro`、`room-partner-kuro`、`room-partner-midori`で示します。
 
-PuruPuru更新時は手編集で差分を移植せず、同期コマンドで原版と生成runtimeを更新します。キャラの正本はフォルダ直下のLoose PNGではなく、上表の生成済み`.purupuru`です。同期処理がpackage内の表情、前後髪、item layer、`settings.json`を展開します。生成テストは、同梱した原版`app.js`から`runtime-app.js`が再現できることも検証します。
+PuruPuru更新時は手編集で差分を移植せず、同期コマンドで原版と生成runtimeを更新します。キャラの正本はフォルダ直下のLoose PNGではなく、上表の生成済み`.purupuru`です。同期処理がpackage内の表情、前後髪、item layer、`settings.json`を展開し、PuruPuru由来コードの帰属・Apache-2.0・改変表示を再付与します。生成テストは、同梱した原版`app.js`から`runtime-app.js`が再現できることも検証します。
 
 ```powershell
 go run ./cmd/sync-purupuru -source C:\Users\nyuki\Documents\GenerativeAI\PuruPuruPNGTuber
@@ -56,6 +56,12 @@ curl -fsS http://127.0.0.1:18791/assets/purupuru/assets/Midori/front-hair.png | 
 7. `http://127.0.0.1:18791/?mode=Chat`を実ブラウザで開き、4人の画像欠損、透過、動き、画面内配置をdesktop幅とnarrow幅で確認する。
 
 PORTALは`//go:embed web/*`でassetをbinaryへ埋め込むため、ファイルを置き換えただけでは稼働中の表示は変わりません。必ず再ビルド・再起動します。`internal/portal/web/`配下の未参照ファイルもbinaryへ埋め込まれるため、旧画像や作業用バックアップはこのディレクトリへ残しません。vendored PuruPuruのライセンスとPortal固有差分は`internal/portal/web/purupuru/README.md`に記録します。
+
+### ライセンスと配布範囲
+
+RenCrow_PORTAL本体と`runtime-host.js`／`runtime-host.css`はルートのMIT License、PuruPuru由来の`app.js`／`index.html`／`styles.css`／生成`runtime-app.js`はApache License 2.0です。著作権・入手元・改変内容・現在の上流`NOTICE`の有無は`THIRD_PARTY_NOTICES.md`、Apache License全文は`internal/portal/web/purupuru/LICENSE`を正本とします。
+
+PuruPuru付属のdemo画像、スクリーンショット、アイコン、フォント、vendored MediaPipeは同梱しません。`internal/portal/web/purupuru/assets/<character>/`のPNGは、明示的に設定したRenCrowキャラクターpackageから展開したRenCrow素材であり、PuruPuru由来コードのライセンス範囲には含めません。
 
 ### Avatar管理Skill
 
@@ -126,6 +132,15 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 make build
 ./build/rencrow-portal
 ```
+
+Windowsの配布用buildは次の入口を使います。
+
+```powershell
+.\scripts\build.ps1
+.\build\rencrow-portal.exe
+```
+
+どちらのbuild入口も、binaryと同じ配布directoryへ`LICENSE`、`THIRD_PARTY_NOTICES.md`、`licenses/PuruPuruPNGTuber-Apache-2.0.txt`を配置します。EXEやZIPを配布するときは、このlayout全体を対象にします。
 
 常駐運用ではuser serviceを使います。
 

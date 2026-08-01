@@ -3175,3 +3175,227 @@ body.portal-games-mode .purupuru-avatar.games-overlay-active{
     right:10px !important;bottom:8px !important;width:150px !important;height:190px !important;
   }
 }
+
+/* Chat is authored on one 1920x1080 canvas and fitted to the viewport as a unit. */
+html.portal-chat-fixed-canvas{
+  width:100%;
+  height:100%;
+  max-width:none;
+  overflow:hidden;
+  background:#d7e9ff;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]{
+  --safe-top:0px;
+  --safe-bottom:0px;
+  --room-edge:18px;
+  --room-bottom:330px;
+  --room-rail:132px;
+  --room-chat:430px;
+  --room-side-width:642px;
+  --room-input-height:48px;
+  --room-input-gap:2px;
+  --chat-canvas-scale:1;
+  --chat-canvas-offset-x:0px;
+  --chat-canvas-offset-y:0px;
+  position:fixed;
+  left:var(--chat-canvas-offset-x);
+  top:var(--chat-canvas-offset-y);
+  width:1920px;
+  min-width:1920px;
+  max-width:1920px;
+  height:1080px;
+  min-height:1080px;
+  max-height:1080px;
+  margin:0;
+  overflow:hidden;
+  transform:scale(var(--chat-canvas-scale));
+  transform-origin:top left;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-stream-shell,
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] main{
+  width:1920px;
+  height:1080px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window{
+  display:block;
+  top:86.4px;
+  bottom:406px;
+  width:537.6px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-left{left:76.8px}
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-right{right:76.8px}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-ceiling-ring{
+  top:51.84px;
+  width:560px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-holo-circle{
+  left:249.6px;
+  top:270px;
+  width:220px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-left{
+  left:74.88px;
+  top:367.2px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-center{
+  display:block;
+  top:183.6px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console{
+  display:block;
+  top:237.6px;
+  width:260px;
+  height:148px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-left{left:384px}
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-right{right:188.16px}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel{
+  left:0 !important;
+  top:0 !important;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-logo-row img{
+  width:96px !important;
+  height:auto !important;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel .portal-connection{
+  position:static;
+  left:auto;
+  right:auto;
+  top:auto;
+  bottom:auto;
+  display:flex;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar{
+  left:96px !important;
+  top:8px !important;
+  right:343px !important;
+  bottom:auto !important;
+  width:auto !important;
+  height:auto !important;
+  min-height:80px;
+  max-height:80px;
+  justify-content:flex-start;
+  gap:8px;
+  padding:14px 18px 10px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar .room-topic-text{
+  display:block !important;
+  -webkit-line-clamp:unset;
+  white-space:nowrap;
+  font-size:21px;
+  line-height:1.2;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
+  left:auto;
+  right:26px;
+  top:8px;
+  display:flex;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-indicator{
+  left:auto;
+  right:26px;
+  top:44px;
+  min-height:44px;
+  max-width:none;
+  padding:6px 10px;
+  flex-wrap:nowrap;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-chip{
+  min-width:62px;
+  height:30px;
+  padding:0 12px;
+  font-size:13px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-camera-live-preview{
+  right:26px;
+  top:80px;
+  width:96px;
+  border-radius:12px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat{
+  left:18px !important;
+  right:18px !important;
+  top:540px !important;
+  bottom:68px !important;
+  width:auto !important;
+  max-width:none !important;
+  height:auto !important;
+  max-height:none !important;
+  padding:44px 20px 18px !important;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-footer{
+  left:18px;
+  right:18px;
+  bottom:18px;
+  height:48px;
+  grid-template-columns:minmax(180px,1fr) auto;
+  gap:10px;
+  padding:5px 8px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-shell{height:38px}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #roomInput{
+  height:36px;
+  max-height:56px;
+  padding:8px 14px;
+  font-size:14px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn{
+  width:38px;
+  height:38px;
+  min-width:38px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn svg{
+  width:19px;
+  height:19px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .portal-operation-status{
+  left:auto;
+  right:82px;
+  bottom:62px;
+  max-width:none;
+  text-align:start;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .purupuru-avatar{
+  top:91.8px !important;
+  width:560px !important;
+  height:464.4px !important;
+  min-height:300px;
+}
+
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-mio #mioPortrait,
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-shiro #shiroPortrait,
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-kuro #kuroPortrait,
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-midori #midoriPortrait{
+  left:50%;
+  top:91.8px !important;
+  width:760px !important;
+  height:626.4px !important;
+  transform:translateX(-50%);
+}

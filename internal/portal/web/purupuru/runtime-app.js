@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+// PuruPuru PNGTuber
+// Copyright 2026 masa
+// Licensed under the Apache License, Version 2.0.
+// Source: https://github.com/rotejin/PuruPuruPNGTuber
+// Modified for RenCrow_PORTAL; derived from PuruPuru PNGTuber.
 // Generated from upstream app.js by internal/purupurusync. Do not edit by hand.
 (function registerPuruPuruRuntime(hostWindow) {
   "use strict";
