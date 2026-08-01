@@ -2762,6 +2762,9 @@ body.room-mode.room-stage .room-datetime-panel{
     --room-p-row2-h:clamp(38px,5dvh,56px);
     --room-p-stage-top:calc(var(--room-p-row2-top) + var(--room-p-row2-h));
     --room-p-chat-top:52dvh;
+    /* PuruPuru's 16:9 canvas is left-biased on the mobile stage. */
+    --room-p-avatar-offset-x:clamp(88px,25vw,108px);
+    --room-p-avatar-top-offset:clamp(192px,24dvh,216px);
   }
 
   /* Row 1: ロゴ + トピック */
@@ -2841,24 +2844,24 @@ body.room-mode.room-stage .room-datetime-panel{
   body.room-mode.room-stage.room-chat-mode .room-kuro-portrait,
   body.room-mode.room-stage.room-chat-mode .room-midori-portrait,
   body.room-mode.room-stage:not(.room-idlechat-mode) .room-mio-portrait{
-    left:50%;
-    top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;
+    left:calc(50% + var(--room-p-avatar-offset-x)) !important;
+    top:calc(var(--room-p-stage-top) - var(--room-p-avatar-top-offset)) !important;
     width:144vw !important;
     height:88dvh !important;
     transform:translateX(-50%);
   }
 
   body.room-mode.room-stage.room-chat-mode.room-partner-shiro .room-shiro-portrait{
-    left:50%;
-    top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;
+    left:calc(50% + var(--room-p-avatar-offset-x)) !important;
+    top:calc(var(--room-p-stage-top) - var(--room-p-avatar-top-offset)) !important;
     width:144vw !important;
     height:88dvh !important;
     transform:translateX(-50%);
   }
 
   body.room-mode.room-stage.room-chat-mode.room-partner-midori .room-midori-portrait{
-    left:50%;
-    top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;
+    left:calc(50% + var(--room-p-avatar-offset-x)) !important;
+    top:calc(var(--room-p-stage-top) - var(--room-p-avatar-top-offset)) !important;
     width:144vw !important;
     height:88dvh !important;
     transform:translateX(-50%);
@@ -2997,7 +3000,7 @@ body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
   body.room-mode.room-stage.room-chat-mode.room-partner-shiro #shiroPortrait,
   body.room-mode.room-stage.room-chat-mode.room-partner-kuro #kuroPortrait,
   body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{
-    left:50%;
+    left:calc(50% + var(--room-p-avatar-offset-x)) !important;
     width:144vw !important;
     height:88dvh !important;
   }
