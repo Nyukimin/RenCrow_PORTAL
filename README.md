@@ -4,6 +4,15 @@ RenCrow_PORTALは、MioやShiroが部屋の中で会話するAI VTuber形式の�
 
 `RenCrow_ASSISTANT`との連携後は、個人・家族の予定、Routine、通知履歴、端末設定を表示・操作するWeb clientにもなります。生活Routine、PUSH、delivery状態の正本はASSISTANTであり、PORTALへ複製しません。現在の実装はCORE proxyのみで、ASSISTANT API連携はplannedです。
 
+## 標準Go配布
+
+標準artifactはGo binary `rencrow-portal`と`go:embed`したbrowser assetです。
+JavaScriptは利用者のbrowserで実行するため、Node.js runtimeを標準installerへ要求しません。
+PORTALはPython／Node.js server、独自の会話runtime、物理backendを同梱しません。
+標準配布の正本は
+[RenCrow_COREの「標準Go配布境界」](https://github.com/Nyukimin/RenCrow_CORE/blob/main/docs/04_アーキテクチャ概要.md#標準go配布境界)
+です。
+
 ## モード
 
 - `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面
