@@ -3401,3 +3401,11 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   transform:translateX(-50%);
 }
 }
+
+/* Keep adjacent Chat utterances visually grouped on the fixed canvas. */
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat.chat-conversation{
+  gap:4px;
+}
+html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat.chat-conversation .msg{
+  margin-bottom:0;
+}

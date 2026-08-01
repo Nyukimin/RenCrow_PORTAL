@@ -166,6 +166,24 @@ func TestPortalChatKeepsConversationViewportPosition(t *testing.T) {
 	}
 }
 
+func TestPortalChatUsesCompactConversationSpacing(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(stylesheet)
+	for _, marker := range []string{
+		`html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat.chat-conversation{`,
+		`gap:4px;`,
+		`#chat.chat-conversation .msg{`,
+		`margin-bottom:0;`,
+	} {
+		if !strings.Contains(content, marker) {
+			t.Errorf("Chat compact spacing marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
