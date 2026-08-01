@@ -144,6 +144,28 @@ func TestPortalChatUsesSeparateLandscapeAndPortraitProfiles(t *testing.T) {
 	}
 }
 
+func TestPortalChatKeepsConversationViewportPosition(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{
+		`const chatAutoFollowThreshold = 24;`,
+		`const chatScrollState = {`,
+		`function isChatAtBottom()`,
+		`chat.addEventListener('scroll', updateChatScrollFollow, {passive: true});`,
+		`function initializeChatScroll()`,
+		`initializeChatScroll();`,
+		`function maintainChatScroll()`,
+		`if (!chat || !chatScrollState.following) return;`,
+		`maintainChatScroll();`,
+	} {
+		if !strings.Contains(string(script), marker) {
+			t.Errorf("Chat conversation scroll marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)

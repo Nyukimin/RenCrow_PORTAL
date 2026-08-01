@@ -30,6 +30,11 @@
   const connectionDot = document.getElementById('connectionDot');
   const connectionText = document.getElementById('connectionText');
   const operationStatus = document.getElementById('operationStatus');
+  const chatAutoFollowThreshold = 24;
+  const chatScrollState = {
+    initialized: false,
+    following: true,
+  };
   const seenEvents = new Set();
   const partnerStorageKey = 'roomConversation.selectedPartner';
   const ttsPreferenceStorageKey = 'rencrow.portal.ttsPreference';
@@ -179,6 +184,37 @@
   }
 
   initializeChatCanvas();
+
+  function isChatAtBottom() {
+    if (!chat) return true;
+    const remaining = chat.scrollHeight - chat.clientHeight - chat.scrollTop;
+    return remaining <= chatAutoFollowThreshold;
+  }
+
+  function scrollChatToBottom() {
+    if (!chat) return;
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function updateChatScrollFollow() {
+    if (!chat) return;
+    chatScrollState.following = isChatAtBottom();
+  }
+
+  function initializeChatScroll() {
+    if (!chat || chatScrollState.initialized) return;
+    chat.addEventListener('scroll', updateChatScrollFollow, {passive: true});
+    chatScrollState.initialized = true;
+    chatScrollState.following = true;
+    scrollChatToBottom();
+  }
+
+  function maintainChatScroll() {
+    if (!chat || !chatScrollState.following) return;
+    scrollChatToBottom();
+  }
+
+  initializeChatScroll();
 
   function api(path) {
     return `/api/${mode}${path}`;
@@ -371,7 +407,7 @@
     row.append(avatar, bubble);
     chat.append(row);
     while (chat.children.length > 300) chat.firstElementChild.remove();
-    chat.scrollTop = chat.scrollHeight;
+    maintainChatScroll();
     if (['mio', 'shiro', 'kuro', 'midori'].includes(actor)) animateSpeaker(actor);
   }
 
