@@ -2838,24 +2838,29 @@ body.room-mode.room-stage .room-datetime-panel{
   /* 立ち絵: 画像は正方形カード（背景つき）なので重ねずに配置する */
   body.room-mode.room-stage.room-chat-mode .room-mio-portrait,
   body.room-mode.room-stage.room-chat-mode .room-shiro-portrait,
+  body.room-mode.room-stage.room-chat-mode .room-kuro-portrait,
+  body.room-mode.room-stage.room-chat-mode .room-midori-portrait,
   body.room-mode.room-stage:not(.room-idlechat-mode) .room-mio-portrait{
     left:50%;
-    top:calc(var(--room-p-stage-top) + 1.5dvh);
-    height:min(44dvh,74vw,720px);
+    top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;
+    width:144vw !important;
+    height:88dvh !important;
     transform:translateX(-50%);
   }
 
   body.room-mode.room-stage.room-chat-mode.room-partner-shiro .room-shiro-portrait{
     left:50%;
-    top:calc(var(--room-p-stage-top) + 1dvh);
-    height:min(44dvh,74vw,720px);
+    top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;
+    width:144vw !important;
+    height:88dvh !important;
     transform:translateX(-50%);
   }
 
   body.room-mode.room-stage.room-chat-mode.room-partner-midori .room-midori-portrait{
     left:50%;
-    top:calc(var(--room-p-stage-top) + 1dvh);
-    height:min(44dvh,74vw,720px);
+    top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;
+    width:144vw !important;
+    height:88dvh !important;
     transform:translateX(-50%);
   }
 
@@ -2993,8 +2998,8 @@ body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
   body.room-mode.room-stage.room-chat-mode.room-partner-kuro #kuroPortrait,
   body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{
     left:50%;
-    width:72vw !important;
-    height:44dvh !important;
+    width:144vw !important;
+    height:88dvh !important;
   }
 
   body.room-mode.room-stage.room-idlechat-mode #mioPortrait,

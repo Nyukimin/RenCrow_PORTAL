@@ -204,6 +204,30 @@ func TestPortalChatShowsClockInPortraitHeader(t *testing.T) {
 	}
 }
 
+func TestPortalChatUsesCenteredDoubleSizePortraitAvatar(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(stylesheet)
+	for _, marker := range []string{
+		`body.room-mode.room-stage.room-chat-mode .room-mio-portrait,`,
+		`body.room-mode.room-stage.room-chat-mode .room-kuro-portrait,`,
+		`body.room-mode.room-stage.room-chat-mode .room-midori-portrait,`,
+		`left:50%;`,
+		`top:calc(var(--room-p-stage-top) + clamp(4px,1dvh,12px)) !important;`,
+		`width:144vw !important;`,
+		`height:88dvh !important;`,
+		`transform:translateX(-50%);`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-shiro .room-shiro-portrait{`,
+		`body.room-mode.room-stage.room-chat-mode.room-partner-midori .room-midori-portrait{`,
+	} {
+		if !strings.Contains(content, marker) {
+			t.Errorf("Portrait Chat avatar layout marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
