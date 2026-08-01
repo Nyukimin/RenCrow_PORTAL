@@ -3402,6 +3402,21 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
 }
 }
 
+@media (orientation:portrait){
+  html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
+    display:flex;
+    left:var(--room-edge);
+    right:auto;
+    top:calc(var(--room-p-row2-top) + (var(--room-p-row2-h) - 24px) / 2);
+    padding:0;
+    width:153px;
+    font-size:11.25px;
+    letter-spacing:0;
+    transform:scaleX(.67);
+    transform-origin:left center;
+  }
+}
+
 /* Keep adjacent Chat utterances visually grouped on the fixed canvas. */
 html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat.chat-conversation{
   gap:4px;

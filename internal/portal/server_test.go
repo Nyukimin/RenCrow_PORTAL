@@ -184,6 +184,26 @@ func TestPortalChatUsesCompactConversationSpacing(t *testing.T) {
 	}
 }
 
+func TestPortalChatShowsClockInPortraitHeader(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(stylesheet)
+	for _, marker := range []string{
+		`html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{`,
+		`display:flex;`,
+		`left:var(--room-edge);`,
+		`top:calc(var(--room-p-row2-top) + (var(--room-p-row2-h) - 24px) / 2);`,
+		`font-size:11.25px;`,
+		`transform:scaleX(.67);`,
+	} {
+		if !strings.Contains(content, marker) {
+			t.Errorf("Portrait Chat clock marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
