@@ -1,0 +1,215 @@
+name: Apply PORTAL stable viewport fix
+
+on:
+  push:
+    branches:
+      - agent/portal-stable-viewport
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/portal-stable-viewport
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Apply specification and implementation
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          js_path = Path('internal/portal/web/portal.js')
+          js = js_path.read_text(encoding='utf-8')
+          old_js = """  function initializeChatCanvas() {
+            if (mode !== 'chat') return;
+            document.documentElement.classList.add('portal-chat-fixed-canvas');
+            let pendingFrame = 0;
+            const requestFit = () => {
+              window.cancelAnimationFrame(pendingFrame);
+              pendingFrame = window.requestAnimationFrame(() => {
+                pendingFrame = 0;
+                applyChatViewportProfile();
+              });
+            };
+
+            applyChatViewportProfile();
+            window.addEventListener('resize', requestFit, {passive: true});
+            window.addEventListener('pageshow', requestFit, {passive: true});
+            if (window.visualViewport) {
+              window.visualViewport.addEventListener('resize', requestFit, {passive: true});
+              window.visualViewport.addEventListener('scroll', requestFit, {passive: true});
+            }
+          }
+          """
+          new_js = """  function initializeChatCanvas() {
+            if (mode !== 'chat') return;
+            document.documentElement.classList.add('portal-chat-fixed-canvas');
+            body.dataset.chatCanvasFitPolicy = 'initial-only';
+            // Fit once on page initialization. Input focus, software keyboards,
+            // messages, and visualViewport changes must not rescale the PORTAL.
+            applyChatViewportProfile();
+          }
+          """
+          if js.count(old_js) != 1:
+              raise SystemExit('initializeChatCanvas block did not match exactly')
+          js_path.write_text(js.replace(old_js, new_js), encoding='utf-8', newline='\n')
+
+          css_path = Path('internal/portal/web/portal.css')
+          css = css_path.read_text(encoding='utf-8')
+          base_old = 'font:600 14px/1.35 "Inter","Noto Sans JP",system-ui,sans-serif;'
+          base_new = 'font:600 16px/1.35 "Inter","Noto Sans JP",system-ui,sans-serif;'
+          if base_old not in css:
+              raise SystemExit('base roomInput font marker was not found')
+          css = css.replace(base_old, base_new, 1)
+          mobile_old = """  body.room-mode.room-stage #roomInput{
+            height:34px;
+            padding:7px 10px;
+            font-size:13px;
+          }
+          """
+          mobile_new = """  body.room-mode.room-stage #roomInput{
+            height:34px;
+            padding:7px 10px;
+            /* 16px prevents mobile browsers from zooming the page on focus. */
+            font-size:16px;
+          }
+          """
+          if css.count(mobile_old) != 1:
+              raise SystemExit('mobile roomInput font block did not match exactly')
+          css_path.write_text(css.replace(mobile_old, mobile_new), encoding='utf-8', newline='\n')
+
+          readme_path = Path('README.md')
+          readme = readme_path.read_text(encoding='utf-8')
+          heading = '## 表示倍率とビューポート'
+          if heading not in readme:
+              marker = '## PuruPuruアバター描画'
+              if marker not in readme:
+                  raise SystemExit('README insertion marker was not found')
+              section = """## 表示倍率とビューポート
+
+PORTALは、ページ初期表示時にだけChat画面の表示プロファイルと初期倍率を決定します。
+初期表示後は、ユーザー入力、入力欄へのフォーカス、ソフトウェアキーボードの表示、AI応答、
+メッセージ追加、入力欄の高さ変化、`visualViewport`の`resize`／`scroll`を契機として、
+画面全体を自動的に拡大・縮小・中央寄せしてはなりません。
+
+表示倍率の変更は、ブラウザのズーム操作など利用者が明示的に行った操作だけに従います。
+Chat入力欄の文字サイズはmobileを含めて16px以上とし、ブラウザの入力フォーカス時自動ズームを
+誘発しないようにします。画面向きやウィンドウ寸法を変えた後に別プロファイルへ切り替える場合は、
+ページ再読み込みで初期表示をやり直します。
+
+"""
+              readme_path.write_text(readme.replace(marker, section + marker, 1), encoding='utf-8', newline='\n')
+
+          docs_path = Path('docs/PORTAL表示倍率仕様.md')
+          docs_path.parent.mkdir(parents=True, exist_ok=True)
+          docs_path.write_text("""# PORTAL 表示倍率仕様
+
+## 目的
+
+会話入力中にPORTAL全体の表示倍率や表示位置が変化しない、安定した操作画面を提供する。
+
+## 規則
+
+- Chat画面の表示プロファイルと初期倍率は、ページ初期表示時に一度だけ決定する。
+- ユーザー入力、入力欄フォーカス、ソフトウェアキーボード表示、AI応答、メッセージ追加、
+  入力欄の高さ変化を理由に画面全体を再フィットしない。
+- `visualViewport.resize`および`visualViewport.scroll`を自動拡大・縮小の入力に使わない。
+- 通常の`window.resize`や`pageshow`でも、初期化済みの画面倍率を自動変更しない。
+- 表示倍率はブラウザのズーム操作など、利用者が明示的に変更した場合だけ変わる。
+- Chat入力欄はmobileを含めて16px以上とし、入力フォーカス時のブラウザ自動ズームを防ぐ。
+- 画面向きやウィンドウ寸法を変更して別の表示プロファイルを使う場合は、ページを再読み込みする。
+
+## 実装契約
+
+- `initializeChatCanvas()`は`applyChatViewportProfile()`を初期化時に一度だけ呼ぶ。
+- `body.dataset.chatCanvasFitPolicy`は`initial-only`とする。
+- Chat canvasの初期化処理は`window.resize`、`pageshow`、`visualViewport.resize`、
+  `visualViewport.scroll`へ再フィット処理を登録しない。
+- `#roomInput`の実効フォントサイズは16px未満にしない。
+
+## 受け入れ条件
+
+1. Chat入力欄を繰り返し選択・入力しても、PORTAL全体の倍率が変化しない。
+2. mobileのソフトウェアキーボードを開閉しても、Chat canvasの倍率が再計算されない。
+3. AI応答やSSEメッセージが追加されても、画面全体の倍率と位置が維持される。
+4. 利用者によるブラウザズームは妨げない。
+""", encoding='utf-8', newline='\n')
+
+          test_path = Path('internal/portal/viewport_policy_test.go')
+          test_path.write_text("""package portal
+
+import (
+    "strings"
+    "testing"
+)
+
+func TestPortalChatViewportFitIsInitializationOnly(t *testing.T) {
+    script, err := webFiles.ReadFile("web/portal.js")
+    if err != nil {
+        t.Fatal(err)
+    }
+    content := string(script)
+    for _, marker := range []string{
+        `body.dataset.chatCanvasFitPolicy = 'initial-only';`,
+        `applyChatViewportProfile();`,
+        `visualViewport changes must not rescale the PORTAL`,
+    } {
+        if !strings.Contains(content, marker) {
+            t.Errorf("stable viewport marker %q is missing", marker)
+        }
+    }
+    for _, forbidden := range []string{
+        `window.addEventListener('resize', requestFit`,
+        `window.addEventListener('pageshow', requestFit`,
+        `window.visualViewport.addEventListener('resize', requestFit`,
+        `window.visualViewport.addEventListener('scroll', requestFit`,
+    } {
+        if strings.Contains(content, forbidden) {
+            t.Errorf("automatic viewport refit listener %q must not be registered", forbidden)
+        }
+    }
+}
+
+func TestPortalChatInputDoesNotTriggerMobileFocusZoom(t *testing.T) {
+    stylesheet, err := webFiles.ReadFile("web/portal.css")
+    if err != nil {
+        t.Fatal(err)
+    }
+    content := string(stylesheet)
+    if !strings.Contains(content, `font:600 16px/1.35 "Inter","Noto Sans JP",system-ui,sans-serif;`) {
+        t.Error("base Chat input font must be at least 16px")
+    }
+    if !strings.Contains(content, `font-size:16px;`) {
+        t.Error("mobile Chat input font must be at least 16px")
+    }
+    if strings.Contains(content, `font-size:13px;`) {
+        t.Error("mobile Chat input must not use a focus-zooming 13px font")
+    }
+}
+""", encoding='utf-8', newline='\n')
+          PY
+
+          gofmt -w internal/portal/viewport_policy_test.go
+
+      - name: Test PORTAL
+        run: go test ./internal/portal
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          rm .github/workflows/apply-portal-stable-viewport.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/PORTAL表示倍率仕様.md internal/portal/web/portal.js internal/portal/web/portal.css internal/portal/viewport_policy_test.go .github/workflows/apply-portal-stable-viewport.yml
+          git commit -m "Stabilize PORTAL viewport during input"
+          git push origin HEAD:agent/portal-stable-viewport
