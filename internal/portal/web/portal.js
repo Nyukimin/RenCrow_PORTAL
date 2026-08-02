@@ -341,10 +341,16 @@
   function shouldRenderEvent(event) {
     const content = String(event && event.content || '').trim();
     const type = String(event && event.type || '');
-    if (!content || !['message.received', 'agent.response', 'agent.acknowledge', 'idlechat.message'].includes(type)) return false;
+    if (!content || !['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress', 'idlechat.message'].includes(type)) return false;
     const from = normalizeActor(event.from);
     const to = normalizeActor(event.to);
     if (type === 'message.received') return from === 'user';
+    // News fallback roleplay is public only for the Mio <-> Shiro handoff.
+    // The text contains progress/status, while the collected facts travel in
+    // the structured news context separately.
+    if (type === 'agent.progress') {
+      return event.route === 'CHAT' && ((from === 'mio' && to === 'shiro') || (from === 'shiro' && to === 'mio'));
+    }
     // Shiro's handoff readback is a public conversation item. Keep the
     // internal agent.acknowledge event intact (Shiro -> Mio), but render this
     // specific readback in the common Chat so the user can confirm the task

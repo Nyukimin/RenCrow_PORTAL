@@ -450,7 +450,8 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`['message.received', 'agent.response', 'agent.acknowledge', 'idlechat.message'].includes(type)`,
+		`['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress', 'idlechat.message'].includes(type)`,
+		`if (type === 'agent.progress')`,
 		`if (type === 'agent.acknowledge') return from === 'shiro' && to === 'mio';`,
 		`return ` + "`message:${messageID}`",
 		`type === 'agent.thinking'`,
