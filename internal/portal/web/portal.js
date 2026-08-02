@@ -341,10 +341,15 @@
   function shouldRenderEvent(event) {
     const content = String(event && event.content || '').trim();
     const type = String(event && event.type || '');
-    if (!content || !['message.received', 'agent.response', 'idlechat.message'].includes(type)) return false;
+    if (!content || !['message.received', 'agent.response', 'agent.acknowledge', 'idlechat.message'].includes(type)) return false;
     const from = normalizeActor(event.from);
     const to = normalizeActor(event.to);
     if (type === 'message.received') return from === 'user';
+    // Shiro's handoff readback is a public conversation item. Keep the
+    // internal agent.acknowledge event intact (Shiro -> Mio), but render this
+    // specific readback in the common Chat so the user can confirm the task
+    // was received before execution starts.
+    if (type === 'agent.acknowledge') return from === 'shiro' && to === 'mio';
     if (type === 'agent.response') return to === 'user' && ['mio', 'shiro', 'kuro', 'midori'].includes(from);
     return ['mio', 'shiro', 'kuro', 'midori'].includes(from);
   }
