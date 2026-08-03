@@ -1176,10 +1176,11 @@
 
   if (mode === 'chat') {
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        send('text');
-      }
+      if (event.key !== 'Enter') return;
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+      event.preventDefault();
+      send('text');
     });
     document.querySelectorAll('[data-room-switch]').forEach((chip) => {
       chip.addEventListener('click', () => {

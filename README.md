@@ -121,6 +121,7 @@ ASSISTANTの配信経路やschedulerにはならず、ASSISTANT Public APIのVie
 PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知します。
 
 - 会話相手の切替は`POST /viewer/recipient-selection`で観測eventを発行し、実際の送信先は`POST /viewer/send`の`to`で確定する
+- Chatは修飾キーを伴わない`Enter`で送信し、`Shift+Enter`で改行する。IME／FEPの変換確定では送信しない
 - `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
 - 会話欄へ表示するeventは`message.received`、利用者向け`agent.response`、`idlechat.message`に限定し、`message_id`をSSE再接続時の重複排除へ使う。`agent.thinking`やrouting／worker eventは会話本文として残さない

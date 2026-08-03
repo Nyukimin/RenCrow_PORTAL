@@ -110,6 +110,31 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 	}
 }
 
+func TestPortalChatUsesEnterAndPreservesIMEComposition(t *testing.T) {
+	page, err := webFiles.ReadFile("web/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(page) + string(script)
+	for _, marker := range []string{
+		`aria-keyshortcuts="Enter"`,
+		`if (event.key !== 'Enter') return;`,
+		`event.isComposing || event.keyCode === 229`,
+		`event.shiftKey || event.ctrlKey || event.altKey || event.metaKey`,
+	} {
+		if !strings.Contains(content, marker) {
+			t.Errorf("Chat Enter submit marker %q is missing", marker)
+		}
+	}
+	if strings.Contains(string(script), `!event.ctrlKey ||`) {
+		t.Error("Chat submit must not require Ctrl+Enter")
+	}
+}
+
 func TestPortalChatUsesSeparateLandscapeAndPortraitProfiles(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
