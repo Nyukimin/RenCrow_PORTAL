@@ -3419,7 +3419,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
     --room-p-row2-top:71.38px;
     --room-p-row2-h:42.6px;
     --room-p-stage-top:113.98px;
-    --room-p-chat-top:443.04px;
+    --room-p-chat-top:396px;
     --room-p-avatar-offset-x:98.25px;
     --room-p-avatar-top-offset:204.48px;
     --chat-canvas-scale:1;
@@ -3539,7 +3539,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
   html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat{
     left:10.22px !important;
     right:10.22px !important;
-    top:443.04px !important;
+    top:var(--room-p-chat-top) !important;
     bottom:63.34px !important;
     width:auto !important;
     max-width:none !important;
