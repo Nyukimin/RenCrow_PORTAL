@@ -3567,3 +3567,61 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
 html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat.chat-conversation .msg{
   margin-bottom:0;
 }
+
+/* Chat text sizing is client-local and shared across Windows, Ubuntu, and macOS. */
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size="small"]{
+  --room-message-font-size:16px;
+  --room-message-meta-font-size:13px;
+  --room-input-font-size:16px;
+  --room-topic-font-size:20px;
+  --room-status-font-size:12px;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size="medium"]{
+  --room-message-font-size:20px;
+  --room-message-meta-font-size:15px;
+  --room-input-font-size:18px;
+  --room-topic-font-size:23px;
+  --room-status-font-size:14px;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size="large"]{
+  --room-message-font-size:24px;
+  --room-message-meta-font-size:17px;
+  --room-input-font-size:20px;
+  --room-topic-font-size:26px;
+  --room-status-font-size:16px;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #chat.chat-conversation .mc{
+  font-size:var(--room-message-font-size) !important;
+  line-height:1.55;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #chat.chat-conversation .an,
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #chat.chat-conversation .tm,
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #chat.chat-conversation .dir{
+  font-size:var(--room-message-meta-font-size) !important;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #roomInput{
+  font-size:var(--room-input-font-size) !important;
+  line-height:1.25;
+  padding-block:4px;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] .room-topic-bar .room-topic-text{
+  font-size:var(--room-topic-font-size) !important;
+}
+
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] .portal-connection,
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] .portal-operation-status,
+body.room-mode.room-stage.room-chat-mode[data-chat-text-size] .room-datetime-panel{
+  font-size:var(--room-status-font-size) !important;
+}
+
+body.room-mode.room-stage .room-text-size-toggle{
+  color:#36528f;
+  font:800 14px/1 "Inter","Noto Sans JP",system-ui,sans-serif;
+  letter-spacing:0;
+}

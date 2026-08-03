@@ -95,7 +95,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat" || r.URL.Path == "/games":
 		h.servePage(w, r)
 	case r.URL.Path == "/health/live":
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "rencrow-portal"})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": true, "status": "live", "service": "rencrow-portal", "runtime": "go",
+		})
 	case r.URL.Path == "/health/ready":
 		h.serveReadiness(w, r)
 	case strings.HasPrefix(r.URL.Path, "/assets/"):
@@ -332,23 +334,34 @@ func (h *handler) serveReadiness(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(h.cfg.CoreURL, "/")+"/ready", nil)
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(h.cfg.CoreURL, "/")+"/health/ready", nil)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"ok": false, "status": "error", "service": "rencrow-portal", "runtime": "go",
+			"error_code": "PORTAL_READINESS_FAILED", "error": err.Error(),
+		})
 		return
 	}
 	response, err := h.readiness.Do(request)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "core": "unreachable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"ok": false, "status": "unavailable", "service": "rencrow-portal", "runtime": "go",
+			"error_code": "PORTAL_CORE_UNAVAILABLE", "core": "unreachable",
+		})
 		return
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "core_status": response.StatusCode})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"ok": false, "status": "unavailable", "service": "rencrow-portal", "runtime": "go",
+			"error_code": "PORTAL_CORE_UNAVAILABLE", "core_status": response.StatusCode,
+		})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "core": "ready"})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "status": "ready", "service": "rencrow-portal", "runtime": "go", "core": "ready",
+	})
 }
 
 func setSecurityHeaders(w http.ResponseWriter) {

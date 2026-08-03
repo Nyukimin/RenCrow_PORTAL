@@ -59,7 +59,8 @@
       <div class="room-input-shell">
         <textarea id="roomInput" rows="1" placeholder="メッセージを入力...（Enterで送信、Shift+Enterで改行）" autocomplete="off" aria-label="メッセージを入力" aria-keyshortcuts="Enter"></textarea>
       </div>
-      <div class="room-footer-controls" aria-label="Audio controls">
+      <div class="room-footer-controls" aria-label="Chat controls">
+        <button class="room-icon-btn room-text-size-toggle" id="roomTextSizeBtn" type="button" title="文字サイズ: 中（押すと大へ変更）" aria-label="文字サイズ: 中（押すと大へ変更）" data-text-size="medium" data-control-state="TEXT_MEDIUM">中</button>
         <button class="room-icon-btn room-audio-toggle off" id="roomAudioBtn" type="button" title="TTS_OFF" aria-label="TTS_OFF" aria-pressed="false" data-control-state="TTS_OFF">
           <svg class="room-control-icon room-control-icon-on" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 9v6h4l5 4V5L8 9H4z"></path>

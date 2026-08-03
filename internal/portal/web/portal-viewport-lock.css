@@ -1,4 +1,4 @@
 /* PORTAL viewport policy: browser focus must not zoom the Chat surface. */
 body.room-mode.room-stage #roomInput {
-  font-size:16px !important;
+  font-size:var(--room-input-font-size,16px) !important;
 }

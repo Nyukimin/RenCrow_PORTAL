@@ -55,7 +55,7 @@ func TestPortalChatViewportPolicyBlocksAutomaticRefit(t *testing.T) {
 	if !strings.Contains(string(unlockScript), `chatCanvasFitPolicy = 'initial-only'`) {
 		t.Error("viewport policy metadata is missing")
 	}
-	if !strings.Contains(string(stylesheet), `font-size:16px !important;`) {
+	if !strings.Contains(string(stylesheet), `font-size:var(--room-input-font-size,16px) !important;`) {
 		t.Error("Chat input must use at least 16px to prevent mobile focus zoom")
 	}
 }

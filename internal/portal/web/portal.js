@@ -36,6 +36,13 @@
   const seenEvents = new Set();
   const partnerStorageKey = 'roomConversation.selectedPartner';
   const ttsPreferenceStorageKey = 'rencrow.portal.ttsPreference';
+  const chatTextSizeStorageKey = 'rencrow.portal.chatTextSize';
+  const chatTextSizeOrder = Object.freeze(['small', 'medium', 'large']);
+  const chatTextSizeLabels = Object.freeze({
+    small: Object.freeze({mark: '小', label: '小'}),
+    medium: Object.freeze({mark: '中', label: '中'}),
+    large: Object.freeze({mark: '大', label: '大'}),
+  });
   const storedRecipient = normalizeActor(localStorage.getItem(partnerStorageKey)) || normalizeActor(localStorage.getItem('rencrow.portal.partner')) || 'shiro';
   let selectedRecipient = storedRecipient;
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
@@ -99,6 +106,37 @@
     midori: 'midoriAvatar',
   };
   let latestAvatarSpeaker = 'mio';
+
+  function normalizeChatTextSize(value) {
+    return chatTextSizeOrder.includes(value) ? value : 'medium';
+  }
+
+  function applyChatTextSize(value, persistPreference = false) {
+    const size = normalizeChatTextSize(value);
+    const currentIndex = chatTextSizeOrder.indexOf(size);
+    const nextSize = chatTextSizeOrder[(currentIndex + 1) % chatTextSizeOrder.length];
+    const control = document.getElementById('roomTextSizeBtn');
+    body.dataset.chatTextSize = size;
+    if (control) {
+      control.dataset.textSize = size;
+      control.dataset.controlState = `TEXT_${size.toUpperCase()}`;
+      control.textContent = chatTextSizeLabels[size].mark;
+      control.title = `文字サイズ: ${chatTextSizeLabels[size].label}（押すと${chatTextSizeLabels[nextSize].label}へ変更）`;
+      control.setAttribute('aria-label', control.title);
+    }
+    if (persistPreference) localStorage.setItem(chatTextSizeStorageKey, size);
+  }
+
+  function bindChatTextSizeControl() {
+    const control = document.getElementById('roomTextSizeBtn');
+    applyChatTextSize(localStorage.getItem(chatTextSizeStorageKey));
+    if (!control) return;
+    control.addEventListener('click', () => {
+      const currentSize = normalizeChatTextSize(body.dataset.chatTextSize);
+      const currentIndex = chatTextSizeOrder.indexOf(currentSize);
+      applyChatTextSize(chatTextSizeOrder[(currentIndex + 1) % chatTextSizeOrder.length], true);
+    });
+  }
 
   function readLayoutViewportSize() {
     const root = document.documentElement;
@@ -1159,6 +1197,7 @@
     });
     bindTTSControl();
     bindSTTControl();
+    bindChatTextSizeControl();
     bindAttachmentControl();
     bindCaptureControl('roomScreenBtn', 'screen', '画面');
     bindCaptureControl('roomCameraBtn', 'camera', 'カメラ画像');
