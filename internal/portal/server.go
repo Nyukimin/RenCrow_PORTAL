@@ -334,7 +334,7 @@ func (h *handler) serveReadiness(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(h.cfg.CoreURL, "/")+"/health/ready", nil)
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(h.cfg.CoreURL, "/")+"/ready", nil)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
 			"ok": false, "status": "error", "service": "rencrow-portal", "runtime": "go",

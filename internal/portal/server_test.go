@@ -996,7 +996,7 @@ func TestPortalChatRejectsCrossOriginSTTWebSocket(t *testing.T) {
 
 func TestPortalReadinessReflectsCoreReady(t *testing.T) {
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health/ready" {
+		if r.URL.Path != "/ready" {
 			http.NotFound(w, r)
 			return
 		}
@@ -1013,6 +1013,7 @@ func TestPortalReadinessReflectsCoreReady(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health/ready", nil))
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), `"status":"unavailable"`) ||
+		!strings.Contains(rec.Body.String(), `"core_status":503`) ||
 		!strings.Contains(rec.Body.String(), `"runtime":"go"`) {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
