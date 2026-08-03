@@ -59,3 +59,60 @@ func TestPortalChatViewportPolicyBlocksAutomaticRefit(t *testing.T) {
 		t.Error("Chat input must use at least 16px to prevent mobile focus zoom")
 	}
 }
+
+func TestPortalChatUsesOnlyFixedLandscapeAndPortraitCanvases(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	js := string(script)
+	for _, marker := range []string{
+		`physicalWidth: 1920`,
+		`physicalHeight: 1080`,
+		`logicalWidth: 1920`,
+		`logicalHeight: 1080`,
+		`physicalWidth: 1179`,
+		`physicalHeight: 2556`,
+		`logicalWidth: 393`,
+		`logicalHeight: 852`,
+		`root.clientWidth || window.innerWidth`,
+		`root.clientHeight || window.innerHeight`,
+		`Math.min(viewport.width / profile.logicalWidth, viewport.height / profile.logicalHeight)`,
+		`fitChatCanvas(profile, viewport)`,
+	} {
+		if !strings.Contains(js, marker) {
+			t.Errorf("fixed Chat canvas marker %q is missing", marker)
+		}
+	}
+	for _, forbidden := range []string{
+		`window.visualViewport`,
+		`window.addEventListener('resize'`,
+		`window.addEventListener('pageshow'`,
+	} {
+		if strings.Contains(js, forbidden) {
+			t.Errorf("initial-only Chat canvas must not contain %q", forbidden)
+		}
+	}
+
+	css := string(stylesheet)
+	for _, marker := range []string{
+		`html.portal-chat-fixed-canvas.portal-chat-landscape`,
+		`width:1920px;`,
+		`height:1080px;`,
+		`html.portal-chat-fixed-canvas.portal-chat-portrait`,
+		`width:393px;`,
+		`height:852px;`,
+		`transform:scale(var(--chat-canvas-scale));`,
+		`left:var(--chat-canvas-offset-x);`,
+		`top:var(--chat-canvas-offset-y);`,
+	} {
+		if !strings.Contains(css, marker) {
+			t.Errorf("fixed Chat canvas stylesheet marker %q is missing", marker)
+		}
+	}
+}

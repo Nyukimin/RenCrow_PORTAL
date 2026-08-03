@@ -3184,7 +3184,7 @@ body.portal-games-mode .purupuru-avatar.games-overlay-active{
   }
 }
 
-/* Chat is authored on one landscape canvas and fitted to the viewport as a unit. */
+/* Chat uses one of two fixed canvases and fits the selected canvas as a unit. */
 html.portal-chat-fixed-canvas{
   width:100%;
   height:100%;
@@ -3193,8 +3193,7 @@ html.portal-chat-fixed-canvas{
   background:#d7e9ff;
 }
 
-@media (orientation:landscape){
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]{
   --safe-top:0px;
   --safe-bottom:0px;
   --room-edge:18px;
@@ -3222,64 +3221,64 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   transform-origin:top left;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-stream-shell,
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] main{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-stream-shell,
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] main{
   width:1920px;
   height:1080px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window{
   display:block;
   top:86.4px;
   bottom:406px;
   width:537.6px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-left{left:76.8px}
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-right{right:76.8px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-left{left:76.8px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-right{right:76.8px}
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-ceiling-ring{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-ceiling-ring{
   top:51.84px;
   width:560px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-holo-circle{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-holo-circle{
   left:249.6px;
   top:270px;
   width:220px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-left{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-left{
   left:74.88px;
   top:367.2px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-center{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-center{
   display:block;
   top:183.6px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console{
   display:block;
   top:237.6px;
   width:260px;
   height:148px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-left{left:384px}
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-right{right:188.16px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-left{left:384px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-right{right:188.16px}
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel{
   left:0 !important;
   top:0 !important;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-logo-row img{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-logo-row img{
   width:96px !important;
   height:auto !important;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel .portal-connection{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel .portal-connection{
   position:static;
   left:auto;
   right:auto;
@@ -3288,7 +3287,7 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   display:flex;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar{
   left:96px !important;
   top:8px !important;
   right:343px !important;
@@ -3302,7 +3301,7 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   padding:14px 18px 10px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar .room-topic-text{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar .room-topic-text{
   display:block !important;
   -webkit-line-clamp:unset;
   white-space:nowrap;
@@ -3310,14 +3309,14 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   line-height:1.2;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
   left:auto;
   right:26px;
   top:8px;
   display:flex;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-indicator{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-indicator{
   left:auto;
   right:26px;
   top:44px;
@@ -3327,21 +3326,21 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   flex-wrap:nowrap;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-chip{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-chip{
   min-width:62px;
   height:30px;
   padding:0 12px;
   font-size:13px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-camera-live-preview{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-camera-live-preview{
   right:26px;
   top:80px;
   width:96px;
   border-radius:12px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat{
   left:18px !important;
   right:18px !important;
   top:540px !important;
@@ -3353,7 +3352,7 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   padding:44px 20px 18px !important;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-footer{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-footer{
   left:18px;
   right:18px;
   bottom:18px;
@@ -3363,27 +3362,27 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   padding:5px 8px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-shell{height:38px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-shell{height:38px}
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #roomInput{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #roomInput{
   height:36px;
   max-height:56px;
   padding:8px 14px;
   font-size:14px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn{
   width:38px;
   height:38px;
   min-width:38px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn svg{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn svg{
   width:19px;
   height:19px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .portal-operation-status{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .portal-operation-status{
   left:auto;
   right:82px;
   bottom:62px;
@@ -3391,31 +3390,97 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
   text-align:start;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .purupuru-avatar{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .purupuru-avatar{
   top:91.8px !important;
   width:560px !important;
   height:464.4px !important;
   min-height:300px;
 }
 
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-mio #mioPortrait,
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-shiro #shiroPortrait,
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-kuro #kuroPortrait,
-html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-midori #midoriPortrait{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-mio #mioPortrait,
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-shiro #shiroPortrait,
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-kuro #kuroPortrait,
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-midori #midoriPortrait{
   left:50%;
   top:91.8px !important;
   width:760px !important;
   height:626.4px !important;
   transform:translateX(-50%);
 }
-}
 
-@media (orientation:portrait){
-  html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]{
+    --safe-top:0px;
+    --safe-bottom:0px;
+    --room-edge:10.22px;
+    --room-input-height:51.12px;
+    --room-input-gap:2px;
+    --room-p-row1-top:8px;
+    --room-p-row1-h:55.38px;
+    --room-p-row2-top:71.38px;
+    --room-p-row2-h:42.6px;
+    --room-p-stage-top:113.98px;
+    --room-p-chat-top:443.04px;
+    --room-p-avatar-offset-x:98.25px;
+    --room-p-avatar-top-offset:204.48px;
+    --chat-canvas-scale:1;
+    --chat-canvas-offset-x:0px;
+    --chat-canvas-offset-y:0px;
+    position:fixed;
+    left:var(--chat-canvas-offset-x);
+    top:var(--chat-canvas-offset-y);
+    width:393px;
+    min-width:393px;
+    max-width:393px;
+    height:852px;
+    min-height:852px;
+    max-height:852px;
+    margin:0;
+    overflow:hidden;
+    transform:scale(var(--chat-canvas-scale));
+    transform-origin:top left;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-stream-shell,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] main{
+    width:393px;
+    height:852px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel{
+    left:10.22px !important;
+    top:8px !important;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-logo-row img{
+    width:44px !important;
+    height:auto !important;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-topic-bar{
+    left:64.22px !important;
+    right:10.22px !important;
+    top:8px !important;
+    bottom:auto !important;
+    width:auto !important;
+    height:55.38px !important;
+    min-height:0;
+    max-height:none;
+    padding:8.52px 12px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-indicator{
+    left:auto;
+    right:10.22px;
+    top:71.38px;
+    min-height:42.6px;
+    max-width:372.56px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
     display:flex;
-    left:var(--room-edge);
+    left:10.22px;
     right:auto;
-    top:calc(var(--room-p-row2-top) + (var(--room-p-row2-h) - 24px) / 2);
+    top:80.68px;
     padding:0;
     width:153px;
     font-size:11.25px;
@@ -3423,7 +3488,77 @@ html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mo
     transform:scaleX(.67);
     transform-origin:left center;
   }
-}
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-camera-live-preview{
+    right:10.22px;
+    top:121.98px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window{
+    top:113.98px;
+    bottom:426px;
+    width:133.62px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-left{left:15.72px}
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window-right{right:15.72px}
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-ceiling-ring{
+    top:117.98px;
+    width:227.94px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-holo-circle{
+    left:19.65px;
+    top:204.48px;
+    width:78.6px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-left{
+    left:15.72px;
+    top:255.6px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-crystal-center,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-left,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-console-right{
+    display:none;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-mio #mioPortrait,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-shiro #shiroPortrait,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-kuro #kuroPortrait,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-midori #midoriPortrait{
+    left:calc(50% + 98.25px) !important;
+    top:-90.5px !important;
+    width:565.92px !important;
+    height:749.76px !important;
+    transform:translateX(-50%);
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat{
+    left:10.22px !important;
+    right:10.22px !important;
+    top:443.04px !important;
+    bottom:63.34px !important;
+    width:auto !important;
+    max-width:none !important;
+    height:auto !important;
+    max-height:none !important;
+    padding:40px 12px 12px !important;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-footer{
+    left:10.22px;
+    right:10.22px;
+    bottom:10.22px;
+    height:51.12px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel .portal-connection,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .portal-operation-status{
+    bottom:67.34px;
+  }
 
 /* Keep adjacent Chat utterances visually grouped on the fixed canvas. */
 html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chat.chat-conversation{

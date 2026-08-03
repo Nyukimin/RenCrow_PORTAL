@@ -5,8 +5,6 @@
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
   const mode = ['idlechat', 'chat', 'games'].includes(requestedMode) ? requestedMode : 'idlechat';
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
-  const chatCanvasWidth = 1920;
-  const chatCanvasHeight = 1080;
   const viewportProfiles = Object.freeze({
     landscape: Object.freeze({
       id: 'landscape',
@@ -102,16 +100,15 @@
   };
   let latestAvatarSpeaker = 'mio';
 
-  function readViewportSize() {
-    const viewport = window.visualViewport;
+  function readLayoutViewportSize() {
+    const root = document.documentElement;
     return {
-      width: Math.max(1, viewport ? viewport.width : window.innerWidth),
-      height: Math.max(1, viewport ? viewport.height : window.innerHeight),
+      width: Math.max(1, root.clientWidth || window.innerWidth),
+      height: Math.max(1, root.clientHeight || window.innerHeight),
     };
   }
 
-  function resolveViewportProfile() {
-    const viewport = readViewportSize();
+  function resolveViewportProfile(viewport) {
     return viewport.width >= viewport.height ? viewportProfiles.landscape : viewportProfiles.portrait;
   }
 
@@ -126,61 +123,34 @@
     document.documentElement.classList.toggle('portal-chat-portrait', profile.id === 'portrait');
   }
 
-  function fitChatCanvas() {
+  function fitChatCanvas(profile, viewport) {
     if (mode !== 'chat') return;
-    const viewport = window.visualViewport;
-    const viewportWidth = Math.max(1, viewport ? viewport.width : window.innerWidth);
-    const viewportHeight = Math.max(1, viewport ? viewport.height : window.innerHeight);
-    const viewportLeft = viewport ? viewport.offsetLeft : 0;
-    const viewportTop = viewport ? viewport.offsetTop : 0;
-    const scale = Math.min(viewportWidth / chatCanvasWidth, viewportHeight / chatCanvasHeight);
-    const offsetX = viewportLeft + ((viewportWidth - (chatCanvasWidth * scale)) / 2);
-    const offsetY = viewportTop + ((viewportHeight - (chatCanvasHeight * scale)) / 2);
+    const scale = Math.min(viewport.width / profile.logicalWidth, viewport.height / profile.logicalHeight);
+    const offsetX = (viewport.width - (profile.logicalWidth * scale)) / 2;
+    const offsetY = (viewport.height - (profile.logicalHeight * scale)) / 2;
 
     body.style.setProperty('--chat-canvas-scale', String(scale));
     body.style.setProperty('--chat-canvas-offset-x', `${offsetX}px`);
     body.style.setProperty('--chat-canvas-offset-y', `${offsetY}px`);
-    body.dataset.chatCanvasWidth = String(chatCanvasWidth);
-    body.dataset.chatCanvasHeight = String(chatCanvasHeight);
+    body.dataset.chatCanvasWidth = String(profile.logicalWidth);
+    body.dataset.chatCanvasHeight = String(profile.logicalHeight);
     body.dataset.chatCanvasScale = String(scale);
+    body.dataset.chatCanvasOffsetX = String(offsetX);
+    body.dataset.chatCanvasOffsetY = String(offsetY);
   }
 
   function applyChatViewportProfile() {
     if (mode !== 'chat') return;
-    const profile = resolveViewportProfile();
+    const viewport = readLayoutViewportSize();
+    const profile = resolveViewportProfile(viewport);
     setViewportProfileMetadata(profile);
-    if (profile.id === 'landscape') {
-      fitChatCanvas();
-      return;
-    }
-
-    body.style.removeProperty('--chat-canvas-scale');
-    body.style.removeProperty('--chat-canvas-offset-x');
-    body.style.removeProperty('--chat-canvas-offset-y');
-    body.dataset.chatCanvasWidth = String(profile.logicalWidth);
-    body.dataset.chatCanvasHeight = String(profile.logicalHeight);
-    body.dataset.chatCanvasScale = '1';
+    fitChatCanvas(profile, viewport);
   }
 
   function initializeChatCanvas() {
     if (mode !== 'chat') return;
     document.documentElement.classList.add('portal-chat-fixed-canvas');
-    let pendingFrame = 0;
-    const requestFit = () => {
-      window.cancelAnimationFrame(pendingFrame);
-      pendingFrame = window.requestAnimationFrame(() => {
-        pendingFrame = 0;
-        applyChatViewportProfile();
-      });
-    };
-
     applyChatViewportProfile();
-    window.addEventListener('resize', requestFit, {passive: true});
-    window.addEventListener('pageshow', requestFit, {passive: true});
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', requestFit, {passive: true});
-      window.visualViewport.addEventListener('scroll', requestFit, {passive: true});
-    }
   }
 
   initializeChatCanvas();
