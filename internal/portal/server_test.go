@@ -252,8 +252,9 @@ func TestPortalChatShowsClockInPortraitHeader(t *testing.T) {
 		`display:flex;`,
 		`left:10.22px;`,
 		`top:80.68px;`,
-		`font-size:11.25px;`,
-		`transform:scaleX(.67);`,
+		`width:168px;`,
+		`font-size:11.25px !important;`,
+		`transform:scaleX(.61);`,
 	} {
 		if !strings.Contains(content, marker) {
 			t.Errorf("Portrait Chat clock marker %q is missing", marker)

@@ -133,3 +133,52 @@ func TestPortalChatUsesOnlyFixedLandscapeAndPortraitCanvases(t *testing.T) {
 		}
 	}
 }
+
+func TestPortalChatFixedPortraitKeepsFooterControlsAndClockInsideCanvas(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := string(stylesheet)
+
+	footer := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-footer`)
+	for _, marker := range []string{
+		`grid-template-columns:minmax(0,1fr) auto;`,
+		`gap:6px;`,
+		`padding:4px 5px 4px 10px;`,
+	} {
+		if !strings.Contains(footer, marker) {
+			t.Errorf("fixed portrait Chat footer marker %q is missing", marker)
+		}
+	}
+
+	button := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn`)
+	for _, marker := range []string{
+		`width:34px;`,
+		`height:34px;`,
+		`min-width:34px;`,
+	} {
+		if !strings.Contains(button, marker) {
+			t.Errorf("fixed portrait Chat control marker %q is missing", marker)
+		}
+	}
+
+	clock := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel`)
+	if !strings.Contains(clock, `font-size:11.25px !important;`) {
+		t.Error("fixed portrait Chat clock must keep its compact font size without clipping")
+	}
+}
+
+func cssRuleBody(t *testing.T, css, selector string) string {
+	t.Helper()
+	start := strings.Index(css, selector+"{")
+	if start < 0 {
+		t.Fatalf("CSS selector %q is missing", selector)
+	}
+	start += len(selector) + 1
+	end := strings.Index(css[start:], "}")
+	if end < 0 {
+		t.Fatalf("CSS selector %q has no closing brace", selector)
+	}
+	return css[start : start+end]
+}

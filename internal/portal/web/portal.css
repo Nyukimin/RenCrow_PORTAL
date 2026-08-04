@@ -3491,10 +3491,10 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
     right:auto;
     top:80.68px;
     padding:0;
-    width:153px;
-    font-size:11.25px;
+    width:168px;
+    font-size:11.25px !important;
     letter-spacing:0;
-    transform:scaleX(.67);
+    transform:scaleX(.61);
     transform-origin:left center;
   }
 
@@ -3562,6 +3562,29 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
     right:10.22px;
     bottom:10.22px;
     height:51.12px;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:6px;
+    padding:4px 5px 4px 10px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-input-shell{
+    height:36px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #roomInput{
+    height:34px;
+    padding:7px 10px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn{
+    width:34px;
+    height:34px;
+    min-width:34px;
+  }
+
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-icon-btn svg{
+    width:17px;
+    height:17px;
   }
 
   html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-brand-panel .portal-connection,
