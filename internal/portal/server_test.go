@@ -48,8 +48,8 @@ func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
 		if strings.Contains(body, `portal-surface-nav`) {
 			t.Fatalf("%s should not render a mode selector", target)
 		}
-		if strings.Contains(body, `portal-chat-fixed-canvas`) {
-			t.Fatalf("%s must not enable the fixed Chat canvas", target)
+		if !strings.Contains(body, `<html lang="ja" class="portal-chat-fixed-canvas">`) {
+			t.Fatalf("%s must prepare the shared fixed canvas for landscape IdleChat", target)
 		}
 		for _, marker := range []string{
 			`id="mioPortrait" data-character="mio"`,

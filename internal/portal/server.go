@@ -138,7 +138,6 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	}
 	if mode == ModeIdleChat {
 		data.BodyClass = "theme-modern portal-room-mode room-stage room-mode room-idlechat-mode room-partner-shiro portal-idlechat-mode"
-		data.HTMLClass = ""
 	}
 	if mode == ModeGames {
 		data.BodyClass = "theme-modern portal-games-mode"

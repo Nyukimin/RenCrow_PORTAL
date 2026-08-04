@@ -3417,6 +3417,163 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
   transform:translateX(-50%);
 }
 
+/* IdleChat shares Chat's fixed 1920x1080 canvas only in landscape. */
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"]{
+  --safe-top:0px;
+  --safe-bottom:0px;
+  --room-edge:18px;
+  --room-idlechat-shiro-top:calc(91.8px - 20pt);
+  --room-idlechat-avatar-height:626.4px;
+  --room-idlechat-shiro-visible-bottom-offset:calc(313.2px + 163.281247px);
+  --chat-canvas-scale:1;
+  --chat-canvas-offset-x:0px;
+  --chat-canvas-offset-y:0px;
+  position:fixed;
+  left:var(--chat-canvas-offset-x);
+  top:var(--chat-canvas-offset-y);
+  width:1920px;
+  min-width:1920px;
+  max-width:1920px;
+  height:1080px;
+  min-height:1080px;
+  max-height:1080px;
+  margin:0;
+  overflow:hidden;
+  transform:scale(var(--chat-canvas-scale));
+  transform-origin:top left;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-stream-shell,
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] main{
+  width:1920px;
+  height:1080px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-window{
+  display:block;
+  top:86.4px;
+  bottom:406px;
+  width:537.6px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-window-left{left:76.8px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-window-right{right:76.8px}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-ceiling-ring{
+  top:51.84px;
+  width:560px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-holo-circle{
+  left:249.6px;
+  top:270px;
+  width:220px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-crystal-left{
+  left:74.88px;
+  top:367.2px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-crystal-center{
+  display:block;
+  top:183.6px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-console{
+  display:block;
+  top:237.6px;
+  width:260px;
+  height:148px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-console-left{left:384px}
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-console-right{right:188.16px}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-brand-panel{
+  left:0 !important;
+  top:0 !important;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-logo-row img{
+  width:96px !important;
+  height:auto !important;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-brand-panel .portal-connection{
+  position:static;
+  left:auto;
+  right:auto;
+  top:auto;
+  bottom:auto;
+  display:flex;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-topic-bar{
+  left:96px !important;
+  top:8px !important;
+  right:343px !important;
+  bottom:auto !important;
+  width:auto !important;
+  height:auto !important;
+  min-height:80px;
+  max-height:80px;
+  justify-content:flex-start;
+  gap:8px;
+  padding:14px 18px 10px;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-topic-bar .room-topic-text{
+  display:block !important;
+  -webkit-line-clamp:unset;
+  white-space:nowrap;
+  font-size:21px;
+  line-height:1.2;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .room-datetime-panel{
+  left:auto;
+  right:26px;
+  top:8px;
+  display:flex;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] .portal-operation-status{
+  left:auto;
+  right:26px;
+  bottom:18px;
+  max-width:none;
+  text-align:start;
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] #mioPortrait{
+  left:25%;
+  top:91.8px !important;
+  width:760px !important;
+  height:626.4px !important;
+  transform:translateX(-37.1875%);
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] #shiroPortrait{
+  left:75%;
+  top:var(--room-idlechat-shiro-top) !important;
+  width:760px !important;
+  height:626.4px !important;
+  transform:translateX(-37.421875%);
+}
+
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] #chat{
+  left:18px !important;
+  right:18px !important;
+  top:calc(var(--room-idlechat-shiro-top) + var(--room-idlechat-shiro-visible-bottom-offset)) !important;
+  bottom:18px !important;
+  width:auto !important;
+  max-width:none !important;
+  height:auto !important;
+  max-height:none !important;
+  padding:44px 20px 18px !important;
+}
+
   html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]{
     --safe-top:0px;
     --safe-bottom:0px;

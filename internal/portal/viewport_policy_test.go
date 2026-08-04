@@ -169,6 +169,66 @@ func TestPortalChatFixedPortraitKeepsFooterControlsAndClockInsideCanvas(t *testi
 	}
 }
 
+func TestPortalIdleChatUsesFixedLandscapeCanvasAndKeepsPortraitResponsive(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	js := string(script)
+	for _, marker := range []string{
+		`const fixedCanvasSurface = mode === 'chat' || mode === 'idlechat';`,
+		`return mode === 'chat' || (mode === 'idlechat' && profile.id === 'landscape');`,
+		`document.documentElement.classList.toggle('portal-chat-fixed-canvas', fixedCanvas);`,
+		`clearChatCanvasFit();`,
+	} {
+		if !strings.Contains(js, marker) {
+			t.Errorf("IdleChat fixed landscape policy marker %q is missing", marker)
+		}
+	}
+
+	css := string(stylesheet)
+	body := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"]`)
+	for _, marker := range []string{
+		`width:1920px;`,
+		`height:1080px;`,
+		`transform:scale(var(--chat-canvas-scale));`,
+		`--room-idlechat-shiro-top:calc(91.8px - 20pt);`,
+		`--room-idlechat-avatar-height:626.4px;`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("fixed landscape IdleChat body marker %q is missing", marker)
+		}
+	}
+
+	mio := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] #mioPortrait`)
+	for _, marker := range []string{`left:25%;`, `top:91.8px !important;`, `width:760px !important;`, `height:626.4px !important;`} {
+		if !strings.Contains(mio, marker) {
+			t.Errorf("fixed landscape IdleChat Mio marker %q is missing", marker)
+		}
+	}
+
+	shiro := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] #shiroPortrait`)
+	for _, marker := range []string{`left:75%;`, `top:var(--room-idlechat-shiro-top) !important;`, `width:760px !important;`, `height:626.4px !important;`} {
+		if !strings.Contains(shiro, marker) {
+			t.Errorf("fixed landscape IdleChat Shiro marker %q is missing", marker)
+		}
+	}
+
+	conversation := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"] #chat`)
+	if !strings.Contains(conversation, `top:calc(var(--room-idlechat-shiro-top) + var(--room-idlechat-shiro-visible-bottom-offset)) !important;`) {
+		t.Error("fixed landscape IdleChat conversation must start at Shiro's visible bottom")
+	}
+
+	if strings.Contains(css, `html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-idlechat-mode[data-mode="idlechat"]`) {
+		t.Error("IdleChat portrait must keep its existing responsive layout")
+	}
+}
+
 func cssRuleBody(t *testing.T, css, selector string) string {
 	t.Helper()
 	start := strings.Index(css, selector+"{")

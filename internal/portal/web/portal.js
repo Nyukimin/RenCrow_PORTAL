@@ -5,6 +5,7 @@
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
   const mode = ['idlechat', 'chat', 'games'].includes(requestedMode) ? requestedMode : 'idlechat';
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
+  const fixedCanvasSurface = mode === 'chat' || mode === 'idlechat';
   const viewportProfiles = Object.freeze({
     landscape: Object.freeze({
       id: 'landscape',
@@ -155,6 +156,10 @@
     return viewport.width >= viewport.height ? viewportProfiles.landscape : viewportProfiles.portrait;
   }
 
+  function usesFixedCanvas(profile) {
+    return mode === 'chat' || (mode === 'idlechat' && profile.id === 'landscape');
+  }
+
   function setViewportProfileMetadata(profile) {
     body.dataset.viewportProfile = profile.id;
     body.dataset.viewportPhysicalWidth = String(profile.physicalWidth);
@@ -167,7 +172,6 @@
   }
 
   function fitChatCanvas(profile, viewport) {
-    if (mode !== 'chat') return;
     const scale = Math.min(viewport.width / profile.logicalWidth, viewport.height / profile.logicalHeight);
     const offsetX = (viewport.width - (profile.logicalWidth * scale)) / 2;
     const offsetY = (viewport.height - (profile.logicalHeight * scale)) / 2;
@@ -182,16 +186,33 @@
     body.dataset.chatCanvasOffsetY = String(offsetY);
   }
 
+  function clearChatCanvasFit() {
+    body.style.removeProperty('--chat-canvas-scale');
+    body.style.removeProperty('--chat-canvas-offset-x');
+    body.style.removeProperty('--chat-canvas-offset-y');
+    delete body.dataset.chatCanvasWidth;
+    delete body.dataset.chatCanvasHeight;
+    delete body.dataset.chatCanvasScale;
+    delete body.dataset.chatCanvasOffsetX;
+    delete body.dataset.chatCanvasOffsetY;
+  }
+
   function applyChatViewportProfile() {
-    if (mode !== 'chat') return;
+    if (!fixedCanvasSurface) return;
     const viewport = readLayoutViewportSize();
     const profile = resolveViewportProfile(viewport);
     setViewportProfileMetadata(profile);
-    fitChatCanvas(profile, viewport);
+    const fixedCanvas = usesFixedCanvas(profile);
+    document.documentElement.classList.toggle('portal-chat-fixed-canvas', fixedCanvas);
+    if (fixedCanvas) {
+      fitChatCanvas(profile, viewport);
+    } else {
+      clearChatCanvasFit();
+    }
   }
 
   function scheduleChatViewportSync() {
-    if (mode !== 'chat') return;
+    if (!fixedCanvasSurface) return;
     if (chatViewportFrameID) cancelAnimationFrame(chatViewportFrameID);
     chatViewportFrameID = requestAnimationFrame(() => {
       chatViewportFrameID = 0;
@@ -200,7 +221,7 @@
   }
 
   function bindChatViewportUpdates() {
-    if (mode !== 'chat') return;
+    if (!fixedCanvasSurface) return;
     window.addEventListener('resize', scheduleChatViewportSync, {passive: true});
     window.addEventListener('pageshow', scheduleChatViewportSync, {passive: true});
 
@@ -216,8 +237,8 @@
   }
 
   function initializeChatCanvas() {
-    if (mode !== 'chat') return;
-    document.documentElement.classList.add('portal-chat-fixed-canvas');
+    if (!fixedCanvasSurface) return;
+    if (mode === 'chat') document.documentElement.classList.add('portal-chat-fixed-canvas');
     body.dataset.chatCanvasFitPolicy = 'dynamic-layout-viewport';
     applyChatViewportProfile();
     bindChatViewportUpdates();
