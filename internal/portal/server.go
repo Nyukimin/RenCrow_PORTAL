@@ -38,6 +38,7 @@ type pageData struct {
 	BodyClass             string
 	HTMLClass             string
 	ShowCharacterSwitcher bool
+	ShowKuroMidoriAvatars bool
 }
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
@@ -135,6 +136,7 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 		BodyClass:             "theme-modern portal-room-mode room-stage room-mode room-chat-mode room-partner-shiro",
 		HTMLClass:             "portal-chat-fixed-canvas",
 		ShowCharacterSwitcher: mode == ModeChat,
+		ShowKuroMidoriAvatars: mode != ModeIdleChat,
 	}
 	if mode == ModeIdleChat {
 		data.BodyClass = "theme-modern portal-room-mode room-stage room-mode room-idlechat-mode room-partner-shiro portal-idlechat-mode"

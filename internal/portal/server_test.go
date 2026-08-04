@@ -59,6 +59,18 @@ func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
 				t.Fatalf("%s IdleChat avatar marker %q is missing", target, marker)
 			}
 		}
+		for _, marker := range []string{
+			`id="kuroPortrait"`,
+			`id="kuroAvatar"`,
+			`character="kuro"`,
+			`id="midoriPortrait"`,
+			`id="midoriAvatar"`,
+			`character="midori"`,
+		} {
+			if strings.Contains(body, marker) {
+				t.Fatalf("%s IdleChat must not mount Kuro or Midori marker %q", target, marker)
+			}
+		}
 		if strings.Contains(body, `data-room-switch=`) {
 			t.Fatalf("%s IdleChat must not render character switch buttons", target)
 		}
@@ -304,6 +316,10 @@ func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 	for _, marker := range []string{
 		`data-mode="games"`,
 		`data-surface="games"`,
+		`id="mioAvatar" character="mio"`,
+		`id="shiroAvatar" character="shiro"`,
+		`id="kuroAvatar" character="kuro"`,
+		`id="midoriAvatar" character="midori"`,
 		`id="gamesCatalog"`,
 		`data-game-id="nethack"`,
 		`id="gamesLaunchForm"`,

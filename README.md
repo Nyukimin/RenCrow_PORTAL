@@ -37,7 +37,7 @@ ASSISTANT連携でも、読み取り画面からwrite actionを許可せず、�
 
 ## PuruPuruアバター描画
 
-PORTALは[PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)の描画コードを`internal/portal/web/purupuru/`へ同梱し、同じページ内の4つの独立した`AvatarInstance`として起動します。iframeや簡易rendererは使いません。顔変形、髪揺れ、呼吸、瞬き、口差分、影、前後アイテムレイヤーはPuruPuru原版の処理を保持し、1本の`requestAnimationFrame` schedulerからMio／Shiro／Kuro／Midoriを同時に更新します。
+PORTALは[PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)の描画コードを`internal/portal/web/purupuru/`へ同梱します。ChatとGamesでは4つ、IdleChatではMio／Shiroだけの2つの独立した`AvatarInstance`として起動し、iframeや簡易rendererは使いません。顔変形、髪揺れ、呼吸、瞬き、口差分、影、前後アイテムレイヤーはPuruPuru原版の処理を保持し、1本の`requestAnimationFrame` schedulerからその画面のDOMに生成されたavatarだけを更新します。IdleChatではKuro／MidoriをDOM生成しないため、対応するruntime初期化と画像asset通信も行いません。
 
 | character | PuruPuru source package | runtime element |
 | --- | --- | --- |

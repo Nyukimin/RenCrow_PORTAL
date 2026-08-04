@@ -83,7 +83,9 @@ claim失敗またはtimeoutでは「IdleChatを開始できません」と表示
 - 画面幅を縦に4等分し、PuruPuru描画枠の透明余白を除いたMioの可視キャラクター中心を左1/4の`x=25%`、Shiroの可視キャラクター中心を右1/4の`x=75%`へ置く。
 - Shiroは横画面、縦画面のどちらも同じ向きの基準位置からY軸方向へ`20pt`上に配置する。MioのY位置は変更しない。
 - 下部の会話欄は、横画面、縦画面のどちらも上端をPuruPuru描画枠の透明余白を除いたShiroの可視キャラクター下端へ一致させる。
-- KuroとMidoriはIdleChatへ表示しない。
+- KuroとMidoriはIdleChatのHTML DOMへ生成しない。CSSで非表示にするだけの要素も置かず、
+  対応するPuruPuru runtimeの初期化、画像asset通信、`requestAnimationFrame`更新を発生させない。
+  ChatではMio、Shiro、Kuro、Midoriの4体を生成し、GamesのPuruPuru overlay契約も維持する。
 
 ## 5. eventと音声の分離
 
@@ -128,7 +130,8 @@ PORTAL serverはbrowserが送ったclient/profile headerを信頼せず、page m
 9. heartbeat、release、同一requestの再送でIdleChat sessionを二重起動しない。
 10. CORE unavailable時はChat操作をreadyにせず、IdleChatを実行中と表示しない。
 11. IdleChatの初期描画には切替buttonがなく、CORE応答前からChatと同寸のMioとShiroが`x=25%`／`x=75%`を中心に表示される。
-12. 横画面と縦画面の双方でKuroとMidoriがIdleChatへ表示されない。
+12. 横画面と縦画面の双方でKuroとMidoriがIdleChatのHTML DOMへ生成されず、対応する
+    PuruPuru runtimeの初期化、画像asset通信、`requestAnimationFrame`更新が発生しない。
 
 ## 8. 実装と検証境界
 
