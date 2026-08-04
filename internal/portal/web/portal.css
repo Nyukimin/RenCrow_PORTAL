@@ -2961,18 +2961,29 @@ body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{
   filter:drop-shadow(0 0 24px rgba(112,190,255,.28));
 }
 
+body.room-mode.room-stage.room-idlechat-mode{
+  --room-idlechat-shiro-top:calc(8.5vh - 20pt);
+  --room-idlechat-avatar-height:min(32.625vw,58vh);
+  /* 16:9 contain canvas: Shiro's visible body ends at 88.194444% of the canvas. */
+  --room-idlechat-shiro-visible-bottom-offset:calc(min(16.3125vw,29vh) + min(8.504232vw,15.118634vh));
+}
+
 body.room-mode.room-stage.room-idlechat-mode #mioPortrait,
 body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
   display:block !important;
   top:8.5vh;
   width:min(39.583333vw,70.37037vh);
-  height:min(32.625vw,58vh);
+  height:var(--room-idlechat-avatar-height);
   opacity:1;
 }
 
 body.room-mode.room-stage.room-idlechat-mode #mioPortrait{left:25%;transform:translateX(-37.1875%);}
 
-body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;transform:translateX(-37.421875%);}
+body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;top:var(--room-idlechat-shiro-top);transform:translateX(-37.421875%);}
+
+body.room-mode.room-stage.room-idlechat-mode #chat{
+  top:calc(var(--room-idlechat-shiro-top) + var(--room-idlechat-shiro-visible-bottom-offset)) !important;
+}
 
 .purupuru-avatar.is-speaking{
   opacity:1;
@@ -2980,6 +2991,12 @@ body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;transform:t
 }
 
 @media (orientation:portrait), (max-width:700px){
+  body.room-mode.room-stage.room-idlechat-mode{
+    --room-idlechat-shiro-top:calc(-10.622066dvh - 20pt);
+    --room-idlechat-avatar-height:min(190.778626vw,88dvh);
+    --room-idlechat-shiro-visible-bottom-offset:calc(min(95.389313vw,44dvh) + min(30.9375vw,14.270466dvh));
+  }
+
   .purupuru-avatar{
     top:14dvh !important;
     width:42vw !important;
@@ -3000,11 +3017,11 @@ body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;transform:t
   body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
     top:-10.622066dvh !important;
     width:min(144vw,66.422535dvh) !important;
-    height:min(190.778626vw,88dvh) !important;
+    height:var(--room-idlechat-avatar-height) !important;
   }
 
   body.room-mode.room-stage.room-idlechat-mode #mioPortrait{left:25%;transform:translateX(-37.1875%);}
-  body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;transform:translateX(-37.421875%);}
+  body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;top:var(--room-idlechat-shiro-top) !important;transform:translateX(-37.421875%);}
 }
 
 /* Games surface */

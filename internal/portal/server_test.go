@@ -440,10 +440,45 @@ func TestPortalIdleChatUsesChatSizedQuarterPositionedAvatarPair(t *testing.T) {
 		`transform:translateX(-37.1875%);`,
 		`transform:translateX(-37.421875%);`,
 		`width:min(144vw,66.422535dvh) !important;`,
-		`height:min(190.778626vw,88dvh) !important;`,
+		`--room-idlechat-avatar-height:min(190.778626vw,88dvh);`,
 	} {
 		if !strings.Contains(content, required) {
 			t.Errorf("IdleChat two-character layout marker %q is missing", required)
+		}
+	}
+}
+
+func TestPortalIdleChatRaisesShiroTwentyPointsInBothOrientations(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(stylesheet)
+	for _, required := range []string{
+		`--room-idlechat-shiro-top:calc(8.5vh - 20pt);`,
+		`--room-idlechat-shiro-top:calc(-10.622066dvh - 20pt);`,
+	} {
+		if !strings.Contains(content, required) {
+			t.Errorf("IdleChat Shiro Y offset marker %q is missing", required)
+		}
+	}
+}
+
+func TestPortalIdleChatTranscriptStartsAtShiroVisibleBottom(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(stylesheet)
+	for _, required := range []string{
+		`--room-idlechat-shiro-top:calc(8.5vh - 20pt);`,
+		`--room-idlechat-shiro-visible-bottom-offset:calc(min(16.3125vw,29vh) + min(8.504232vw,15.118634vh));`,
+		`top:calc(var(--room-idlechat-shiro-top) + var(--room-idlechat-shiro-visible-bottom-offset)) !important;`,
+		`--room-idlechat-shiro-top:calc(-10.622066dvh - 20pt);`,
+		`--room-idlechat-shiro-visible-bottom-offset:calc(min(95.389313vw,44dvh) + min(30.9375vw,14.270466dvh));`,
+	} {
+		if !strings.Contains(content, required) {
+			t.Errorf("IdleChat transcript alignment marker %q is missing", required)
 		}
 	}
 }
