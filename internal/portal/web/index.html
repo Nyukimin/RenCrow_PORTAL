@@ -110,6 +110,9 @@
     <p id="operationStatus" class="portal-operation-status" aria-live="polite"></p>
   </div>
 
+  {{if .ShowChatAvatar}}<div class="room-chat-portrait purupuru-avatar" id="chatPortrait" data-character="shiro" aria-label="Shiro">
+    <purupuru-avatar id="chatAvatar" character="shiro" aria-label="Shiro PuruPuru avatar"></purupuru-avatar>
+  </div>{{else}}
   <div class="room-mio-portrait purupuru-avatar" id="mioPortrait" data-character="mio" aria-label="Mio">
     <purupuru-avatar id="mioAvatar" character="mio" aria-label="Mio PuruPuru avatar"></purupuru-avatar>
   </div>
@@ -123,6 +126,7 @@
   <div class="room-midori-portrait purupuru-avatar" id="midoriPortrait" data-character="midori" aria-label="Midori">
     <purupuru-avatar id="midoriAvatar" character="midori" aria-label="Midori PuruPuru avatar"></purupuru-avatar>
   </div>
+  {{end}}
   {{end}}
 
   <main>
@@ -247,8 +251,8 @@
   </main>
 
   <script src="/assets/purupuru/runtime-app.js" defer></script>
-  <script src="/assets/purupuru/runtime-host.js" defer></script>
   <script src="/assets/portal.js" defer></script>
+  <script src="/assets/purupuru/runtime-host.js" defer></script>
   <script src="/assets/games.js" defer></script>
 </body>
 </html>

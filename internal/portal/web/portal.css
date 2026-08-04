@@ -2943,14 +2943,7 @@ body.room-mode.room-stage .room-datetime-panel{
   pointer-events:none;
 }
 
-body.room-mode.room-stage.room-chat-mode.room-partner-kuro #mioPortrait{
-  display:none !important;
-}
-
-body.room-mode.room-stage.room-chat-mode.room-partner-mio #mioPortrait,
-body.room-mode.room-stage.room-chat-mode.room-partner-shiro #shiroPortrait,
-body.room-mode.room-stage.room-chat-mode.room-partner-kuro #kuroPortrait,
-body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{
+body.room-mode.room-stage.room-chat-mode #chatPortrait{
   display:block !important;
   left:50%;
   top:8.5vh;
@@ -3004,10 +2997,7 @@ body.room-mode.room-stage.room-idlechat-mode #chat{
     min-height:220px;
   }
 
-  body.room-mode.room-stage.room-chat-mode.room-partner-mio #mioPortrait,
-  body.room-mode.room-stage.room-chat-mode.room-partner-shiro #shiroPortrait,
-  body.room-mode.room-stage.room-chat-mode.room-partner-kuro #kuroPortrait,
-  body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{
+  body.room-mode.room-stage.room-chat-mode #chatPortrait{
     left:calc(50% + var(--room-p-avatar-offset-x)) !important;
     width:144vw !important;
     height:88dvh !important;
@@ -3406,10 +3396,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
   min-height:300px;
 }
 
-html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-mio #mioPortrait,
-html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-shiro #shiroPortrait,
-html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-kuro #kuroPortrait,
-html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-midori #midoriPortrait{
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chatPortrait{
   left:50%;
   top:91.8px !important;
   width:760px !important;
@@ -3691,10 +3678,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
     display:none;
   }
 
-  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-mio #mioPortrait,
-  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-shiro #shiroPortrait,
-  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-kuro #kuroPortrait,
-  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"].room-partner-midori #midoriPortrait{
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chatPortrait{
     left:calc(50% + 98.25px) !important;
     top:-90.5px !important;
     width:565.92px !important;

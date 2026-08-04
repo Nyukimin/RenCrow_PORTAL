@@ -38,6 +38,7 @@ type pageData struct {
 	BodyClass             string
 	HTMLClass             string
 	ShowCharacterSwitcher bool
+	ShowChatAvatar        bool
 	ShowKuroMidoriAvatars bool
 }
 
@@ -136,6 +137,7 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 		BodyClass:             "theme-modern portal-room-mode room-stage room-mode room-chat-mode room-partner-shiro",
 		HTMLClass:             "portal-chat-fixed-canvas",
 		ShowCharacterSwitcher: mode == ModeChat,
+		ShowChatAvatar:        mode == ModeChat,
 		ShowKuroMidoriAvatars: mode != ModeIdleChat,
 	}
 	if mode == ModeIdleChat {

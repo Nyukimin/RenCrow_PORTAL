@@ -98,14 +98,8 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 			`class="theme-modern portal-room-mode`,
 			`class="room-stream-shell"`,
 			`class="room-world"`,
-			`class="room-mio-portrait purupuru-avatar"`,
-			`class="room-shiro-portrait purupuru-avatar"`,
-			`class="room-kuro-portrait purupuru-avatar"`,
-			`class="room-midori-portrait purupuru-avatar"`,
-			`id="mioAvatar" character="mio"`,
-			`id="shiroAvatar" character="shiro"`,
-			`id="kuroAvatar" character="kuro"`,
-			`id="midoriAvatar" character="midori"`,
+			`class="room-chat-portrait purupuru-avatar"`,
+			`id="chatAvatar" character="shiro"`,
 			`id="chat"`,
 			`id="roomInput"`,
 			`id="roomMioChip" type="button" data-room-switch="mio" aria-current="true"`,
@@ -131,6 +125,98 @@ func TestPortalChatRendersAIVTuberRoom(t *testing.T) {
 		}
 		if strings.Contains(body, `portal-surface-nav`) {
 			t.Fatalf("%s should not render a mode selector", target)
+		}
+	}
+}
+
+func TestPortalChatMountsOnlyOneSwitchablePuruPuruAvatar(t *testing.T) {
+	cfg := DefaultConfig()
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/chat", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`id="chatPortrait" data-character="shiro"`,
+		`id="chatAvatar" character="shiro"`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("Chat switchable avatar marker %q is missing", marker)
+		}
+	}
+	if got := strings.Count(body, `<purupuru-avatar `); got != 1 {
+		t.Fatalf("Chat PuruPuru DOM count = %d, want 1", got)
+	}
+	for _, stale := range []string{`id="mioAvatar"`, `id="shiroAvatar"`, `id="kuroAvatar"`, `id="midoriAvatar"`} {
+		if strings.Contains(body, stale) {
+			t.Errorf("Chat must not mount legacy avatar %q", stale)
+		}
+	}
+}
+
+func TestPortalChatPreparesAvatarBeforeCoreConfirmationAndCommitsAfter(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	markers := []string{
+		`await runtime.prepareCharacter(nextRecipient);`,
+		`const confirmed = await post('/viewer/recipient-selection'`,
+		`runtime.commitPreparedCharacter(nextRecipient);`,
+		`setConversationState(false, nextRecipient);`,
+	}
+	previous := -1
+	for _, marker := range markers {
+		index := strings.Index(body, marker)
+		if index < 0 {
+			t.Fatalf("atomic Chat switch marker %q is missing", marker)
+		}
+		if index <= previous {
+			t.Fatalf("atomic Chat switch marker %q is out of order", marker)
+		}
+		previous = index
+	}
+	if !strings.Contains(body, `runtime.discardPreparedCharacter();`) {
+		t.Fatal("Chat switch failure must discard the pending avatar")
+	}
+}
+
+func TestPortalChatInitialRecipientIsAppliedBeforeCustomElementUpgrade(t *testing.T) {
+	page, err := webFiles.ReadFile("web/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(page)
+	portalIndex := strings.Index(body, `<script src="/assets/portal.js" defer></script>`)
+	hostIndex := strings.Index(body, `<script src="/assets/purupuru/runtime-host.js" defer></script>`)
+	if portalIndex < 0 || hostIndex < 0 || portalIndex >= hostIndex {
+		t.Fatal("portal.js must set the stored Chat recipient before runtime-host upgrades purupuru-avatar")
+	}
+}
+
+func TestPuruPuruHostPreparesOffstageRuntimeWithoutSchedulingIt(t *testing.T) {
+	host, err := webFiles.ReadFile("web/purupuru/runtime-host.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(host)
+	for _, marker := range []string{
+		`async prepareCharacter(character)`,
+		`register: false`,
+		`commitPreparedCharacter(character)`,
+		`discardPreparedCharacter()`,
+		`instances.add(pending.runtime);`,
+		`instances.delete(currentRuntime);`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("offstage avatar preparation marker %q is missing", marker)
 		}
 	}
 }
@@ -281,18 +367,15 @@ func TestPortalChatUsesCenteredDoubleSizePortraitAvatar(t *testing.T) {
 	}
 	content := string(stylesheet)
 	for _, marker := range []string{
-		`body.room-mode.room-stage.room-chat-mode .room-mio-portrait,`,
-		`body.room-mode.room-stage.room-chat-mode .room-kuro-portrait,`,
-		`body.room-mode.room-stage.room-chat-mode .room-midori-portrait,`,
 		`--room-p-avatar-offset-x:clamp(88px,25vw,108px);`,
 		`--room-p-avatar-top-offset:clamp(192px,24dvh,216px);`,
+		`body.room-mode.room-stage.room-chat-mode #chatPortrait{`,
 		`left:calc(50% + var(--room-p-avatar-offset-x)) !important;`,
 		`top:calc(var(--room-p-stage-top) - var(--room-p-avatar-top-offset)) !important;`,
 		`width:144vw !important;`,
 		`height:88dvh !important;`,
 		`transform:translateX(-50%);`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-shiro .room-shiro-portrait{`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-midori .room-midori-portrait{`,
+		`html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chatPortrait{`,
 	} {
 		if !strings.Contains(content, marker) {
 			t.Errorf("Portrait Chat avatar layout marker %q is missing", marker)
@@ -379,7 +462,7 @@ func TestPortalChatAgentSwitchDoesNotDependOnIdleChatRuntime(t *testing.T) {
 	}
 }
 
-func TestPortalMountsFourPuruPuruAvatarInstances(t *testing.T) {
+func TestPortalKeepsFourPuruPuruAvatarInstancesForGames(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
@@ -427,11 +510,7 @@ func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
 		`body.classList.toggle('room-idlechat-mode', isIdle);`,
 		`body.classList.toggle('room-chat-mode', !isIdle);`,
 		`setConversationState(false, selectedRecipient);`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-mio #mioPortrait,`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-shiro #shiroPortrait,`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-kuro #kuroPortrait,`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-midori #midoriPortrait{`,
-		`body.room-mode.room-stage.room-chat-mode.room-partner-kuro #mioPortrait{`,
+		`body.room-mode.room-stage.room-chat-mode #chatPortrait{`,
 		`body.room-mode.room-stage.room-idlechat-mode #mioPortrait,`,
 		`body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{`,
 	} {

@@ -126,82 +126,187 @@
     constructor() {
       super();
       this.runtime = null;
+      this.shell = null;
+      this.pending = null;
+      this.preparedCharacter = '';
       this.mountToken = 0;
     }
 
     async connectedCallback() {
       const token = ++this.mountToken;
       const character = String(this.getAttribute('character') || '').trim().toLowerCase();
-      if (!['mio', 'shiro', 'kuro', 'midori'].includes(character)) {
-        this.dataset.runtimeState = 'error';
-        throw new Error(`Unknown PuruPuru character: ${character}`);
-      }
-      this.dataset.runtimeState = 'loading';
-      const root = this.shadowRoot || this.attachShadow({mode: 'open'});
-      const shell = document.createElement('div');
-      shell.className = 'purupuru-runtime-document';
-      shell.setAttribute('data-character', character);
-
-      const upstreamStyle = document.createElement('link');
-      upstreamStyle.rel = 'stylesheet';
-      upstreamStyle.href = new URL('styles.css', ASSET_BASE_URL).href;
-      const hostStyle = document.createElement('link');
-      hostStyle.rel = 'stylesheet';
-      hostStyle.href = new URL('runtime-host.css', ASSET_BASE_URL).href;
-      root.replaceChildren(upstreamStyle, hostStyle, shell);
-
       try {
-        shell.innerHTML = await loadTemplate();
+        this.assertCharacter(character);
+        this.dataset.runtimeState = 'loading';
+        const root = this.ensureRoot();
+        const shell = await this.createRuntimeShell(character);
         if (token !== this.mountToken || !this.isConnected) return;
-        const scopedDocument = createScopedDocument(root, shell);
-        const scopedWindow = createScopedWindow(this, scopedDocument, character);
-        const registry = window.PuruPuruRuntime;
-        if (!registry || typeof registry.boot !== 'function') throw new Error('PuruPuru runtime factory is unavailable');
-        const runtime = registry.boot({
-          portal: true,
-          character,
-          window: scopedWindow,
-          document: scopedDocument,
-          localStorage: scopedStorage(character),
-          indexedDB: window.indexedDB,
-          assetBaseURL: ASSET_BASE_URL,
-          mouseFollowEnabled: false,
-          // PuruPuru's pointer response reserves the standalone 448px control
-          // dock plus its 20px right margin. The dock is visually hidden in
-          // PORTAL, but retaining this virtual edge preserves the same motion
-          // curve for the same stage coordinates.
-          controlPanelLeft: VIRTUAL_STAGE.width - 20 - Math.min(448, VIRTUAL_STAGE.width - 40),
-        });
+        root.append(shell);
+        this.shell = shell;
+        const runtime = await this.createRuntime(character, shell, {register: true});
+        if (token !== this.mountToken || !this.isConnected) {
+          this.destroyRuntime(runtime);
+          return;
+        }
         this.runtime = runtime;
-        instances.add(runtime);
-        ensureStageRunning();
-        await runtime.ready;
-        if (token !== this.mountToken || !this.isConnected) return;
-        runtime.setVoiceLevel(0);
-        if (latestPointer) runtime.setPointer(latestPointer.x, latestPointer.y);
         this.dataset.runtimeState = 'ready';
-        this.dispatchEvent(new CustomEvent('purupuru-ready', {
-          bubbles: true,
-          composed: true,
-          detail: {character},
-        }));
+        this.dispatchReady(character);
       } catch (error) {
         this.dataset.runtimeState = 'error';
-        this.dispatchEvent(new CustomEvent('purupuru-error', {
-          bubbles: true,
-          composed: true,
-          detail: {character, message: String(error && error.message || error)},
-        }));
+        this.dispatchError(character, error);
         console.error(`PuruPuru ${character} runtime failed`, error);
       }
     }
 
     disconnectedCallback() {
       this.mountToken += 1;
-      if (!this.runtime) return;
-      instances.delete(this.runtime);
-      this.runtime.destroy();
+      this.discardPreparedCharacter();
+      this.destroyRuntime(this.runtime);
+      this.shell?.remove();
       this.runtime = null;
+      this.shell = null;
+    }
+
+    assertCharacter(character) {
+      if (!['mio', 'shiro', 'kuro', 'midori'].includes(character)) {
+        throw new Error(`Unknown PuruPuru character: ${character}`);
+      }
+    }
+
+    ensureRoot() {
+      const root = this.shadowRoot || this.attachShadow({mode: 'open'});
+      if (root.querySelector('[data-purupuru-host-style]')) return root;
+      const upstreamStyle = document.createElement('link');
+      upstreamStyle.rel = 'stylesheet';
+      upstreamStyle.href = new URL('styles.css', ASSET_BASE_URL).href;
+      upstreamStyle.dataset.purupuruHostStyle = 'upstream';
+      const hostStyle = document.createElement('link');
+      hostStyle.rel = 'stylesheet';
+      hostStyle.href = new URL('runtime-host.css', ASSET_BASE_URL).href;
+      hostStyle.dataset.purupuruHostStyle = 'portal';
+      root.replaceChildren(upstreamStyle, hostStyle);
+      return root;
+    }
+
+    async createRuntimeShell(character) {
+      const shell = document.createElement('div');
+      shell.className = 'purupuru-runtime-document';
+      shell.setAttribute('data-character', character);
+      shell.innerHTML = await loadTemplate();
+      return shell;
+    }
+
+    async createRuntime(character, shell, {register = false} = {}) {
+      const scopedDocument = createScopedDocument(shell, shell);
+      const scopedWindow = createScopedWindow(this, scopedDocument, character);
+      const registry = window.PuruPuruRuntime;
+      if (!registry || typeof registry.boot !== 'function') throw new Error('PuruPuru runtime factory is unavailable');
+      const runtime = registry.boot({
+        portal: true,
+        character,
+        window: scopedWindow,
+        document: scopedDocument,
+        localStorage: scopedStorage(character),
+        indexedDB: window.indexedDB,
+        assetBaseURL: ASSET_BASE_URL,
+        mouseFollowEnabled: false,
+        controlPanelLeft: VIRTUAL_STAGE.width - 20 - Math.min(448, VIRTUAL_STAGE.width - 40),
+      });
+      if (register) {
+        instances.add(runtime);
+        ensureStageRunning();
+      }
+      try {
+        await runtime.ready;
+        const state = runtime.debugState();
+        if (!state?.imagesReady || state.loadError) throw new Error(state?.loadError || `${character} assets are not ready`);
+        runtime.setVoiceLevel(0);
+        if (latestPointer) runtime.setPointer(latestPointer.x, latestPointer.y);
+        if (!register) runtime.frame(performance.now());
+        return runtime;
+      } catch (error) {
+        if (register) instances.delete(runtime);
+        runtime.destroy();
+        throw error;
+      }
+    }
+
+    destroyRuntime(runtime) {
+      if (!runtime) return;
+      instances.delete(runtime);
+      runtime.destroy();
+    }
+
+    currentCharacter() {
+      return String(this.runtime?.character || this.getAttribute('character') || '').trim().toLowerCase();
+    }
+
+    async prepareCharacter(character) {
+      const nextCharacter = String(character || '').trim().toLowerCase();
+      const token = this.mountToken;
+      this.assertCharacter(nextCharacter);
+      this.discardPreparedCharacter();
+      this.preparedCharacter = nextCharacter;
+      if (nextCharacter === this.currentCharacter()) return;
+      const shell = await this.createRuntimeShell(nextCharacter);
+      try {
+        const runtime = await this.createRuntime(nextCharacter, shell, {register: false});
+        if (token !== this.mountToken || !this.isConnected) {
+          this.destroyRuntime(runtime);
+          throw new Error('PuruPuru avatar was disconnected while preparing');
+        }
+        this.pending = {character: nextCharacter, runtime, shell};
+      } catch (error) {
+        this.preparedCharacter = '';
+        throw error;
+      }
+    }
+
+    commitPreparedCharacter(character) {
+      const nextCharacter = String(character || '').trim().toLowerCase();
+      if (this.preparedCharacter !== nextCharacter) throw new Error(`${nextCharacter} is not prepared`);
+      if (!this.pending) {
+        this.preparedCharacter = '';
+        return;
+      }
+      const pending = this.pending;
+      const currentRuntime = this.runtime;
+      instances.delete(currentRuntime);
+      this.shell.replaceWith(pending.shell);
+      this.shell = pending.shell;
+      this.runtime = pending.runtime;
+      this.pending = null;
+      this.preparedCharacter = '';
+      instances.add(pending.runtime);
+      ensureStageRunning();
+      this.setAttribute('character', nextCharacter);
+      const portrait = this.closest('.purupuru-avatar');
+      if (portrait) portrait.dataset.character = nextCharacter;
+      this.dataset.runtimeState = 'ready';
+      currentRuntime?.destroy();
+      this.dispatchReady(nextCharacter);
+    }
+
+    discardPreparedCharacter() {
+      if (this.pending) this.destroyRuntime(this.pending.runtime);
+      this.pending = null;
+      this.preparedCharacter = '';
+    }
+
+    dispatchReady(character) {
+      this.dispatchEvent(new CustomEvent('purupuru-ready', {
+        bubbles: true,
+        composed: true,
+        detail: {character},
+      }));
+    }
+
+    dispatchError(character, error) {
+      this.dispatchEvent(new CustomEvent('purupuru-error', {
+        bubbles: true,
+        composed: true,
+        detail: {character, message: String(error && error.message || error)},
+      }));
     }
 
     setInput(input) {

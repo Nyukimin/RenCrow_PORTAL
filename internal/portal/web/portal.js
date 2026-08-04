@@ -426,14 +426,20 @@
   }
 
   function setAvatarInput(actor, input) {
-    const runtime = document.getElementById(avatarRuntimeIDs[actor]);
+    const runtime = mode === 'chat'
+      ? document.getElementById('chatAvatar')
+      : document.getElementById(avatarRuntimeIDs[actor]);
+    if (mode === 'chat' && normalizeActor(runtime?.getAttribute('character')) !== actor) return;
     if (!runtime || typeof runtime.setInput !== 'function') return;
     runtime.setInput(input);
   }
 
   function animateSpeaker(actor) {
     const portraitIDs = {shiro: 'shiroPortrait', kuro: 'kuroPortrait', midori: 'midoriPortrait'};
-    const target = document.getElementById(portraitIDs[actor] || 'mioPortrait');
+    const target = mode === 'chat'
+      ? document.getElementById('chatPortrait')
+      : document.getElementById(portraitIDs[actor] || 'mioPortrait');
+    if (mode === 'chat' && normalizeActor(target?.dataset.character) !== actor) return;
     if (!target) return;
     latestAvatarSpeaker = actor;
     target.classList.remove('is-speaking');
@@ -507,6 +513,18 @@
     body.dataset.roomConversationMode = isIdle ? 'idle' : 'chat';
     body.dataset.roomPartner = portraitRecipient;
     body.dataset.roomSelectedPartner = isIdle ? selectedPartner : selectedRecipient;
+    if (!isIdle) {
+      const chatPortrait = document.getElementById('chatPortrait');
+      const chatAvatar = document.getElementById('chatAvatar');
+      if (chatPortrait) {
+        chatPortrait.dataset.character = portraitRecipient;
+        chatPortrait.setAttribute('aria-label', actorInfo[portraitRecipient]?.label || portraitRecipient);
+      }
+      if (chatAvatar) {
+        chatAvatar.setAttribute('character', portraitRecipient);
+        chatAvatar.setAttribute('aria-label', `${actorInfo[portraitRecipient]?.label || portraitRecipient} PuruPuru avatar`);
+      }
+    }
     setChip('roomMioChip', !isIdle && selectedRecipient === 'mio');
     setChip('roomShiroChip', !isIdle && selectedRecipient === 'shiro');
     setChip('roomKuroChip', !isIdle && selectedRecipient === 'kuro');
@@ -1306,15 +1324,23 @@
     if (pendingRequest) return;
     if (mode !== 'chat' || modeSwitchBusy || !surfaceReady) return;
     const nextRecipient = normalizeActor(partner) || selectedPartner;
+    const runtime = document.getElementById('chatAvatar');
     setModeSwitcherBusy(true);
     setOperation('Chatの相手を切り替え中');
+    let prepared = false;
     try {
+      if (!runtime || typeof runtime.prepareCharacter !== 'function') throw new Error('キャラクター描画を準備できません');
+      await runtime.prepareCharacter(nextRecipient);
+      prepared = true;
       const confirmed = await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});
       if (normalizeActor(confirmed.recipient) !== nextRecipient) throw new Error('CORE recipient selection mismatch');
+      runtime.commitPreparedCharacter(nextRecipient);
+      prepared = false;
       setConversationState(false, nextRecipient);
       input.focus();
       setOperation(`${actorInfo[nextRecipient].label}とのChatへ切り替えました`);
     } catch (error) {
+      if (prepared) runtime.discardPreparedCharacter();
       setOperation(`切り替えできません: ${error.message}`, true);
     } finally {
       setModeSwitcherBusy(false);

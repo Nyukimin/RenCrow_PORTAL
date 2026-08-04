@@ -72,6 +72,20 @@ claim失敗またはtimeoutでは「IdleChatを開始できません」と表示
 推測したり、local timerだけで実行中へ変えたりしません。MioとShiroの描画は実行状態の
 成功表示ではないため、開始確認中、待機中、errorでも維持します。
 
+### Chatのキャラクター切替
+
+- ChatのHTML DOMには選択中の`purupuru-avatar`を1個だけ生成し、通常時に非選択3体の
+  runtime、画像asset通信、`requestAnimationFrame`更新を発生させない。
+- 相手切替では、現在のavatarを表示・scheduler更新したまま、切替先runtimeをdetached shellへ
+  読み込む。pending runtimeは準備中にDOMへ接続せず、共通schedulerへ登録しない。
+- 切替先runtimeがreadyになってからCOREの`POST /viewer/recipient-selection`を呼び、応答の
+  recipient一致を確認した後、同期的にcurrent shell／runtimeをpendingへ交換し、最後に画面の
+  選択状態を更新する。ロード画面や空白frameを表示しない。
+- asset準備またはCORE確認に失敗した場合はpending runtimeだけを破棄し、現在のavatar、
+  scheduler登録、選択button、保存済みrecipientを変更しない。
+- 初期表示ではlocal storageのrecipientをcustom element upgrade前に`character`へ設定し、
+  選択外avatarを一度起動してから切り替える挙動を発生させない。
+
 ### IdleChatのキャラクター配置
 
 - キャラクター切替buttonを表示しない。
@@ -85,7 +99,7 @@ claim失敗またはtimeoutでは「IdleChatを開始できません」と表示
 - 下部の会話欄は、横画面、縦画面のどちらも上端をPuruPuru描画枠の透明余白を除いたShiroの可視キャラクター下端へ一致させる。
 - KuroとMidoriはIdleChatのHTML DOMへ生成しない。CSSで非表示にするだけの要素も置かず、
   対応するPuruPuru runtimeの初期化、画像asset通信、`requestAnimationFrame`更新を発生させない。
-  ChatではMio、Shiro、Kuro、Midoriの4体を生成し、GamesのPuruPuru overlay契約も維持する。
+  GamesではMio、Shiro、Kuro、Midoriの4体を生成し、PuruPuru overlay契約を維持する。
 
 ## 5. eventと音声の分離
 
@@ -132,6 +146,9 @@ PORTAL serverはbrowserが送ったclient/profile headerを信頼せず、page m
 11. IdleChatの初期描画には切替buttonがなく、CORE応答前からChatと同寸のMioとShiroが`x=25%`／`x=75%`を中心に表示される。
 12. 横画面と縦画面の双方でKuroとMidoriがIdleChatのHTML DOMへ生成されず、対応する
     PuruPuru runtimeの初期化、画像asset通信、`requestAnimationFrame`更新が発生しない。
+13. Chatでは通常時のDOMとscheduler登録runtimeが選択中の1体だけであり、切替時は
+    `avatar準備 -> CORE recipient確認 -> 同期commit -> 選択状態更新`の順を守る。各失敗時は
+    current avatarと選択状態を維持し、ロード画面や空白frameを表示しない。
 
 ## 8. 実装と検証境界
 
