@@ -33,10 +33,11 @@ type handler struct {
 }
 
 type pageData struct {
-	Mode      Mode
-	Surface   string
-	BodyClass string
-	HTMLClass string
+	Mode                  Mode
+	Surface               string
+	BodyClass             string
+	HTMLClass             string
+	ShowCharacterSwitcher bool
 }
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
@@ -129,10 +130,11 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := pageData{
-		Mode:      mode,
-		Surface:   string(mode),
-		BodyClass: "theme-modern portal-room-mode room-stage room-mode room-chat-mode room-partner-shiro",
-		HTMLClass: "portal-chat-fixed-canvas",
+		Mode:                  mode,
+		Surface:               string(mode),
+		BodyClass:             "theme-modern portal-room-mode room-stage room-mode room-chat-mode room-partner-shiro",
+		HTMLClass:             "portal-chat-fixed-canvas",
+		ShowCharacterSwitcher: mode == ModeChat,
 	}
 	if mode == ModeIdleChat {
 		data.BodyClass = "theme-modern portal-room-mode room-stage room-mode room-idlechat-mode room-partner-shiro portal-idlechat-mode"
@@ -224,6 +226,9 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	if method == http.MethodGet && readEndpoints[path] {
 		return true
 	}
+	if method == http.MethodPost && path == "/viewer/surface-presence" {
+		return true
+	}
 	if mode != ModeChat {
 		return false
 	}
@@ -240,8 +245,6 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	}
 	switch path {
 	case "/viewer/send",
-		"/viewer/idlechat/start",
-		"/viewer/idlechat/stop",
 		"/viewer/recipient-selection",
 		"/viewer/active-control",
 		"/viewer/tts/playback-ack":

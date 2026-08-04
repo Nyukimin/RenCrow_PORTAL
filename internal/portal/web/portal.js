@@ -47,6 +47,9 @@
   let selectedRecipient = storedRecipient;
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
   let modeSwitchBusy = false;
+  let surfaceReady = false;
+  let surfaceHeartbeat = null;
+  let surfaceRequestSequence = Promise.resolve();
   let pendingRequest = null;
   let chatViewportFrameID = 0;
   let chatOrientationMedia = null;
@@ -333,13 +336,13 @@
     window.clearTimeout(pendingRequest.timeoutID);
     pendingRequest = null;
     setModeSwitcherBusy(modeSwitchBusy);
-    input.disabled = mode !== 'chat';
+    input.disabled = mode !== 'chat' || !surfaceReady;
     if (message) setOperation(message, isError);
     if (mode === 'chat') input.focus();
   }
 
   function beginRequestGuard(recipient) {
-    if (pendingRequest) return false;
+    if (pendingRequest || !surfaceReady) return false;
     const guard = {jobID: '', recipient, timeoutID: null};
     guard.timeoutID = window.setTimeout(() => {
       if (pendingRequest !== guard) return;
@@ -378,20 +381,18 @@
   function shouldRenderEvent(event) {
     const content = String(event && event.content || '').trim();
     const type = String(event && event.type || '');
-    if (!content || !['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress', 'idlechat.message'].includes(type)) return false;
+    const allowedTypes = mode === 'chat'
+      ? ['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress']
+      : ['idlechat.message'];
+    if (!content || !allowedTypes.includes(type)) return false;
     const from = normalizeActor(event.from);
     const to = normalizeActor(event.to);
     if (type === 'message.received') return from === 'user';
     // News fallback roleplay is public only for the Mio <-> Shiro handoff.
-    // The text contains progress/status, while the collected facts travel in
-    // the structured news context separately.
     if (type === 'agent.progress') {
       return event.route === 'CHAT' && ((from === 'mio' && to === 'shiro') || (from === 'shiro' && to === 'mio'));
     }
-    // Shiro's handoff readback is a public conversation item. Keep the
-    // internal agent.acknowledge event intact (Shiro -> Mio), but render this
-    // specific readback in the common Chat so the user can confirm the task
-    // was received before execution starts.
+    // Only Shiro's public handoff readback is rendered from acknowledge events.
     if (type === 'agent.acknowledge') return from === 'shiro' && to === 'mio';
     if (type === 'agent.response') return to === 'user' && ['mio', 'shiro', 'kuro', 'midori'].includes(from);
     return ['mio', 'shiro', 'kuro', 'midori'].includes(from);
@@ -491,25 +492,13 @@
     setChip('roomMidoriChip', !isIdle && selectedRecipient === 'midori');
   }
 
-  function idleStatusActive(status) {
-    const raw = String(status && (status.mode || (status.watchdog && status.watchdog.mode)) || '').trim().toLowerCase();
-    if (status && (status.manual_mode === true || status.chat_active === true)) return true;
-    if (['idle', 'idlechat', 'manual', 'forecast', 'story', 'story-simple'].includes(raw)) return true;
-    if (raw === 'chat') return false;
-    const sessionID = String(status && (status.active_session_id || (status.watchdog && status.watchdog.session_id)) || '').toLowerCase();
-    if (sessionID.startsWith('idle-')) return true;
-    return Boolean(status && typeof status.current_topic === 'string' && status.current_topic.trim());
-  }
-
   async function refreshStatus() {
     try {
       const response = await fetch(api('/viewer/idlechat/status'), {cache: 'no-store'});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const status = await response.json();
       topicText.textContent = String(status.current_topic || '-');
-      const isIdle = idleStatusActive(status);
-      const statusRecipient = status.persona || status.to || status.recipient || selectedRecipient;
-      setConversationState(isIdle, isIdle ? selectedPartner : statusRecipient);
+      if (mode === 'idlechat') setConversationState(true, selectedPartner);
       return true;
     } catch (error) {
       topicText.textContent = '-';
@@ -548,6 +537,7 @@
 
   async function post(path, payload) {
     if (mode !== 'chat') throw new Error(`${mode}モードは閲覧専用です`);
+    if (!surfaceReady) throw new Error('Chat画面の準備が完了していません');
     const options = {method: 'POST'};
     if (payload instanceof FormData) {
       options.body = payload;
@@ -559,6 +549,117 @@
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
     const contentType = String(response.headers.get('content-type') || '');
     return contentType.includes('application/json') ? response.json() : null;
+  }
+
+  async function postSurfacePresence(action, keepalive = false) {
+    const response = await fetch(api('/viewer/surface-presence'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({viewer_client_id: viewerClientID, surface: mode, action}),
+      keepalive,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    return response.json();
+  }
+
+  function setSurfaceReady(ready) {
+    surfaceReady = Boolean(ready);
+    if (mode !== 'chat') return;
+    input.disabled = !surfaceReady || Boolean(pendingRequest);
+    setModeSwitcherBusy(modeSwitchBusy);
+    document.querySelectorAll('#roomAudioBtn, #roomMicBtn').forEach((control) => {
+      control.disabled = !surfaceReady;
+      control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
+    });
+    if (surfaceReady && !pendingRequest) input.focus();
+  }
+
+  function applySurfacePresenceResponse(response) {
+    const effectiveMode = String(response && response.effective_mode || '').toLowerCase();
+    const idleChatActive = response && response.idlechat_active === true;
+    if (mode === 'chat') {
+      const ready = effectiveMode === 'chat' && !idleChatActive;
+      setSurfaceReady(ready);
+      if (!ready) throw new Error('COREでIdleChat停止を確認できません');
+      setOperation('Chat準備完了');
+      return;
+    }
+    setSurfaceReady(effectiveMode === 'idlechat' && idleChatActive);
+    if (effectiveMode === 'chat') {
+      setOperation('別のChat画面を表示中のため待機中');
+      return;
+    }
+    if (!surfaceReady) throw new Error('COREでIdleChat開始を確認できません');
+    setOperation('IdleChat実行中');
+  }
+
+  function queueSurfacePresence(action, keepalive = false) {
+    surfaceRequestSequence = surfaceRequestSequence.catch(() => {}).then(async () => {
+      const response = await postSurfacePresence(action, keepalive);
+      if (action !== 'release' && document.visibilityState === 'visible') applySurfacePresenceResponse(response);
+      return response;
+    });
+    return surfaceRequestSequence;
+  }
+
+  function stopSurfaceHeartbeat() {
+    window.clearInterval(surfaceHeartbeat);
+    surfaceHeartbeat = null;
+  }
+
+  function startSurfaceHeartbeat() {
+    stopSurfaceHeartbeat();
+    surfaceHeartbeat = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      queueSurfacePresence('heartbeat').catch((error) => {
+        setSurfaceReady(false);
+        setOperation(`画面状態を維持できません: ${error.message}`, true);
+      });
+    }, 10000);
+  }
+
+  function claimVisibleSurface() {
+    if (!roomSurface || document.visibilityState !== 'visible') return;
+    setSurfaceReady(false);
+    setOperation(mode === 'chat' ? 'IdleChat停止を確認中' : 'IdleChat開始を確認中');
+    queueSurfacePresence('claim')
+      .then(startSurfaceHeartbeat)
+      .catch((error) => {
+        setSurfaceReady(false);
+        setOperation(`${mode === 'chat' ? 'IdleChatを停止' : 'IdleChatを開始'}できません: ${error.message}`, true);
+        if (document.visibilityState === 'visible') startSurfaceHeartbeat();
+      });
+  }
+
+  function releaseSurface() {
+    if (!roomSurface) return;
+    stopSurfaceHeartbeat();
+    setSurfaceReady(false);
+    clearTTSPlayback();
+    queueSurfacePresence('release', true).catch(() => {});
+  }
+
+  function releaseSurfaceOnPageHide() {
+    if (!roomSurface) return;
+    stopSurfaceHeartbeat();
+    setSurfaceReady(false);
+    clearTTSPlayback();
+    const body = JSON.stringify({viewer_client_id: viewerClientID, surface: mode, action: 'release'});
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(api('/viewer/surface-presence'), new Blob([body], {type: 'application/json'}));
+      return;
+    }
+    postSurfacePresence('release', true).catch(() => {});
+  }
+
+  function bindSurfacePresenceLifecycle() {
+    if (!roomSurface) return;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') claimVisibleSurface();
+      else releaseSurface();
+    });
+    window.addEventListener('pagehide', releaseSurfaceOnPageHide);
+    claimVisibleSurface();
   }
 
   async function setActiveControl(kind, action, reason) {
@@ -581,6 +682,11 @@
   function handleControlEvent(event) {
     const type = String(event && event.type || '');
     if (type === 'tts.audio_chunk' || type === 'tts.session_completed') {
+      if (!surfaceReady) return;
+      const eventChannel = String(event.channel || '').toLowerCase();
+      const eventSession = String(event.session_id || '').toLowerCase();
+      const isIdleChatTTS = eventChannel === 'idlechat' || eventSession.startsWith('idle-');
+      if ((mode === 'chat' && isIdleChatTTS) || (mode === 'idlechat' && !isIdleChatTTS)) return;
       handleTTSEvent(event);
       return;
     }
@@ -1166,35 +1272,28 @@
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
     document.querySelectorAll('[data-room-switch]').forEach((control) => {
-      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat';
+      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat' || !surfaceReady;
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
     document.querySelectorAll('#roomAttachBtn, #roomScreenBtn, #roomCameraBtn').forEach((control) => {
-      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat';
+      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat' || !surfaceReady;
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
   }
 
-  async function switchConversation(nextMode, partner) {
+  async function switchConversation(partner) {
     if (pendingRequest) return;
-    if (mode !== 'chat' || modeSwitchBusy) return;
-    const isIdle = nextMode === 'idle';
-    const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);
+    if (mode !== 'chat' || modeSwitchBusy || !surfaceReady) return;
+    const nextRecipient = normalizeActor(partner) || selectedPartner;
     setModeSwitcherBusy(true);
-    setOperation(isIdle ? 'IdleChatを開始中' : 'Chatへ切り替え中');
+    setOperation('Chatの相手を切り替え中');
     try {
-      if (isIdle) {
-        await post('/viewer/idlechat/start');
-        await refreshStatus();
-      } else {
-        const confirmed = await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});
-        if (normalizeActor(confirmed.recipient) !== nextRecipient) throw new Error('CORE recipient selection mismatch');
-        setConversationState(false, nextRecipient);
-        input.focus();
-      }
-      setOperation(isIdle ? 'IdleChatを開始しました' : `${actorInfo[nextRecipient].label}とのChatへ切り替えました`);
+      const confirmed = await post('/viewer/recipient-selection', {viewer_client_id: viewerClientID, recipient: nextRecipient});
+      if (normalizeActor(confirmed.recipient) !== nextRecipient) throw new Error('CORE recipient selection mismatch');
+      setConversationState(false, nextRecipient);
+      input.focus();
+      setOperation(`${actorInfo[nextRecipient].label}とのChatへ切り替えました`);
     } catch (error) {
-      if (isIdle) await refreshStatus();
       setOperation(`切り替えできません: ${error.message}`, true);
     } finally {
       setModeSwitcherBusy(false);
@@ -1212,6 +1311,7 @@
   }
 
   if (mode === 'chat') {
+    setSurfaceReady(false);
     input.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       if (event.isComposing || event.keyCode === 229) return;
@@ -1221,7 +1321,7 @@
     });
     document.querySelectorAll('[data-room-switch]').forEach((chip) => {
       chip.addEventListener('click', () => {
-        switchConversation('chat', chip.dataset.roomSwitch);
+        switchConversation(chip.dataset.roomSwitch);
       });
     });
     bindTTSControl();
@@ -1260,5 +1360,6 @@
       refreshStatus();
       window.setInterval(refreshStatus, 5000);
     }
+    bindSurfacePresenceLifecycle();
   }
 })();

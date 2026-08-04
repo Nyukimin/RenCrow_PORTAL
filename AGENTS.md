@@ -27,7 +27,7 @@
 
 このリポジトリは、RenCrowを外部利用者へ公開するWeb画面を所有する。
 
-- `mode=IdleChat`: AI VTuberの会話を閲覧する読み取り専用画面。COREへの更新要求を許可しない。
+- `mode=IdleChat`: AI VTuberの会話を閲覧する読み取り専用画面。画面在席を伝える`POST /viewer/surface-presence`だけをlifecycle例外として許可し、その他のCORE更新要求を許可しない。
 - `mode=Chat`: 会話送信など、明示的に許可した操作だけをCOREへ中継する。
 - `mode=Games`: Agent-owned gameの選択、起動、観戦、Retry／Start overだけをCOREへ中継する。turn判断を人間へ公開しない。
 - 公開page modeとAPI prefixは`Chat`、`IdleChat`、`Games`に限定する。
@@ -40,7 +40,7 @@
 - 起動管理CLIの正本は `/home/nyukimi/RenCrow/RenCrow_CMD` とする。
 
 PORTALは静的UIと許可制リバースプロキシだけを持つ薄いGoサーバーとする。
-新しいAPIを中継する場合は、methodとpathをallowlistへ追加し、`IdleChat`からwriteできないテスト、Gamesからdecision／result／ingestできないテスト、debug/admin APIを遮断するテストを必須とする。
+新しいAPIを中継する場合は、methodとpathをallowlistへ追加し、`IdleChat`からsurface在席通知以外をwriteできないテスト、Gamesからdecision／result／ingestできないテスト、debug/admin APIを遮断するテストを必須とする。
 COREへのproxyは`X-RenCrow-Client: RenCrow_PORTAL`とmode別Interaction profileを必ず上書きし、browser入力をそのまま信頼しない。
 Gamesの盤面とObserverはRenCrow_GAMES、Agent identityと判断はCOREを正本とする。PuruPuru overlayはiframe外のPORTAL documentが所有し、`RuleBasedBrain`や`decision.reason`をAgent発話として表示しない。
 ASSISTANT APIを中継する場合も同じ境界を適用し、他利用者のprivate data、secret、device credentialを公開しない。

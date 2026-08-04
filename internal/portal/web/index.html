@@ -39,12 +39,12 @@
       </div>
     </section>
 
-    <section class="room-partner-indicator" id="roomPartnerIndicator" aria-label="Chat partner switcher">
+    {{if .ShowCharacterSwitcher}}<section class="room-partner-indicator" id="roomPartnerIndicator" aria-label="Chat partner switcher">
       <button class="room-partner-chip room-partner-chip-mio" id="roomMioChip" type="button" data-room-switch="mio" aria-current="true" aria-pressed="true">Mio</button>
       <button class="room-partner-chip room-partner-chip-shiro" id="roomShiroChip" type="button" data-room-switch="shiro" aria-current="false" aria-pressed="false">Shiro</button>
       <button class="room-partner-chip room-partner-chip-kuro" id="roomKuroChip" type="button" data-room-switch="kuro" aria-current="false" aria-pressed="false">Kuro</button>
       <button class="room-partner-chip room-partner-chip-midori" id="roomMidoriChip" type="button" data-room-switch="midori" aria-current="false" aria-pressed="false">Midori</button>
-    </section>
+    </section>{{end}}
 
     <time class="room-datetime-panel" id="roomDateTimePanel" datetime="" aria-label="現在日時"></time>
 

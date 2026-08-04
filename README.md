@@ -23,12 +23,12 @@ Config、health、errorを提供します。PORTALはWSLや外部databaseを標�
 
 ## モード
 
-- `IdleChat`: AI VTuberの部屋を閲覧する読み取り専用画面
-- `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、IdleChat開始・停止、TTS再生、STTマイク入力
+- `IdleChat`: AI VTuberの部屋を閲覧する画面。画面が可視になるとIdleChatを開始し、手動の開始・停止操作は持たない
+- `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、TTS再生、STTマイク入力。画面が可視の間はIdleChatを停止する
 - `Games`: ゲームとAgentの選択、Agent-owned sessionの起動、GAMES Observerの観戦、Retry／Start over
 
 公開modeは`Chat`、`IdleChat`、`Games`の3系統です。
-Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatではMioを左、Shiroを右へ同時表示します。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
+Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
 GamesではCOREの`supported_games`に含まれるタイトルだけを起動できます。現在のAgent E2E対象はNetHackです。盤面とturn結果はGAMES Observer、Agent identityと判断はCOREを正本とし、PORTALは利用者向けの選択・session・観戦UIだけを持ちます。
 
 Debug、Ops、Repair、設定変更などの管理APIは中継しません。
@@ -108,14 +108,15 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 | capability | PORTALでの表現 | 現在状態 |
 | --- | --- | --- |
 | Chat | `Chat`の会話・添付入力とmessage表示 | 実装済み |
-| IdleChat | `IdleChat`の読み取り表示、`Chat`からの開始・停止 | 実装済み |
+| IdleChat | `IdleChat`の読み取り表示と、画面在席に連動する自動開始・停止 | 実装済み |
 | Games | Agent-owned gameの選択・起動・観戦・session lifecycle | 実装済み |
 | recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
 | STT／TTS | browser microphone、audio再生、ACK | 実装済み |
 | CORE Task | 許可された状態・結果の表示 | CORE側APIに従う |
 | ASSISTANT Routine／PUSH | 予定、通知、端末、履歴のcard／設定UI | planned |
 
-同じ能力を全modeへ公開しません。`IdleChat`は読み取り専用、`Chat`と`Games`は各modeの明示allowlist
+同じ能力を全modeへ公開しません。`IdleChat`の利用者向け操作は読み取り専用で、期限付きの
+surface在席通知だけをstate-changingな例外とします。`Chat`と`Games`は各modeの明示allowlist
 だけを操作可能とし、認証scopeとserver側認可も必要です。将来ASSISTANTのPUSHを表示する
 場合も第二のmessage形式を独自に作らず、利用者、source、category、相関IDを保った
 Interaction outputをWeb cardまたはmessageとして描画します。
@@ -129,10 +130,11 @@ ASSISTANTの配信経路やschedulerにはならず、ASSISTANT Public APIのVie
 PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知します。
 
 - 会話相手の切替は`POST /viewer/recipient-selection`で観測eventを発行し、実際の送信先は`POST /viewer/send`の`to`で確定する
+- Chat／IdleChat画面は可視状態を`POST /viewer/surface-presence`でCOREへ通知する。Chat在席を最優先としてIdleChatを停止し、ChatがなくIdleChat在席がある場合だけIdleChatを開始する。PORTALから`/viewer/idlechat/start|stop`は使用しない
 - Chatは修飾キーを伴わない`Enter`で送信し、`Shift+Enter`で改行する。IME／FEPの変換確定では送信しない。会話・入力・主要状態表示の文字サイズは小／中／大の3段階とし、browser local storageへ保存する
 - `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
-- 会話欄へ表示するeventは`message.received`、利用者向け`agent.response`、`idlechat.message`に限定し、`message_id`をSSE再接続時の重複排除へ使う。`agent.thinking`やrouting／worker eventは会話本文として残さない
+- Chat会話欄は`message.received`、利用者向け`agent.response`、公開対象の`agent.progress`／`agent.acknowledge`を表示し、IdleChat会話欄は`idlechat.message`だけを表示してmode間で混在させない。`message_id`をSSE再接続時の重複排除へ使い、`agent.thinking`やrouting／worker eventは会話本文として残さない
 - `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。現行は認証UIを持たないため`user_id=viewer-user`、`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
 - PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat | portal-games`を付ける。profileは能力policyであり認証credentialではない
 - Gamesはstatus、sessions、events、Observer、launch、sessionのRetry／Start overだけを許可する。`/viewer/games/decision`、`/viewer/games/result`、Observerのlaunch／frame／summary ingestは中継しない
@@ -142,7 +144,11 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - 接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
-- `IdleChat`はこれらの操作を許可しない
+- `IdleChat`はsurface在席通知以外のこれらの操作を許可しない
+
+Chat／IdleChatの排他表示、lease、複数tab、event／TTS filter、失敗時表示の詳細は
+[`PORTAL_Chat_IdleChat排他ライフサイクル仕様`](docs/仕様/PORTAL_Chat_IdleChat排他ライフサイクル仕様.md)
+を正とします。cross-module contractはRenCrow_COREの機能仕様、アーキテクチャ概要、Public API仕様を優先します。
 
 ## 起動
 

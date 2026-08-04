@@ -1964,12 +1964,7 @@ body[data-mode="idlechat"] #chat{
   bottom:var(--room-edge) !important;
 }
 
-body[data-mode="idlechat"] .room-partner-indicator{
-  opacity:.78;
-}
-
-/* IdleChat mode is Chat-only: Mio / Shiro のみ表示 */
-body[data-mode="idlechat"] .room-partner-chip-midori{
+body.room-mode.room-stage.room-idlechat-mode .room-partner-indicator{
   display:none !important;
 }
 
@@ -2970,18 +2965,14 @@ body.room-mode.room-stage.room-idlechat-mode #mioPortrait,
 body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
   display:block !important;
   top:8.5vh;
-  width:min(44vw,700px);
-  height:52vh;
+  width:min(39.583333vw,70.37037vh);
+  height:min(32.625vw,58vh);
   opacity:1;
 }
 
-body.room-mode.room-stage.room-idlechat-mode #mioPortrait{
-  left:28%;
-}
+body.room-mode.room-stage.room-idlechat-mode #mioPortrait{left:25%;transform:translateX(-37.1875%);}
 
-body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
-  left:72%;
-}
+body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;transform:translateX(-37.421875%);}
 
 .purupuru-avatar.is-speaking{
   opacity:1;
@@ -3007,12 +2998,13 @@ body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
 
   body.room-mode.room-stage.room-idlechat-mode #mioPortrait,
   body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{
-    width:48vw !important;
-    height:36dvh !important;
+    top:-10.622066dvh !important;
+    width:min(144vw,66.422535dvh) !important;
+    height:min(190.778626vw,88dvh) !important;
   }
 
-  body.room-mode.room-stage.room-idlechat-mode #mioPortrait{left:27%}
-  body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:73%}
+  body.room-mode.room-stage.room-idlechat-mode #mioPortrait{left:25%;transform:translateX(-37.1875%);}
+  body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;transform:translateX(-37.421875%);}
 }
 
 /* Games surface */

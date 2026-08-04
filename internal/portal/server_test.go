@@ -51,6 +51,17 @@ func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
 		if strings.Contains(body, `portal-chat-fixed-canvas`) {
 			t.Fatalf("%s must not enable the fixed Chat canvas", target)
 		}
+		for _, marker := range []string{
+			`id="mioPortrait" data-character="mio"`,
+			`id="shiroPortrait" data-character="shiro"`,
+		} {
+			if !strings.Contains(body, marker) {
+				t.Fatalf("%s IdleChat avatar marker %q is missing", target, marker)
+			}
+		}
+		if strings.Contains(body, `data-room-switch=`) {
+			t.Fatalf("%s IdleChat must not render character switch buttons", target)
+		}
 	}
 }
 
@@ -323,9 +334,9 @@ func TestPortalChatSwitcherUsesConfirmedCoreState(t *testing.T) {
 		`setChip('roomShiroChip', !isIdle && selectedRecipient === 'shiro');`,
 		`setChip('roomKuroChip', !isIdle && selectedRecipient === 'kuro');`,
 		`setChip('roomMidoriChip', !isIdle && selectedRecipient === 'midori');`,
-		`const nextRecipient = isIdle ? selectedRecipient : (normalizeActor(partner) || selectedPartner);`,
+		`const nextRecipient = normalizeActor(partner) || selectedPartner;`,
 		`setModeSwitcherBusy(true);`,
-		`await refreshStatus();`,
+		`const confirmed = await post('/viewer/recipient-selection'`,
 		`setModeSwitcherBusy(false);`,
 	} {
 		if !strings.Contains(body, marker) {
@@ -413,6 +424,30 @@ func TestPortalAvatarLayoutUsesSingleChatAndMioShiroIdlePair(t *testing.T) {
 	}
 }
 
+func TestPortalIdleChatUsesChatSizedQuarterPositionedAvatarPair(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(stylesheet)
+	for _, required := range []string{
+		`body.room-mode.room-stage.room-idlechat-mode .room-partner-indicator{`,
+		`display:none !important;`,
+		`width:min(39.583333vw,70.37037vh);`,
+		`height:min(32.625vw,58vh);`,
+		`body.room-mode.room-stage.room-idlechat-mode #mioPortrait{left:25%;`,
+		`body.room-mode.room-stage.room-idlechat-mode #shiroPortrait{left:75%;`,
+		`transform:translateX(-37.1875%);`,
+		`transform:translateX(-37.421875%);`,
+		`width:min(144vw,66.422535dvh) !important;`,
+		`height:min(190.778626vw,88dvh) !important;`,
+	} {
+		if !strings.Contains(content, required) {
+			t.Errorf("IdleChat two-character layout marker %q is missing", required)
+		}
+	}
+}
+
 func TestPuruPuruRendererAssetsRemainNonFrameable(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
@@ -496,7 +531,9 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress', 'idlechat.message'].includes(type)`,
+		`? ['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress']`,
+		`: ['idlechat.message'];`,
+		`if (!content || !allowedTypes.includes(type)) return false;`,
 		`if (type === 'agent.progress')`,
 		`if (type === 'agent.acknowledge') return from === 'shiro' && to === 'mio';`,
 		`return ` + "`message:${messageID}`",
@@ -504,6 +541,15 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	} {
 		if !strings.Contains(body, marker) {
 			t.Fatalf("public conversation marker %q is missing", marker)
+		}
+	}
+	for _, forbidden := range []string{
+		`['message.received', 'agent.response', 'idlechat.message'].includes(type)`,
+		`post('/viewer/idlechat/start')`,
+		`post('/viewer/idlechat/stop')`,
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("Chat/IdleChat separation marker %q must not remain", forbidden)
 		}
 	}
 	for _, forbidden := range []string{
@@ -515,6 +561,29 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("internal execution alias marker %q must not remain", forbidden)
+		}
+	}
+}
+
+func TestPortalScriptReportsVisibleSurfaceAndFiltersIdleChatTTS(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`fetch(api('/viewer/surface-presence')`,
+		`body: JSON.stringify({viewer_client_id: viewerClientID, surface: mode, action})`,
+		`surfaceHeartbeat = window.setInterval(() => {`,
+		`}, 10000);`,
+		`document.addEventListener('visibilitychange'`,
+		`window.addEventListener('pagehide', releaseSurfaceOnPageHide);`,
+		`effectiveMode === 'chat' && !idleChatActive`,
+		`eventChannel === 'idlechat' || eventSession.startsWith('idle-')`,
+		`if ((mode === 'chat' && isIdleChatTTS) || (mode === 'idlechat' && !isIdleChatTTS)) return;`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("surface lifecycle marker %q is missing", marker)
 		}
 	}
 }
@@ -694,7 +763,7 @@ func TestPortalProxyAddsTrustedOperationSourceProfileAndClientIP(t *testing.T) {
 	}
 }
 
-func TestPortalIdleChatProxyUsesReadOnlyInteractionProfile(t *testing.T) {
+func TestPortalIdleChatProxyUsesDedicatedInteractionProfile(t *testing.T) {
 	var gotProfile string
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
@@ -715,6 +784,42 @@ func TestPortalIdleChatProxyUsesReadOnlyInteractionProfile(t *testing.T) {
 	}
 	if gotProfile != "portal-idlechat" {
 		t.Fatalf("X-RenCrow-Interaction-Profile = %q, want portal-idlechat", gotProfile)
+	}
+}
+
+func TestPortalSurfacePresenceUsesModeProfile(t *testing.T) {
+	var gotProfile, gotPath string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		mode    string
+		profile string
+	}{
+		{mode: "chat", profile: "portal-chat"},
+		{mode: "idlechat", profile: "portal-idlechat"},
+	} {
+		req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/"+test.mode+"/viewer/surface-presence", strings.NewReader(`{"viewer_client_id":"tab-1","surface":"`+test.mode+`","action":"claim"}`))
+		req.Header.Set("Origin", "http://portal.example")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status=%d body=%s", test.mode, rec.Code, rec.Body.String())
+		}
+		if gotProfile != test.profile || gotPath != "/viewer/surface-presence" {
+			t.Fatalf("%s profile=%q path=%q", test.mode, gotProfile, gotPath)
+		}
 	}
 }
 
@@ -843,6 +948,16 @@ func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.
 		{http.MethodGet, "/viewer/tts/audio"},
 		{http.MethodPost, "/viewer/tts/playback-ack"},
 		{http.MethodGet, "/stt"},
+	}
+	for _, mode := range []Mode{ModeChat, ModeIdleChat} {
+		if !portalEndpointAllowed(mode, http.MethodPost, "/viewer/surface-presence") {
+			t.Errorf("%s must allow surface presence", mode)
+		}
+		for _, path := range []string{"/viewer/idlechat/start", "/viewer/idlechat/stop"} {
+			if portalEndpointAllowed(mode, http.MethodPost, path) {
+				t.Errorf("%s must reject manual IdleChat control %s", mode, path)
+			}
+		}
 	}
 	for _, test := range tests {
 		if !portalEndpointAllowed(Mode("chat"), test.method, test.path) {
