@@ -3604,8 +3604,8 @@ body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #chat.chat-convers
   font-size:var(--room-message-meta-font-size) !important;
 }
 
-body.room-mode.room-stage.room-chat-mode[data-chat-text-size] #roomInput{
-  font-size:var(--room-input-font-size) !important;
+body.room-mode.room-stage.room-chat-mode #roomInput{
+  font-size:var(--room-input-font-size,16px) !important;
   line-height:1.25;
   padding-block:4px;
 }

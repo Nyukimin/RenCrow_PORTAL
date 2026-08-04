@@ -1,4 +1,4 @@
-# PORTAL Chat 表示倍率・レイアウト比率仕様
+# PORTAL Chat 縦横2画面・表示倍率仕様
 
 ## 目的
 
@@ -6,8 +6,8 @@ Chat画面を、縦向けと横向けの2種類の完成レイアウトとして
 端末やwindowの縦横比が基準レイアウトと一致しない場合も、画面内の要素配置、寸法比、
 重なり順を変形せず、キャンバス全体を等比率で収める。
 
-あわせて、会話入力中にPORTAL全体の表示倍率や表示位置が変化しない、安定した操作画面を
-提供する。
+あわせて、browserの表示領域が縦長と横長の間で変化したときは、再読み込みなしで対応する
+完成レイアウトへ切り替える。端末名やOSではなく、実際のlayout viewportだけを判定根拠とする。
 
 ## 対象
 
@@ -20,15 +20,17 @@ Chat画面を、縦向けと横向けの2種類の完成レイアウトとして
 
 Chat画面が使用できるレイアウトは次の2種類だけとする。
 
-| profile | 原版の物理解像度 | browser上の論理キャンバス | 基準比率 | 初期選択条件 |
+| profile | 原版の物理解像度 | browser上の論理キャンバス | 基準比率 | 選択条件 |
 | --- | ---: | ---: | ---: | --- |
-| `landscape` | 1920 x 1080 | 1920 x 1080 | 16:9 | 初期layout viewportで`width >= height` |
-| `portrait` | 1179 x 2556 | 393 x 852 | 393:852 | 初期layout viewportで`width < height` |
+| `landscape` | 1920 x 1080 | 1920 x 1080 | 16:9 | layout viewportで`width >= height` |
+| `portrait` | 1179 x 2556 | 393 x 852 | 393:852 | layout viewportで`width < height` |
 
 - 物理解像度は基準表示のpixel寸法、論理キャンバスはbrowser内の配置座標系とする。
-- Device Pixel Ratioはprofile選択条件に使わない。
+- 正方形のviewportは`landscape`とする。境界値に曖昧さを残さない。
+- Device Pixel Ratio、物理解像度、`screen.width`、`screen.height`、端末名、OS、User-Agentは
+  profile選択条件に使わない。
 - 上記2種類の中間profile、端末固有profile、要素単位の可変profileを生成しない。
-- profileはページ初期表示時に一度だけ決定し、同じページの表示中は切り替えない。
+- profileはページ初期表示時に決定し、layout viewportの縦横関係が変わったときに再決定する。
 
 ## 等比フィットと余白
 
@@ -69,41 +71,53 @@ offsetY = (Vh - renderedHeight) / 2
 - 文字サイズの小・中・大は読みやすさの設定であり、キャンバス比率、全体scale、profile、
   基準slotを変更しない。
 
-## 規則
+## 切替と再フィット規則
 
-- Chat画面の表示プロファイルと初期倍率は、ページ初期表示時に一度だけ決定する。
-- ユーザー入力、入力欄フォーカス、ソフトウェアキーボード表示、AI応答、メッセージ追加、入力欄の高さ変化を理由に、画面全体を再フィットしない。
-- `visualViewport.resize`および`visualViewport.scroll`を、自動拡大・縮小の入力に使わない。
-- 通常の`window.resize`や`pageshow`でも、初期化済みの画面倍率を自動変更しない。
-- 表示倍率はブラウザのズーム操作など、利用者が明示的に変更した場合だけ変わる。
-- Chat入力欄はmobileを含めて16px以上とし、入力フォーカス時のブラウザ自動ズームを防ぐ。
-- 画面向きやウィンドウ寸法を変更して別の表示プロファイルを使う場合は、ページを再読み込みする。
+- profileの正本入力は`document.documentElement.clientWidth`と`clientHeight`で取得したlayout
+  viewportとし、値が取得できない場合だけ`window.innerWidth`と`innerHeight`へfallbackする。
+- ページ初期表示、`window.resize`、`pageshow`、orientation media queryの`change`で同じ判定処理を
+  呼び出す。イベントごとに別の判定式を持たない。
+- 連続イベントは`requestAnimationFrame`で1回へ集約し、browserが新しいviewport寸法を確定した後に
+  profile選択と等比フィットを一体で実行する。
+- 縦横関係が変われば、再読み込みなしで`portrait`と`landscape`を切り替える。
+- 同じprofile内でwindow寸法が変わった場合も、現在のlayout viewportへ等比フィットし直す。
+- `visualViewport.resize`および`visualViewport.scroll`はprofile選択や再フィットの入力に使わない。
+  ソフトウェアキーボードやbrowser chromeによるvisual viewportだけの変化で画面全体を動かさない。
+- ユーザー入力、AI応答、メッセージ追加、入力欄の内容や高さの変化は切替イベントにしない。
+- Chat入力欄はmobileを含めて16px以上とし、入力フォーカス時のbrowser自動zoomを防ぐ。
+- 利用者によるbrowser標準のzoom操作は妨げない。
 
 ## 実装契約
 
-- profile判定にはページ初期表示時のlayout viewportを使う。ソフトウェアキーボードなどで
-  一時的に変化する`visualViewport`をprofile判定やfitの入力にしない。
-- `landscape`と`portrait`の両方を、同じ等比フィット式で初期配置する。
+- profile判定には現在のlayout viewportを使う。ソフトウェアキーボードなどで一時的に変化する
+  `visualViewport`をprofile判定やfitの入力にしない。
+- `landscape`と`portrait`の両方を、同じ等比フィット式で配置・再配置する。
 - DOM上のChat surfaceは選択した論理キャンバス寸法を維持し、キャンバスrootへ単一の
   `scale`と中央offsetを適用する。
 - JavaScriptのprofile metadataとCSSのorientation条件は、同じprofileを示さなければ
   ならない。一方が`landscape`、他方が`portrait`となる状態を許可しない。
-- `portal-viewport-lock.js`は`portal.js`の実行中だけ、PORTALの自動再フィットに使われる`window.resize`、`pageshow`、`visualViewport.resize`、`visualViewport.scroll`の登録を抑止する。
-- `portal-viewport-unlock.js`は`portal.js`実行後に通常のイベント登録機能を復元する。
-- `body.dataset.chatCanvasFitPolicy`は`initial-only`とする。
-- `portal-viewport-lock.css`は`#roomInput`の実効フォントサイズを16px以上に固定する。
+- `portal.js`は方向判定、profile metadata、CSS class、scale、offsetを1回の同期処理で更新する。
+- `body.dataset.chatCanvasFitPolicy`は`dynamic-layout-viewport`とする。
+- `portal.css`は`#roomInput`の実効font sizeを16px以上に固定する。
+- `EventTarget.prototype`などbrowserのglobal APIを上書きしてイベント登録を遮断しない。
 - 利用者によるブラウザ標準のズーム操作は妨げない。
 
 ## 受け入れ条件
 
 1. 初期viewportが横長なら`landscape`、縦長なら`portrait`だけが選択される。
-2. 任意のviewport比率で、描画キャンバスの縦横比が選択profileの基準比率と一致する。
-3. 基準比率と一致しないviewportでは、余剰領域が左右または上下の余白となり、
+2. 表示中にviewportを縦長から横長、横長から縦長へ変更すると、再読み込みなしで対応profileへ
+   1回だけ収束する。
+3. 同じ方向のままwindow寸法を変更すると、選択profileを維持して現在のviewportへ再フィットする。
+4. 任意のviewport比率で、描画キャンバスの縦横比が選択profileの基準比率と一致する。
+5. 基準比率と一致しないviewportでは、余剰領域が左右または上下の余白となり、
    キャンバスの変形・crop・要素の再配置が発生しない。
-4. JavaScriptのprofile metadata、CSSの適用profile、実際のキャンバス寸法が一致する。
-5. Chat入力欄を繰り返し選択・入力しても、PORTAL全体の倍率が変化しない。
-6. mobileのソフトウェアキーボードを開閉しても、Chat canvasの倍率が再計算されない。
-7. AI応答やSSEメッセージが追加されても、画面全体の倍率と位置が維持される。
-8. Mio、Shiro、Kuro、Midoriを切り替えても、選択中の1体が同じ中央slotと寸法比で
+6. JavaScriptのprofile metadata、CSSの適用profile、実際のキャンバス寸法が一致する。
+7. Chat入力欄を繰り返し選択・入力しても、それだけを理由にprofileが変化しない。
+8. mobileのソフトウェアキーボードを開閉し、visual viewportだけが変化した場合はChat canvasを
+   再フィットしない。
+9. AI応答やSSEメッセージが追加されても、画面全体の倍率と位置が維持される。
+10. Mio、Shiro、Kuro、Midoriを切り替えても、選択中の1体が同じ中央slotと寸法比で
    表示される。
-9. 利用者によるブラウザズームは利用できる。
+11. 利用者によるブラウザズームは利用できる。
+12. DevToolsのdevice emulationをページ表示後に`430 x 932`へ変更すると`portrait`、`932 x 430`へ
+    変更すると`landscape`になり、再読み込みを要求しない。

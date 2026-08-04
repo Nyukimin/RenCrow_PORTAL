@@ -159,22 +159,30 @@ func TestPortalChatUsesSeparateLandscapeAndPortraitProfiles(t *testing.T) {
 	}
 	content := string(script) + string(stylesheet)
 	for _, marker := range []string{
-		`const chatCanvasWidth = 1920;`,
-		`const chatCanvasHeight = 1080;`,
+		`landscape: Object.freeze({`,
+		`physicalWidth: 1920,`,
+		`physicalHeight: 1080,`,
+		`logicalWidth: 1920,`,
+		`logicalHeight: 1080,`,
+		`portrait: Object.freeze({`,
 		`physicalWidth: 1179,`,
 		`physicalHeight: 2556,`,
 		`logicalWidth: 393,`,
 		`logicalHeight: 852,`,
-		`function resolveViewportProfile()`,
+		`function resolveViewportProfile(viewport)`,
+		`return viewport.width >= viewport.height ? viewportProfiles.landscape : viewportProfiles.portrait;`,
 		`body.dataset.viewportProfile = profile.id;`,
-		`const scale = Math.min(viewportWidth / chatCanvasWidth, viewportHeight / chatCanvasHeight);`,
+		`const scale = Math.min(viewport.width / profile.logicalWidth, viewport.height / profile.logicalHeight);`,
+		`window.addEventListener('resize', scheduleChatViewportSync, {passive: true});`,
 		`document.documentElement.classList.add('portal-chat-fixed-canvas');`,
 		`if (mode !== 'chat') return;`,
-		`html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]`,
+		`html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]`,
 		`width:1920px;`,
 		`height:1080px;`,
+		`html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]`,
+		`width:393px;`,
+		`height:852px;`,
 		`transform:scale(var(--chat-canvas-scale));`,
-		`@media (orientation:landscape){`,
 	} {
 		if !strings.Contains(content, marker) {
 			t.Errorf("Chat viewport profile marker %q is missing", marker)
@@ -229,10 +237,10 @@ func TestPortalChatShowsClockInPortraitHeader(t *testing.T) {
 	}
 	content := string(stylesheet)
 	for _, marker := range []string{
-		`html.portal-chat-fixed-canvas > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{`,
+		`html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{`,
 		`display:flex;`,
-		`left:var(--room-edge);`,
-		`top:calc(var(--room-p-row2-top) + (var(--room-p-row2-h) - 24px) / 2);`,
+		`left:10.22px;`,
+		`top:80.68px;`,
 		`font-size:11.25px;`,
 		`transform:scaleX(.67);`,
 	} {

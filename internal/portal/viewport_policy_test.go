@@ -5,58 +5,66 @@ import (
 	"testing"
 )
 
-func TestPortalChatLoadsStableViewportPolicy(t *testing.T) {
+func TestPortalChatLoadsDynamicViewportPolicy(t *testing.T) {
 	page, err := webFiles.ReadFile("web/index.html")
 	if err != nil {
 		t.Fatal(err)
 	}
 	content := string(page)
 	for _, marker := range []string{
-		`<link rel="stylesheet" href="/assets/portal-viewport-lock.css">`,
-		`<script src="/assets/portal-viewport-lock.js" defer></script>`,
+		`<link rel="stylesheet" href="/assets/portal.css">`,
 		`<script src="/assets/portal.js" defer></script>`,
-		`<script src="/assets/portal-viewport-unlock.js" defer></script>`,
 	} {
 		if !strings.Contains(content, marker) {
-			t.Errorf("stable viewport asset marker %q is missing", marker)
+			t.Errorf("dynamic viewport asset marker %q is missing", marker)
 		}
 	}
-	if strings.Index(content, `portal-viewport-lock.js`) > strings.Index(content, `portal.js`) {
-		t.Error("viewport lock must load before portal.js")
-	}
-	if strings.Index(content, `portal-viewport-unlock.js`) < strings.Index(content, `portal.js`) {
-		t.Error("viewport unlock must load after portal.js")
+	for _, forbidden := range []string{
+		`portal-viewport-lock.css`,
+		`portal-viewport-lock.js`,
+		`portal-viewport-unlock.js`,
+	} {
+		if strings.Contains(content, forbidden) {
+			t.Errorf("obsolete viewport lock asset %q must not load", forbidden)
+		}
 	}
 }
 
-func TestPortalChatViewportPolicyBlocksAutomaticRefit(t *testing.T) {
-	lockScript, err := webFiles.ReadFile("web/portal-viewport-lock.js")
+func TestPortalChatViewportPolicyRefitsOnLayoutViewportChanges(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
 		t.Fatal(err)
 	}
-	unlockScript, err := webFiles.ReadFile("web/portal-viewport-unlock.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	stylesheet, err := webFiles.ReadFile("web/portal-viewport-lock.css")
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	lock := string(lockScript)
+	js := string(script)
 	for _, marker := range []string{
-		`this === window && (type === 'resize' || type === 'pageshow')`,
-		`this === visualViewport && (type === 'resize' || type === 'scroll')`,
+		`function scheduleChatViewportSync()`,
+		`chatViewportFrameID = requestAnimationFrame(() => {`,
+		`window.addEventListener('resize', scheduleChatViewportSync, {passive: true});`,
+		`window.addEventListener('pageshow', scheduleChatViewportSync, {passive: true});`,
+		`window.matchMedia('(orientation: portrait)')`,
+		`chatOrientationMedia.addEventListener('change', scheduleChatViewportSync);`,
+		`body.dataset.chatCanvasFitPolicy = 'dynamic-layout-viewport';`,
 	} {
-		if !strings.Contains(lock, marker) {
-			t.Errorf("viewport lock marker %q is missing", marker)
+		if !strings.Contains(js, marker) {
+			t.Errorf("dynamic viewport marker %q is missing", marker)
 		}
-	}
-	if !strings.Contains(string(unlockScript), `chatCanvasFitPolicy = 'initial-only'`) {
-		t.Error("viewport policy metadata is missing")
 	}
 	if !strings.Contains(string(stylesheet), `font-size:var(--room-input-font-size,16px) !important;`) {
 		t.Error("Chat input must use at least 16px to prevent mobile focus zoom")
+	}
+	for _, forbidden := range []string{
+		`window.visualViewport`,
+		`EventTarget.prototype`,
+		`chatCanvasFitPolicy = 'initial-only'`,
+	} {
+		if strings.Contains(js, forbidden) {
+			t.Errorf("dynamic layout viewport policy must not contain %q", forbidden)
+		}
 	}
 }
 
@@ -82,20 +90,29 @@ func TestPortalChatUsesOnlyFixedLandscapeAndPortraitCanvases(t *testing.T) {
 		`logicalHeight: 852`,
 		`root.clientWidth || window.innerWidth`,
 		`root.clientHeight || window.innerHeight`,
+		`return viewport.width >= viewport.height ? viewportProfiles.landscape : viewportProfiles.portrait;`,
 		`Math.min(viewport.width / profile.logicalWidth, viewport.height / profile.logicalHeight)`,
 		`fitChatCanvas(profile, viewport)`,
+		`document.documentElement.classList.toggle('portal-chat-landscape', profile.id === 'landscape');`,
+		`document.documentElement.classList.toggle('portal-chat-portrait', profile.id === 'portrait');`,
 	} {
 		if !strings.Contains(js, marker) {
 			t.Errorf("fixed Chat canvas marker %q is missing", marker)
 		}
 	}
+	selectorStart := strings.Index(js, `function readLayoutViewportSize()`)
+	selectorEnd := strings.Index(js, `function setViewportProfileMetadata(profile)`)
+	if selectorStart < 0 || selectorEnd <= selectorStart {
+		t.Fatal("viewport profile selector boundary is missing")
+	}
+	selector := js[selectorStart:selectorEnd]
 	for _, forbidden := range []string{
-		`window.visualViewport`,
-		`window.addEventListener('resize'`,
-		`window.addEventListener('pageshow'`,
+		`navigator.userAgent`,
+		`screen.width`,
+		`screen.height`,
 	} {
-		if strings.Contains(js, forbidden) {
-			t.Errorf("initial-only Chat canvas must not contain %q", forbidden)
+		if strings.Contains(selector, forbidden) {
+			t.Errorf("viewport profile selection must not contain %q", forbidden)
 		}
 	}
 

@@ -48,6 +48,8 @@
   let selectedPartner = isPartnerActor(storedRecipient) ? storedRecipient : 'shiro';
   let modeSwitchBusy = false;
   let pendingRequest = null;
+  let chatViewportFrameID = 0;
+  let chatOrientationMedia = null;
   const earlyTerminalJobIDs = new Set();
   const requestGuardTimeoutMS = 305000;
   const viewerClientID = getViewerClientID();
@@ -185,10 +187,37 @@
     fitChatCanvas(profile, viewport);
   }
 
+  function scheduleChatViewportSync() {
+    if (mode !== 'chat') return;
+    if (chatViewportFrameID) cancelAnimationFrame(chatViewportFrameID);
+    chatViewportFrameID = requestAnimationFrame(() => {
+      chatViewportFrameID = 0;
+      applyChatViewportProfile();
+    });
+  }
+
+  function bindChatViewportUpdates() {
+    if (mode !== 'chat') return;
+    window.addEventListener('resize', scheduleChatViewportSync, {passive: true});
+    window.addEventListener('pageshow', scheduleChatViewportSync, {passive: true});
+
+    if (typeof window.matchMedia !== 'function') return;
+    chatOrientationMedia = window.matchMedia('(orientation: portrait)');
+    if (typeof chatOrientationMedia.addEventListener === 'function') {
+      chatOrientationMedia.addEventListener('change', scheduleChatViewportSync);
+      return;
+    }
+    if (typeof chatOrientationMedia.addListener === 'function') {
+      chatOrientationMedia.addListener(scheduleChatViewportSync);
+    }
+  }
+
   function initializeChatCanvas() {
     if (mode !== 'chat') return;
     document.documentElement.classList.add('portal-chat-fixed-canvas');
+    body.dataset.chatCanvasFitPolicy = 'dynamic-layout-viewport';
     applyChatViewportProfile();
+    bindChatViewportUpdates();
   }
 
   initializeChatCanvas();
