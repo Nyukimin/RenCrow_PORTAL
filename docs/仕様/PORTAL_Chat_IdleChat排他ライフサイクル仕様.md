@@ -118,10 +118,13 @@ SSE eventは受信時点の現在modeでfilterします。mode変更前に受信
 
 ## 6. 権限境界
 
-`mode=IdleChat`は利用者操作として読み取り専用です。state-changingな例外は
-`POST /viewer/surface-presence`の`surface=idlechat`だけです。
+`mode=IdleChat`は会話送信や管理操作について読み取り専用です。state-changingな例外は
+`POST /viewer/surface-presence`の`surface=idlechat`と、CORE管理のTopic Stockを再生する
+`POST /viewer/idlechat/playback`だけです。
 
 - IdleChat画面へ開始／停止buttonを置かない。
+- IdleChat画面の最下部には`再生`、`スキップ（次の話題）`、`前の話題`の3buttonだけを置く。
+- Topic Stockの項目、消費、次／前カーソル、再生履歴はCOREを正本とし、PORTALへ複製しない。
 - Chat画面にもIdleChatの開始／停止buttonを置かない。
 - `portal-idlechat`から`surface=chat`を送れない。
 - `portal-chat`から`surface=idlechat`を送れない。

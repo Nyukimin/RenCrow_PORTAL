@@ -232,6 +232,9 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	if method == http.MethodPost && path == "/viewer/surface-presence" {
 		return true
 	}
+	if mode == ModeIdleChat && method == http.MethodPost && path == "/viewer/idlechat/playback" {
+		return true
+	}
 	if mode != ModeChat {
 		return false
 	}

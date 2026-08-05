@@ -29,6 +29,10 @@
   const connectionDot = document.getElementById('connectionDot');
   const connectionText = document.getElementById('connectionText');
   const operationStatus = document.getElementById('operationStatus');
+  const idlePlaybackPlay = document.getElementById('idlePlaybackPlay');
+  const idlePlaybackNext = document.getElementById('idlePlaybackNext');
+  const idlePlaybackPrevious = document.getElementById('idlePlaybackPrevious');
+	let idleTopicPlayback = null;
   const chatAutoFollowThreshold = 24;
   const chatScrollState = {
     initialized: false,
@@ -537,10 +541,14 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const status = await response.json();
       topicText.textContent = String(status.current_topic || '-');
+	  idleTopicPlayback = status.topic_stock_playback || null;
+	  updateIdlePlaybackControls();
       if (mode === 'idlechat') setConversationState(true, selectedPartner);
       return true;
     } catch (error) {
       topicText.textContent = '-';
+	  idleTopicPlayback = null;
+	  updateIdlePlaybackControls(true);
       return false;
     }
   }
@@ -590,6 +598,53 @@
     return contentType.includes('application/json') ? response.json() : null;
   }
 
+  function updateIdlePlaybackControls(forceDisabled = false) {
+	const playback = idleTopicPlayback || {};
+	const disabled = mode !== 'idlechat' || !surfaceReady || forceDisabled;
+	if (idlePlaybackPlay) idlePlaybackPlay.disabled = disabled || (!playback.current && !playback.can_next);
+	if (idlePlaybackNext) idlePlaybackNext.disabled = disabled || !playback.can_next;
+	if (idlePlaybackPrevious) idlePlaybackPrevious.disabled = disabled || !playback.can_previous;
+  }
+
+  async function postIdleChatPlayback(action) {
+	if (mode !== 'idlechat') throw new Error('IdleChatモード専用の操作です');
+	if (!surfaceReady) throw new Error('IdleChat画面の準備が完了していません');
+	updateIdlePlaybackControls(true);
+	const response = await fetch(api('/viewer/idlechat/playback'), {
+	  method: 'POST',
+	  headers: {'Content-Type': 'application/json'},
+	  body: JSON.stringify({action}),
+	});
+	if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+	const result = await response.json();
+	idleTopicPlayback = result.playback || null;
+	updateIdlePlaybackControls();
+	return result;
+  }
+
+  function bindIdleChatPlaybackControls() {
+	if (mode !== 'idlechat') return;
+	[
+	  [idlePlaybackPlay, 'play', '再生'],
+	  [idlePlaybackNext, 'next', '次の話題へ移動'],
+	  [idlePlaybackPrevious, 'previous', '前の話題へ移動'],
+	].forEach(([control, action, label]) => {
+	  if (!control) return;
+	  control.addEventListener('click', async () => {
+		setOperation(`${label}中`);
+		try {
+		  await postIdleChatPlayback(action);
+		  await refreshStatus();
+		  setOperation(action === 'play' ? '再生を開始しました' : `${label}しました`);
+		} catch (error) {
+		  setOperation(`${label}できません: ${error.message}`, true);
+		  await refreshStatus();
+		}
+	  });
+	});
+	updateIdlePlaybackControls();
+  }
+
   async function postSurfacePresence(action, keepalive = false) {
     const response = await fetch(api('/viewer/surface-presence'), {
       method: 'POST',
@@ -603,6 +658,7 @@
 
   function setSurfaceReady(ready) {
     surfaceReady = Boolean(ready);
+	updateIdlePlaybackControls();
     if (mode !== 'chat') return;
     input.disabled = !surfaceReady || Boolean(pendingRequest);
     setModeSwitcherBusy(modeSwitchBusy);
@@ -1383,6 +1439,7 @@
     document.querySelectorAll('.room-footer-controls .room-icon-btn').forEach((control) => { control.disabled = true; });
     document.querySelectorAll('.room-partner-chip').forEach((chip) => chip.disabled = true);
     setConversationState(true, selectedRecipient);
+	bindIdleChatPlaybackControls();
   }
 
   document.addEventListener('purupuru-ready', (event) => {

@@ -1090,6 +1090,12 @@ func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.
 			}
 		}
 	}
+	if !portalEndpointAllowed(ModeIdleChat, http.MethodPost, "/viewer/idlechat/playback") {
+		t.Fatal("IdleChat must allow the explicit Topic Stock playback contract")
+	}
+	if portalEndpointAllowed(ModeChat, http.MethodPost, "/viewer/idlechat/playback") {
+		t.Fatal("Chat must not control IdleChat Topic Stock playback")
+	}
 	for _, test := range tests {
 		if !portalEndpointAllowed(Mode("chat"), test.method, test.path) {
 			t.Errorf("Chat should allow %s %s", test.method, test.path)
@@ -1101,6 +1107,31 @@ func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.
 	for _, path := range []string{"/viewer/stt/admin/restart", "/viewer/debug/system", "/viewer/llm-ops/restart"} {
 		if portalEndpointAllowed(Mode("chat"), http.MethodPost, path) || portalEndpointAllowed(Mode("chat"), http.MethodGet, path) {
 			t.Errorf("Chat must reject administrative endpoint %s", path)
+		}
+	}
+}
+
+func TestPortalIdleChatRendersExactlyThreeBottomPlaybackControls(t *testing.T) {
+	page, err := webFiles.ReadFile("web/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(page)
+	start := strings.Index(body, `class="room-idlechat-playback-footer"`)
+	if start < 0 {
+		t.Fatal("IdleChat playback footer is missing")
+	}
+	end := strings.Index(body[start:], `</footer>`)
+	if end < 0 {
+		t.Fatal("IdleChat playback footer is incomplete")
+	}
+	footer := body[start : start+end]
+	if count := strings.Count(footer, "<button"); count != 3 {
+		t.Fatalf("playback button count=%d want=3", count)
+	}
+	for _, label := range []string{"再生", "スキップ（次の話題）", "前の話題"} {
+		if !strings.Contains(footer, label) {
+			t.Fatalf("playback label %q is missing", label)
 		}
 	}
 }
