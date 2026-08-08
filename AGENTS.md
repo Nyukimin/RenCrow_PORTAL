@@ -50,7 +50,12 @@ direct backend、local代替、別model、短縮proxy経路を独断で作成・
 config、credential、process、network、RenCrow LLM Runtime、Backend／Model readiness、
 logを確認して正規経路を
 復旧する。復旧不能なら失敗境界を報告し、代替経路を正規runtimeまたはAgent-owned E2E成功と
-扱わない。代替topologyは、れんがその例外を明示承認した場合だけ使用できる。
+扱わない。Codexが代替topologyを実装・起動できるのは、れんがその例外を明示指示した場合だけとする。
+
+このCodex作業境界をRenCrow製品へ移植しない。PORTALを含むRenCrow runtimeは人の返答待ちを
+作らず、CORE正本、machine-readable policy、認証済みrequest scopeにより、実行、`rejected`、
+`blocked`を同期確定する。`rejected`後は理由を根拠に前提、route、設計、必要なら思想まで再考した
+新revisionを作り、同じ案の言い換えや安全制約の弱体化で再送しない。
 
 ## クロスプラットフォーム前提
 
