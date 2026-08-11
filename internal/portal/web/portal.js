@@ -1235,6 +1235,7 @@
       input_source: inputSource === 'stt' ? 'stt' : 'text',
       user_id: viewerUserID,
       device_name: viewerDeviceName,
+      audio_output: ttsControl.enabled ? 'requested' : 'disabled',
     };
     if (!attachments.length) return fields;
     const form = new FormData();

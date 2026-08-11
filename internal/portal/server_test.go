@@ -635,6 +635,23 @@ func TestPortalLipSyncUsesTTSAudioAmplitude(t *testing.T) {
 	}
 }
 
+func TestPortalViewerSendPayloadSnapshotsAudioOutputIntent(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, required := range []string{
+		`audio_output: ttsControl.enabled ? 'requested' : 'disabled',`,
+		`if (!attachments.length) return fields;`,
+		`Object.entries(fields).forEach(([name, value]) => form.append(name, value));`,
+	} {
+		if !strings.Contains(body, required) {
+			t.Errorf("Viewer send audio output contract marker %q is missing", required)
+		}
+	}
+}
+
 func TestPortalChatTTSSpeakerUsesCoreCharacterID(t *testing.T) {
 	script, err := webFiles.ReadFile("web/portal.js")
 	if err != nil {
