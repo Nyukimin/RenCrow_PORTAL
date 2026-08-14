@@ -5,6 +5,7 @@ BUILD_DIR=build
 CMD_DIR=cmd/rencrow-portal
 PREFIX?=$(HOME)/.local
 SYSTEMD_USER_DIR?=$(HOME)/.config/systemd/user
+CONFIG_DIR?=$(HOME)/.rencrow/config
 
 build:
 	@mkdir -p $(BUILD_DIR)
@@ -19,7 +20,8 @@ install: build
 	@install -m 0755 $(BUILD_DIR)/$(BINARY_NAME) $(PREFIX)/bin/$(BINARY_NAME)
 
 install-service: install
-	@install -d $(SYSTEMD_USER_DIR)
+	@install -d $(SYSTEMD_USER_DIR) $(CONFIG_DIR)
+	@if [ ! -f $(CONFIG_DIR)/portal.json ]; then install -m 0600 portal.example.json $(CONFIG_DIR)/portal.json; fi
 	@install -m 0644 systemd/user/rencrow-portal.service $(SYSTEMD_USER_DIR)/rencrow-portal.service
 	@systemctl --user daemon-reload
 

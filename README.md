@@ -175,6 +175,9 @@ systemctl --user enable --now rencrow-portal.service
 ```
 
 serviceは`~/.local/bin/rencrow-portal`を実行し、PORTALとCOREを別processとして管理します。
+live設定の正本は`~/.rencrow/config/portal.json`、unit正本は
+`systemd/user/rencrow-portal.service`です。listenやCORE接続先をunitへ複製しません。
+
 `rencrow-portal`はConfigで定めた`task_id`と予約PORTで起動します。同一Taskの新しい
 instanceを起動する場合は、前instanceを停止し、listener解放を確認してから同じ
 PORTで置換します。別のPORTへ自動再割り当てせず、所有不明なlistenerは停止しません。
