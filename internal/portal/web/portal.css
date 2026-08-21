@@ -2997,8 +2997,8 @@ body.room-mode.room-stage.room-idlechat-mode #chat{
     min-height:220px;
   }
 
-  body.room-mode.room-stage.room-chat-mode #chatPortrait{
-    left:calc(50% + var(--room-p-avatar-offset-x)) !important;
+  html:not(.portal-chat-fixed-canvas) body.room-mode.room-stage.room-chat-mode #chatPortrait{
+    left:calc(50% + var(--room-p-avatar-offset-x, 0px)) !important;
     width:144vw !important;
     height:88dvh !important;
   }
@@ -3397,7 +3397,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
 }
 
 html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chatPortrait{
-  left:50%;
+  left:50% !important;
   top:91.8px !important;
   width:760px !important;
   height:626.4px !important;

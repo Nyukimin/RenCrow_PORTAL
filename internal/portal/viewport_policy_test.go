@@ -229,6 +229,31 @@ func TestPortalIdleChatUsesFixedLandscapeCanvasAndKeepsPortraitResponsive(t *tes
 	}
 }
 
+func TestPortalChatFixedLandscapeCentersSinglePortraitSlot(t *testing.T) {
+	stylesheet, err := webFiles.ReadFile("web/portal.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := string(stylesheet)
+
+	portrait := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chatPortrait`)
+	for _, marker := range []string{
+		`left:50% !important;`,
+		`width:760px !important;`,
+		`height:626.4px !important;`,
+		`transform:translateX(-50%);`,
+	} {
+		if !strings.Contains(portrait, marker) {
+			t.Errorf("fixed landscape Chat portrait marker %q is missing", marker)
+		}
+	}
+
+	mobile := cssRuleBody(t, css, `html:not(.portal-chat-fixed-canvas) body.room-mode.room-stage.room-chat-mode #chatPortrait`)
+	if !strings.Contains(mobile, `left:calc(50% + var(--room-p-avatar-offset-x, 0px)) !important;`) {
+		t.Error("viewport-linked Chat portrait left must not apply on the fixed canvas")
+	}
+}
+
 func cssRuleBody(t *testing.T, css, selector string) string {
 	t.Helper()
 	start := strings.Index(css, selector+"{")

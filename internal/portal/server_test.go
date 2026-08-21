@@ -369,8 +369,8 @@ func TestPortalChatUsesCenteredDoubleSizePortraitAvatar(t *testing.T) {
 	for _, marker := range []string{
 		`--room-p-avatar-offset-x:clamp(88px,25vw,108px);`,
 		`--room-p-avatar-top-offset:clamp(192px,24dvh,216px);`,
-		`body.room-mode.room-stage.room-chat-mode #chatPortrait{`,
-		`left:calc(50% + var(--room-p-avatar-offset-x)) !important;`,
+		`html:not(.portal-chat-fixed-canvas) body.room-mode.room-stage.room-chat-mode #chatPortrait{`,
+		`left:calc(50% + var(--room-p-avatar-offset-x, 0px)) !important;`,
 		`top:calc(var(--room-p-stage-top) - var(--room-p-avatar-top-offset)) !important;`,
 		`width:144vw !important;`,
 		`height:88dvh !important;`,
