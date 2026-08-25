@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "purpose": "operational_status",
+  "phase": "runtime",
+  "checks": [
+    {
+      "check_id": "portal_readiness",
+      "guarantee_id": "portal_readiness_available",
+      "owner": "RenCrow_PORTAL",
+      "purpose": "runtime readiness",
+      "target": "portal:/health/ready",
+      "phase": "runtime",
+      "consumer": "runtime readiness",
+      "failure_action": "blocked",
+      "cost": "low",
+      "safety_gate": false
+    },
+    {
+      "check_id": "portal_browser_proxy_e2e",
+      "guarantee_id": "portal_browser_proxy_verified",
+      "owner": "RenCrow_PORTAL",
+      "purpose": "diagnostic browser proxy E2E",
+      "target": "portal:/?mode=Chat -> /viewer/send",
+      "phase": "diagnostic",
+      "consumer": "diagnostic browser proxy acceptance",
+      "failure_action": "notify",
+      "cost": "high",
+      "safety_gate": false
+    }
+  ]
+}
