@@ -1182,6 +1182,23 @@ func TestPortalChatScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 	}
 }
 
+func TestPortalIdleChatStatusIgnoresOutOfOrderRefreshResults(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`let statusRefreshGeneration = 0;`,
+		`const refreshGeneration = ++statusRefreshGeneration;`,
+		`if (refreshGeneration !== statusRefreshGeneration) return false;`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("IdleChat status ordering marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPuruPuruHostPreservesUpstreamMotionInputs(t *testing.T) {
 	host, err := webFiles.ReadFile("web/purupuru/runtime-host.js")
 	if err != nil {

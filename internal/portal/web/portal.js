@@ -56,6 +56,7 @@
   let surfaceHeartbeat = null;
   let surfaceRequestSequence = Promise.resolve();
   let pendingRequest = null;
+  let statusRefreshGeneration = 0;
   let chatViewportFrameID = 0;
   let chatOrientationMedia = null;
   const earlyTerminalJobIDs = new Set();
@@ -536,16 +537,19 @@
   }
 
   async function refreshStatus() {
+    const refreshGeneration = ++statusRefreshGeneration;
     try {
       const response = await fetch(api('/viewer/idlechat/status'), {cache: 'no-store'});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const status = await response.json();
+      if (refreshGeneration !== statusRefreshGeneration) return false;
       topicText.textContent = String(status.current_topic || '-');
 	  idleTopicPlayback = status.topic_stock_playback || null;
 	  updateIdlePlaybackControls();
       if (mode === 'idlechat') setConversationState(true, selectedPartner);
       return true;
     } catch (error) {
+      if (refreshGeneration !== statusRefreshGeneration) return false;
       topicText.textContent = '-';
 	  idleTopicPlayback = null;
 	  updateIdlePlaybackControls(true);
