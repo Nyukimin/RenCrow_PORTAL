@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "purpose": "operational_status",
   "phase": "runtime",
   "checks": [
@@ -13,7 +13,11 @@
       "consumer": "runtime readiness",
       "failure_action": "blocked",
       "cost": "low",
-      "safety_gate": false
+      "safety_gate": false,
+      "coverage": ["readiness"],
+      "executor": {"kind": "owner_cli", "command_id": "portal-readiness"},
+      "receipt_schema": "rencrow.check-receipt.v1",
+      "surfaces": ["browser_ui", "route_security_exposure", "lifecycle_resources"]
     },
     {
       "check_id": "portal_browser_proxy_e2e",
@@ -25,7 +29,58 @@
       "consumer": "diagnostic browser proxy acceptance",
       "failure_action": "notify",
       "cost": "high",
-      "safety_gate": false
+      "safety_gate": false,
+      "coverage": ["canonical_e2e"],
+      "executor": {"kind": "owner_cli", "command_id": "portal-browser-proxy-e2e"},
+      "receipt_schema": "rencrow.check-receipt.v1"
+    },
+    {
+      "check_id": "portal_deploy_identity_chain",
+      "guarantee_id": "portal_source_artifact_publication_identity",
+      "owner": "RenCrow_PORTAL",
+      "purpose": "source, artifact, and publication identity chain",
+      "target": "RenCrow_PORTAL source revision -> built artifact -> installed publication",
+      "phase": "deploy",
+      "consumer": "PORTAL deployment identity gate",
+      "failure_action": "blocked",
+      "cost": "high",
+      "safety_gate": false,
+      "coverage": ["source_identity", "artifact_identity", "publication"],
+      "executor": {"kind": "owner_cli", "command_id": "portal-deploy-identity-chain"},
+      "receipt_schema": "rencrow.check-receipt.v1",
+      "surfaces": ["browser_ui", "lifecycle_resources", "publication"]
+    },
+    {
+      "check_id": "portal_runtime_identity_lifecycle_security",
+      "guarantee_id": "portal_runtime_identity_lifecycle_security",
+      "owner": "RenCrow_PORTAL",
+      "purpose": "runtime identity, lifecycle, and security exposure",
+      "target": "PORTAL installed artifact -> owner process identity, lifecycle, and protected proxy exposure",
+      "phase": "runtime",
+      "consumer": "PORTAL runtime lifecycle and security gate",
+      "failure_action": "blocked",
+      "cost": "high",
+      "safety_gate": true,
+      "coverage": ["runtime_identity", "lifecycle", "security_exposure"],
+      "executor": {"kind": "owner_cli", "command_id": "portal-runtime-identity-lifecycle-security"},
+      "receipt_schema": "rencrow.check-receipt.v1",
+      "surfaces": ["browser_ui", "route_security_exposure", "lifecycle_resources", "publication"]
+    },
+    {
+      "check_id": "portal_canonical_actor_e2e",
+      "guarantee_id": "portal_canonical_actor_result_with_trace",
+      "owner": "RenCrow_PORTAL",
+      "purpose": "canonical authenticated browser result and receipt trace",
+      "target": "published PORTAL artifact -> authenticated browser user -> CORE canonical route -> user-visible result with receipt trace",
+      "phase": "diagnostic",
+      "consumer": "PORTAL canonical browser acceptance",
+      "failure_action": "blocked",
+      "cost": "high",
+      "safety_gate": false,
+      "coverage": ["canonical_e2e", "actor_result", "receipt_trace"],
+      "executor": {"kind": "owner_cli", "command_id": "portal-canonical-actor-e2e"},
+      "receipt_schema": "rencrow.check-receipt.v1",
+      "surfaces": ["browser_ui", "route_security_exposure", "lifecycle_resources", "publication"]
     }
   ]
 }
