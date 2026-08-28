@@ -168,7 +168,7 @@ func runBrowserCheck(ctx context.Context, options Options, canonical bool) (Obse
 		if err != nil {
 			return blockedObservation(browserTarget(canonical), fmt.Errorf("browser evidence observation time unavailable: %w", err)), nil
 		}
-		evidence, err := liveBrowserEvidenceCollector(ctx, requested, options.PortalURL)
+		evidence, err := liveBrowserEvidenceCollector(ctx, requested, options.PortalURL, options.CheckID)
 		if err != nil {
 			return blockedObservation(browserTarget(canonical), err), nil
 		}

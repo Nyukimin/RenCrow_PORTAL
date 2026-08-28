@@ -157,7 +157,7 @@ type capturedBrowserResponse struct {
 	Status    int64
 }
 
-func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, publishedURL string) (map[string]any, error) {
+func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, publishedURL, checkID string) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(parent, browserRunTimeout)
 	defer cancel()
 	var route tailscaleServeRoute
@@ -180,7 +180,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		return nil, err
 	}
 	if tagged {
-		return nil, errors.New(taggedBrowserBoundary + ": local verifier source is a tagged Tailscale device")
+		return collectRemoteBrowserEvidence(ctx, observedAt, checkID)
 	}
 	chromium, err := discoverChromium()
 	if err != nil {
