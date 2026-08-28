@@ -26,6 +26,7 @@ const (
 	tailscaleActorPrefix  = "tailscale-sha256:"
 	browserRunTimeout     = 5 * time.Minute
 	taggedBrowserBoundary = "external_untagged_browser_prerequisite_absent"
+	mioReadyExpression    = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
 )
 
 var liveBrowserEvidenceCollector = collectLiveBrowserEvidence
@@ -231,6 +232,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		chromedp.Evaluate(`localStorage.setItem('rencrow.portal.ttsPreference','off')`, nil),
 		chromedp.Evaluate(`document.querySelectorAll('#chat article').length`, &initialArticles),
 		chromedp.Click(`#roomMioChip`, chromedp.ByQuery),
+		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond)),
 		chromedp.SetValue(`#roomInput`, prompt, chromedp.ByQuery),
 		chromedp.KeyEvent("\r"),
 	); err != nil {

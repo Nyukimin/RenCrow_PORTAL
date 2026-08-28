@@ -12,6 +12,14 @@ func TestTaggedVerifierFailureBoundaryIsExplicit(t *testing.T) {
 	}
 }
 
+func TestBrowserWaitsForMioSwitchBeforeSending(t *testing.T) {
+	for _, required := range []string{"roomMioChip", "aria-pressed", "roomInput", "disabled"} {
+		if !strings.Contains(mioReadyExpression, required) {
+			t.Fatalf("Mio readiness expression is missing %q", required)
+		}
+	}
+}
+
 func TestParseTailscaleServeStatusSelectsTailnetPortalRoute(t *testing.T) {
 	raw := []byte(`{
   "TCP": {"443": {"HTTPS": true}},
