@@ -28,6 +28,7 @@ const (
 	tailscaleActorPrefix       = "tailscale-sha256:"
 	tailscaleUserLoginMaxBytes = 256
 	controlBodyLimit           = 2 << 20
+	sttBodyLimit               = 65 << 20
 	viewerSendBodyLimit        = 121 << 20
 )
 
@@ -284,11 +285,18 @@ func (h *handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 		bodyLimit := int64(controlBodyLimit)
-		if targetPath == "/viewer/send" && strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
-			// CORE accepts up to 120 MiB of attachments. Keep one MiB for
-			// multipart boundaries and metadata while retaining the smaller
-			// limit for ordinary control requests.
-			bodyLimit = viewerSendBodyLimit
+		if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+			switch targetPath {
+			case "/viewer/send":
+				// CORE accepts up to 120 MiB of attachments. Keep one MiB for
+				// multipart boundaries and metadata while retaining the smaller
+				// limit for ordinary control requests.
+				bodyLimit = viewerSendBodyLimit
+			case "/stt/chat-input":
+				// CORE reads up to 64 MiB for one STT WAV. Keep one MiB for
+				// multipart boundaries and metadata.
+				bodyLimit = sttBodyLimit
+			}
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
 	}
@@ -345,7 +353,8 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	case "/viewer/send",
 		"/viewer/recipient-selection",
 		"/viewer/active-control",
-		"/viewer/tts/playback-ack":
+		"/viewer/tts/playback-ack",
+		"/stt/chat-input":
 		return true
 	default:
 		return false

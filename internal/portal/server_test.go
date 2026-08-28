@@ -871,6 +871,46 @@ func TestPortalChatProxiesEachPublicRecipientUnchanged(t *testing.T) {
 	}
 }
 
+func TestPortalChatProxiesCoreSizedMultipartSTTChatInput(t *testing.T) {
+	var gotPath, gotClient, gotProfile string
+	var received int64
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotClient = r.Header.Get("X-RenCrow-Client")
+		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
+		n, err := io.Copy(io.Discard, r.Body)
+		if err != nil {
+			t.Fatalf("read proxied multipart body: %v", err)
+		}
+		received = n
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := strings.NewReader(strings.Repeat("x", 3<<20))
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/stt/chat-input", body)
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=portal-test")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	if gotPath != "/stt/chat-input" || gotClient != "RenCrow_PORTAL" || gotProfile != "portal-chat" {
+		t.Fatalf("path=%q client=%q profile=%q", gotPath, gotClient, gotProfile)
+	}
+	if received != 3<<20 {
+		t.Fatalf("CORE received %d bytes, want %d", received, 3<<20)
+	}
+}
+
 func TestPortalProxyAddsTrustedOperationSourceProfileAndClientIP(t *testing.T) {
 	var gotClient, gotProfile, gotForwardedFor, gotUserAgent string
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1078,6 +1118,7 @@ func TestPortalGamesEndpointAllowlist(t *testing.T) {
 		{http.MethodPost, "/viewer/games/decision"},
 		{http.MethodPost, "/viewer/games/result"},
 		{http.MethodPost, "/viewer/games/observer-api/games/sessions/nh-1/summary"},
+		{http.MethodPost, "/stt/chat-input"},
 		{http.MethodPost, "/viewer/games/observer-api/games/launch"},
 		{http.MethodGet, "/viewer/debug/system"},
 	}
@@ -1098,6 +1139,7 @@ func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.
 		{http.MethodGet, "/viewer/tts/audio"},
 		{http.MethodPost, "/viewer/tts/playback-ack"},
 		{http.MethodGet, "/stt"},
+		{http.MethodPost, "/stt/chat-input"},
 	}
 	for _, mode := range []Mode{ModeChat, ModeIdleChat} {
 		if !portalEndpointAllowed(mode, http.MethodPost, "/viewer/surface-presence") {
