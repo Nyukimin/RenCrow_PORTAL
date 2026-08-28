@@ -318,6 +318,24 @@ func TestLoadPortalCatalogIdentity(t *testing.T) {
 	}
 }
 
+func TestParsePortalRuntimeObservations(t *testing.T) {
+	properties := parsePortalProperties("MainPID=4242\nNRestarts=0\nActiveState=active\nSubState=running\n")
+	if properties["MainPID"] != "4242" || properties["ActiveState"] != "active" {
+		t.Fatalf("properties=%v", properties)
+	}
+	listener := `LISTEN 0 4096 127.0.0.1:18791 0.0.0.0:* users:(("rencrow-portal",pid=4242,fd=3))`
+	if address, ok := parsePortalListener(listener, 4242); !ok || address != "127.0.0.1:18791" {
+		t.Fatalf("listener=(%q,%t)", address, ok)
+	}
+	if _, ok := parsePortalListener(listener, 4243); ok {
+		t.Fatal("accepted listener owned by another PID")
+	}
+	public := `LISTEN 0 4096 0.0.0.0:18791 0.0.0.0:* users:(("rencrow-portal",pid=4242,fd=3))`
+	if _, ok := parsePortalListener(public, 4242); ok {
+		t.Fatal("accepted wildcard listener")
+	}
+}
+
 func TestRunDeployIdentityEvidenceFreshnessWindow(t *testing.T) {
 	requested, err := time.Parse(time.RFC3339Nano, testObservedAt)
 	if err != nil {

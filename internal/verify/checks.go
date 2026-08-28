@@ -609,7 +609,10 @@ func evidenceReference(evidenceDir, path string) string {
 
 func runRuntimeIdentity(_ context.Context, input RuntimeIdentityInput) (Observation, error) {
 	if strings.TrimSpace(input.Observation) == "" {
-		return blockedObservation(runtimeTarget, errors.New("runtime service/PID/config/listener/bind observation is required")), nil
+		if input.ObservedAt.IsZero() || time.Since(input.ObservedAt) > evidenceFreshnessWindow || time.Until(input.ObservedAt) > 0 {
+			return blockedObservation(runtimeTarget, errors.New("runtime service/PID/config/listener/bind observation is required")), nil
+		}
+		return discoverPortalRuntimeIdentity(input.ObservedAt)
 	}
 	if input.ObservedAt.IsZero() {
 		return blockedObservation(runtimeTarget, errors.New("runtime observation time is required")), nil
