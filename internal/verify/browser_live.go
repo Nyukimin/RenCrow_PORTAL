@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	portalProxyURL       = "http://127.0.0.1:18791"
-	tailscaleActorPrefix = "tailscale-sha256:"
-	browserRunTimeout    = 5 * time.Minute
+	portalProxyURL        = "http://127.0.0.1:18791"
+	tailscaleActorPrefix  = "tailscale-sha256:"
+	browserRunTimeout     = 5 * time.Minute
+	taggedBrowserBoundary = "external_untagged_browser_prerequisite_absent"
 )
 
 var liveBrowserEvidenceCollector = collectLiveBrowserEvidence
@@ -154,6 +155,13 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time) (m
 	if err != nil {
 		return nil, err
 	}
+	tagged, err := localTailscaleSourceIsTagged(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if tagged {
+		return nil, errors.New(taggedBrowserBoundary + ": local verifier source is a tagged Tailscale device")
+	}
 	chromium, err := discoverChromium()
 	if err != nil {
 		return nil, err
@@ -191,7 +199,6 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time) (m
 	if err := chromedp.Run(browser,
 		network.Enable(),
 		chromedp.Navigate(route.Origin+"/?mode=Chat"),
-		chromedp.WaitVisible(`#roomInput`, chromedp.ByQuery),
 	); err != nil {
 		return nil, fmt.Errorf("published Portal browser authentication failed: %w", err)
 	}
@@ -202,6 +209,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time) (m
 		return nil, err
 	}
 	if err := chromedp.Run(browser,
+		chromedp.WaitVisible(`#roomInput`, chromedp.ByQuery),
 		chromedp.Evaluate(`localStorage.setItem('rencrow.portal.ttsPreference','off')`, nil),
 		chromedp.Evaluate(`document.querySelectorAll('#chat article').length`, &initialArticles),
 		chromedp.Click(`#roomMioChip`, chromedp.ByQuery),
@@ -279,4 +287,24 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time) (m
 		"response":  map[string]any{"status": capture.Status, "job_id": jobID, "trace_id": jobID, "user_visible_result": visibleText},
 		"job_id":    jobID, "trace_id": jobID, "user_visible_result": visibleText,
 	}, nil
+}
+
+func localTailscaleSourceIsTagged(ctx context.Context) (bool, error) {
+	tailscale, err := exec.LookPath("tailscale")
+	if err != nil {
+		return false, errors.New(browserPrerequisiteError("tailscale CLI"))
+	}
+	output, err := exec.CommandContext(ctx, tailscale, "status", "--json").Output()
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", browserPrerequisiteError("tailscale node identity"), err)
+	}
+	var status struct {
+		Self struct {
+			Tags []string `json:"Tags"`
+		} `json:"Self"`
+	}
+	if err := json.Unmarshal(output, &status); err != nil {
+		return false, fmt.Errorf("decode tailscale node identity: %w", err)
+	}
+	return len(status.Self.Tags) > 0, nil
 }

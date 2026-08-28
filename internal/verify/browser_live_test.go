@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func TestTaggedVerifierFailureBoundaryIsExplicit(t *testing.T) {
+	if taggedBrowserBoundary != "external_untagged_browser_prerequisite_absent" {
+		t.Fatal("tagged verifier boundary must remain explicit")
+	}
+}
+
 func TestParseTailscaleServeStatusSelectsTailnetPortalRoute(t *testing.T) {
 	raw := []byte(`{
   "TCP": {"443": {"HTTPS": true}},
