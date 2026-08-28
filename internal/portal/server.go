@@ -1,7 +1,10 @@
 package portal
 
 import (
+	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -12,16 +15,23 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 )
 
 //go:embed web/*
 var webFiles embed.FS
 
 const (
-	interactionProfileHeader = "X-RenCrow-Interaction-Profile"
-	controlBodyLimit         = 2 << 20
-	viewerSendBodyLimit      = 121 << 20
+	interactionProfileHeader   = "X-RenCrow-Interaction-Profile"
+	tailscaleUserLoginHeader   = "Tailscale-User-Login"
+	authenticatedActorHeader   = "X-RenCrow-Authenticated-Actor"
+	tailscaleActorPrefix       = "tailscale-sha256:"
+	tailscaleUserLoginMaxBytes = 256
+	controlBodyLimit           = 2 << 20
+	viewerSendBodyLimit        = 121 << 20
 )
+
+type authenticatedActorContextKey struct{}
 
 type handler struct {
 	cfg       Config
@@ -75,6 +85,14 @@ func NewHandler(cfg Config) (http.Handler, error) {
 		Director:      h.directProxyRequest,
 		FlushInterval: -1,
 		ModifyResponse: func(response *http.Response) error {
+			stripUntrustedIdentityHeaders(response.Header)
+			stripUntrustedIdentityHeaders(response.Trailer)
+			response.Header.Del(authenticatedActorHeader)
+			if response.Request != nil {
+				if actor, ok := authenticatedActorFromContext(response.Request.Context()); ok {
+					response.Header.Set(authenticatedActorHeader, actor)
+				}
+			}
 			if response.Request != nil && response.Request.URL.Path == "/viewer/games/observer" {
 				response.Header.Del("Content-Security-Policy")
 				response.Header.Del("Referrer-Policy")
@@ -94,6 +112,13 @@ func NewHandler(cfg Config) (http.Handler, error) {
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
+	if isProtectedPortalPath(r.URL.Path) {
+		authenticatedRequest, ok := h.authorizePortalRequest(w, r)
+		if !ok {
+			return
+		}
+		r = authenticatedRequest
+	}
 	switch {
 	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat" || r.URL.Path == "/games":
 		h.servePage(w, r)
@@ -112,6 +137,73 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveGamesObserverProxy(w, r)
 	default:
 		http.NotFound(w, r)
+	}
+}
+
+func isProtectedPortalPath(path string) bool {
+	switch path {
+	case "/", "/idlechat", "/chat", "/games":
+		return true
+	}
+	return strings.HasPrefix(path, "/assets/") ||
+		strings.HasPrefix(path, "/api/") ||
+		path == "/viewer/games/observer" ||
+		strings.HasPrefix(path, "/viewer/games/observer-api/")
+}
+
+func (h *handler) authorizePortalRequest(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	if h.cfg.AuthMode != AuthModeTailscaleServe {
+		return r, true
+	}
+	actor, ok := authenticatedActorForRequest(r)
+	if !ok {
+		w.Header().Del(authenticatedActorHeader)
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return nil, false
+	}
+	w.Header().Set(authenticatedActorHeader, actor)
+	return r.WithContext(context.WithValue(r.Context(), authenticatedActorContextKey{}, actor)), true
+}
+
+func authenticatedActorForRequest(r *http.Request) (string, bool) {
+	values := headerValues(r.Header, tailscaleUserLoginHeader)
+	if len(values) != 1 {
+		return "", false
+	}
+	login := strings.TrimSpace(values[0])
+	if len(login) == 0 || len(login) > tailscaleUserLoginMaxBytes || strings.ContainsRune(login, ',') {
+		return "", false
+	}
+	for _, character := range login {
+		if unicode.IsControl(character) || unicode.IsSpace(character) {
+			return "", false
+		}
+	}
+	digest := sha256.Sum256([]byte(login))
+	return tailscaleActorPrefix + hex.EncodeToString(digest[:]), true
+}
+
+func headerValues(header http.Header, name string) []string {
+	var values []string
+	for key, headerValues := range header {
+		if strings.EqualFold(key, name) {
+			values = append(values, headerValues...)
+		}
+	}
+	return values
+}
+
+func authenticatedActorFromContext(ctx context.Context) (string, bool) {
+	actor, ok := ctx.Value(authenticatedActorContextKey{}).(string)
+	return actor, ok && actor != ""
+}
+
+func stripUntrustedIdentityHeaders(header http.Header) {
+	for name := range header {
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(lower, "tailscale-user-") || strings.EqualFold(name, authenticatedActorHeader) {
+			delete(header, name)
+		}
 	}
 }
 
@@ -322,6 +414,13 @@ func (h *handler) directProxyRequest(r *http.Request) {
 	r.URL.Scheme = h.coreURL.Scheme
 	r.URL.Host = h.coreURL.Host
 	r.Host = h.coreURL.Host
+	if r.Header == nil {
+		r.Header = make(http.Header)
+	}
+	stripUntrustedIdentityHeaders(r.Header)
+	if actor, ok := authenticatedActorFromContext(r.Context()); ok {
+		r.Header.Set(authenticatedActorHeader, actor)
+	}
 	r.Header.Set("X-Forwarded-Host", originalHost)
 	r.Header.Set("X-RenCrow-Client", "RenCrow_PORTAL")
 }

@@ -127,7 +127,12 @@ func TestRunBrowserProxyRequiresExplicitAuthAndBrowserEvidence(t *testing.T) {
 	}
 }
 
-func TestCommonArgsBrowserChecksExposeAuthenticationBoundary(t *testing.T) {
+func TestCommonArgsBrowserChecksUseOwnerSelfCollection(t *testing.T) {
+	originalCollector := liveBrowserEvidenceCollector
+	liveBrowserEvidenceCollector = func(context.Context, time.Time) (map[string]any, error) {
+		return nil, errors.New("owner self collection invoked")
+	}
+	defer func() { liveBrowserEvidenceCollector = originalCollector }()
 	for _, tc := range []struct{ checkID, command string }{
 		{"portal_browser_proxy_e2e", "portal-browser-proxy-e2e"},
 		{"portal_canonical_actor_e2e", "portal-canonical-actor-e2e"},
@@ -139,7 +144,7 @@ func TestCommonArgsBrowserChecksExposeAuthenticationBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if receipt.Status != StatusBlocked || receipt.FailureBoundary != "authentication_unavailable" {
+		if receipt.Status != StatusBlocked || receipt.FailureBoundary != "owner self collection invoked" {
 			t.Fatalf("%s receipt=%+v", tc.checkID, receipt)
 		}
 	}

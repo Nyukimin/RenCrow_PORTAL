@@ -1,6 +1,7 @@
 {
   "listen": "127.0.0.1:18791",
   "core_url": "http://127.0.0.1:18790",
+  "auth_mode": "disabled",
   "default_mode": "IdleChat",
   "enabled_modes": ["IdleChat", "Chat", "Games"]
 }

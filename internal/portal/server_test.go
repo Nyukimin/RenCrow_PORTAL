@@ -1,6 +1,8 @@
 package portal
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1372,5 +1374,218 @@ func TestPortalAllowsCoreSizedMultipartViewerSend(t *testing.T) {
 	}
 	if received != 3<<20 {
 		t.Fatalf("CORE received %d bytes, want %d", received, 3<<20)
+	}
+}
+
+func TestPortalTailscaleServeProtectsSurfacesButNotHealth(t *testing.T) {
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ready" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.AuthMode = AuthModeTailscaleServe
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{
+		"/",
+		"/assets/portal.js",
+		"/api/chat/viewer/events",
+		"/viewer/games/observer",
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("%s status = %d, want 401", target, rec.Code)
+		}
+	}
+
+	for _, target := range []string{"/health/live", "/health/ready"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want public 200: %s", target, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestPortalTailscaleServeRequiresExactlyOneBoundedValidLogin(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.AuthMode = AuthModeTailscaleServe
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name  string
+		setup func(*http.Request)
+	}{
+		{name: "missing", setup: func(*http.Request) {}},
+		{name: "duplicate", setup: func(r *http.Request) {
+			r.Header.Add("Tailscale-User-Login", "ren@example.com")
+			r.Header.Add("Tailscale-User-Login", "other@example.com")
+		}},
+		{name: "empty", setup: func(r *http.Request) {
+			r.Header.Set("Tailscale-User-Login", " ")
+		}},
+		{name: "comma-delimited", setup: func(r *http.Request) {
+			r.Header.Set("Tailscale-User-Login", "ren@example.com,other@example.com")
+		}},
+		{name: "control", setup: func(r *http.Request) {
+			r.Header.Set("Tailscale-User-Login", "ren@example.com\x00")
+		}},
+		{name: "too-long", setup: func(r *http.Request) {
+			r.Header.Set("Tailscale-User-Login", strings.Repeat("a", tailscaleUserLoginMaxBytes+1))
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/chat", nil)
+			test.setup(req)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401", rec.Code)
+			}
+		})
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/chat", nil)
+	req.Header.Set("Tailscale-User-Login", "ren@example.com")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("valid login status = %d, want 200", rec.Code)
+	}
+}
+
+func TestPortalTailscaleServeExposesBoundedActorAndSanitizesProxyHeaders(t *testing.T) {
+	const login = "ren@example.com"
+	digest := sha256.Sum256([]byte(login))
+	wantActor := tailscaleActorPrefix + hex.EncodeToString(digest[:])
+	var gotHeaders http.Header
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders = r.Header.Clone()
+		w.Header().Set("Tailscale-User-Login", login)
+		w.Header().Set("X-RenCrow-Authenticated-Actor", "core-spoof")
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.AuthMode = AuthModeTailscaleServe
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/viewer/send", strings.NewReader(`{"message":"hello"}`))
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("Tailscale-User-Login", login)
+	req.Header.Set("Tailscale-User-Name", "Ren")
+	req.Header.Set("Tailscale-User-Profile-Picture", "https://example.invalid/avatar")
+	req.Header.Set("X-RenCrow-Authenticated-Actor", "client-spoof")
+	req.Header.Set("X-RenCrow-Client", "client-spoof")
+	req.Header.Set("X-RenCrow-Interaction-Profile", "client-spoof")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("X-RenCrow-Authenticated-Actor"); got != wantActor {
+		t.Fatalf("response actor = %q, want %q", got, wantActor)
+	}
+	if strings.Contains(rec.Header().Get("X-RenCrow-Authenticated-Actor"), login) {
+		t.Fatal("response actor must not contain the raw login")
+	}
+	if rec.Header().Get("Tailscale-User-Login") != "" {
+		t.Fatal("response must not return the raw Tailscale login")
+	}
+	for name := range gotHeaders {
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(lower, "tailscale-user-") {
+			t.Fatalf("CORE received stripped Tailscale header %q", name)
+		}
+	}
+	if got := gotHeaders.Get("X-RenCrow-Authenticated-Actor"); got != wantActor {
+		t.Fatalf("CORE actor = %q, want %q", got, wantActor)
+	}
+	if got := gotHeaders.Get("X-RenCrow-Client"); got != "RenCrow_PORTAL" {
+		t.Fatalf("CORE client = %q, want RenCrow_PORTAL", got)
+	}
+	if got := gotHeaders.Get("X-RenCrow-Interaction-Profile"); got != "portal-chat" {
+		t.Fatalf("CORE profile = %q, want portal-chat", got)
+	}
+}
+
+func TestPortalTailscaleServeSetsActorOnPageAndAssetResponses(t *testing.T) {
+	const login = "ren@example.com"
+	digest := sha256.Sum256([]byte(login))
+	wantActor := tailscaleActorPrefix + hex.EncodeToString(digest[:])
+	cfg := DefaultConfig()
+	cfg.AuthMode = AuthModeTailscaleServe
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{"/chat", "/assets/portal.js"} {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.Header.Set("Tailscale-User-Login", login)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d", target, rec.Code)
+		}
+		if got := rec.Header().Get("X-RenCrow-Authenticated-Actor"); got != wantActor {
+			t.Fatalf("%s actor = %q, want %q", target, got, wantActor)
+		}
+		if strings.Contains(rec.Header().Get("X-RenCrow-Authenticated-Actor"), login) {
+			t.Fatalf("%s actor must not contain raw login", target)
+		}
+	}
+}
+
+func TestPortalDisabledAuthStripsUntrustedIdentityHeadersBeforeCore(t *testing.T) {
+	var gotHeaders http.Header
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/chat/viewer/send", strings.NewReader(`{"message":"hello"}`))
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("Tailscale-User-Login", "ren@example.com")
+	req.Header.Set("Tailscale-User-Name", "Ren")
+	req.Header.Set("X-RenCrow-Authenticated-Actor", "client-spoof")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", rec.Code)
+	}
+	for name := range gotHeaders {
+		if strings.HasPrefix(strings.ToLower(name), "tailscale-user-") {
+			t.Fatalf("CORE received stripped identity header %q", name)
+		}
+	}
+	if got := gotHeaders.Get("X-RenCrow-Authenticated-Actor"); got != "" {
+		t.Fatalf("disabled auth must not forward spoofed actor, got %q", got)
 	}
 }

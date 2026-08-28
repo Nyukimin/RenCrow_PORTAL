@@ -162,9 +162,23 @@ func isAllowlistedBrowserRunner(value string) bool {
 	}
 }
 
-func runBrowserCheck(_ context.Context, options Options, canonical bool) (Observation, error) {
+func runBrowserCheck(ctx context.Context, options Options, canonical bool) (Observation, error) {
 	if commonArgsOnly(options) {
-		return blockedObservation(browserTarget(canonical), errors.New("authentication_unavailable")), nil
+		requested, err := parseObservedAt(strings.TrimSpace(options.ObservedAt))
+		if err != nil {
+			return blockedObservation(browserTarget(canonical), fmt.Errorf("browser evidence observation time unavailable: %w", err)), nil
+		}
+		evidence, err := liveBrowserEvidenceCollector(ctx, requested)
+		if err != nil {
+			return blockedObservation(browserTarget(canonical), err), nil
+		}
+		discovered := options
+		discovered.PortalURL = firstString(evidence, "portal_url")
+		discovered.BrowserRunner = "chromium"
+		if err := validateBrowserEvidence(evidence, discovered, canonical); err != nil {
+			return blockedObservation(browserTarget(canonical), err), nil
+		}
+		return Observation{Status: StatusPassed, RouteOrTarget: browserTarget(canonical), Evidence: evidence}, nil
 	}
 	if err := browserPrerequisites(options); err != nil {
 		return blockedObservation(browserTarget(canonical), err), nil

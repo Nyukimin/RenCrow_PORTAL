@@ -18,12 +18,21 @@ const (
 	ModeGames    Mode = "games"
 )
 
+// AuthModeはPORTAL入口で利用する認証境界を表す。
+type AuthMode string
+
+const (
+	AuthModeDisabled       AuthMode = "disabled"
+	AuthModeTailscaleServe AuthMode = "tailscale_serve"
+)
+
 // ConfigはPORTALプロセスの設定を表す。
 type Config struct {
-	Listen       string `json:"listen"`
-	CoreURL      string `json:"core_url"`
-	DefaultMode  Mode   `json:"default_mode"`
-	EnabledModes []Mode `json:"enabled_modes"`
+	Listen       string   `json:"listen"`
+	CoreURL      string   `json:"core_url"`
+	AuthMode     AuthMode `json:"auth_mode"`
+	DefaultMode  Mode     `json:"default_mode"`
+	EnabledModes []Mode   `json:"enabled_modes"`
 }
 
 // DefaultConfigは外部へ意図せず公開しない安全な既定値を返す。
@@ -31,6 +40,7 @@ func DefaultConfig() Config {
 	return Config{
 		Listen:       "127.0.0.1:18791",
 		CoreURL:      "http://127.0.0.1:18790",
+		AuthMode:     AuthModeDisabled,
 		DefaultMode:  ModeIdleChat,
 		EnabledModes: []Mode{ModeIdleChat, ModeChat, ModeGames},
 	}
@@ -56,6 +66,9 @@ func LoadConfig(path string) (Config, error) {
 	if value := strings.TrimSpace(os.Getenv("RENCROW_CORE_URL")); value != "" {
 		cfg.CoreURL = value
 	}
+	if value := strings.TrimSpace(os.Getenv("RENCROW_PORTAL_AUTH_MODE")); value != "" {
+		cfg.AuthMode = AuthMode(value)
+	}
 	if value := strings.TrimSpace(os.Getenv("RENCROW_PORTAL_DEFAULT_MODE")); value != "" {
 		cfg.DefaultMode = Mode(value)
 	}
@@ -73,6 +86,13 @@ func (c Config) Validate() error {
 	}
 	if _, _, err := net.SplitHostPort(c.Listen); err != nil {
 		return fmt.Errorf("listenが不正です: %w", err)
+	}
+	authMode, ok := canonicalAuthMode(c.AuthMode)
+	if !ok {
+		return fmt.Errorf("未対応のauth_modeです: %s", c.AuthMode)
+	}
+	if authMode == AuthModeTailscaleServe && !isLoopbackListen(c.Listen) {
+		return fmt.Errorf("auth_mode=tailscale_serveではloopback listenが必要です")
 	}
 	coreURL, err := url.Parse(strings.TrimSpace(c.CoreURL))
 	if err != nil || (coreURL.Scheme != "http" && coreURL.Scheme != "https") || coreURL.Host == "" || coreURL.User != nil {
@@ -114,6 +134,9 @@ func (c Config) modeEnabled(mode Mode) bool {
 }
 
 func (c Config) normalized() Config {
+	if authMode, ok := canonicalAuthMode(c.AuthMode); ok {
+		c.AuthMode = authMode
+	}
 	if mode, ok := canonicalMode(c.DefaultMode); ok {
 		c.DefaultMode = mode
 	}
@@ -133,6 +156,29 @@ func (c Config) normalized() Config {
 	}
 	c.EnabledModes = modes
 	return c
+}
+
+func canonicalAuthMode(mode AuthMode) (AuthMode, bool) {
+	switch strings.ToLower(strings.TrimSpace(string(mode))) {
+	case string(AuthModeDisabled):
+		return AuthModeDisabled, true
+	case string(AuthModeTailscaleServe):
+		return AuthModeTailscaleServe, true
+	default:
+		return "", false
+	}
+}
+
+func isLoopbackListen(listen string) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(listen))
+	if err != nil || host == "" {
+		return false
+	}
+	if zone := strings.LastIndexByte(host, '%'); zone >= 0 {
+		host = host[:zone]
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func canonicalMode(mode Mode) (Mode, bool) {

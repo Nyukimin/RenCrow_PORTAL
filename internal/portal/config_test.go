@@ -17,6 +17,9 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	if cfg.CoreURL != "http://127.0.0.1:18790" {
 		t.Fatalf("CoreURL = %q", cfg.CoreURL)
 	}
+	if cfg.AuthMode != AuthModeDisabled {
+		t.Fatalf("AuthMode = %q, want %q", cfg.AuthMode, AuthModeDisabled)
+	}
 	if cfg.DefaultMode != Mode("idlechat") {
 		t.Fatalf("DefaultMode = %q", cfg.DefaultMode)
 	}
@@ -28,6 +31,51 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	}
 	if !cfg.modeEnabled(ModeGames) {
 		t.Fatal("Games mode should be enabled by default")
+	}
+}
+
+func TestLoadConfigReadsTailscaleServeAuthMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "portal.json")
+	data := []byte(`{"listen":"127.0.0.1:18791","core_url":"http://127.0.0.1:18790","auth_mode":"tailscale_serve","default_mode":"IdleChat","enabled_modes":["IdleChat","Chat","Games"]}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.AuthMode != AuthModeTailscaleServe {
+		t.Fatalf("AuthMode = %q, want %q", cfg.AuthMode, AuthModeTailscaleServe)
+	}
+}
+
+func TestConfigTailscaleServeRequiresLoopbackListen(t *testing.T) {
+	for _, listen := range []string{"0.0.0.0:18791", "[::]:18791", "localhost:18791"} {
+		cfg := DefaultConfig()
+		cfg.AuthMode = AuthModeTailscaleServe
+		cfg.Listen = listen
+		if err := cfg.Validate(); err == nil {
+			t.Fatalf("Validate() should reject non-loopback listen %q", listen)
+		}
+	}
+
+	for _, listen := range []string{"127.0.0.1:18791", "[::1]:18791"} {
+		cfg := DefaultConfig()
+		cfg.AuthMode = AuthModeTailscaleServe
+		cfg.Listen = listen
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() rejected loopback listen %q: %v", listen, err)
+		}
+	}
+}
+
+func TestConfigRejectsUnsupportedAuthModes(t *testing.T) {
+	for _, mode := range []AuthMode{"", "basic", "tailscale"} {
+		cfg := DefaultConfig()
+		cfg.AuthMode = mode
+		if err := cfg.Validate(); err == nil {
+			t.Fatalf("Validate() should reject auth mode %q", mode)
+		}
 	}
 }
 

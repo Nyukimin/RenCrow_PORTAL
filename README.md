@@ -136,8 +136,9 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
 - Chat会話欄は`message.received`、利用者向け`agent.response`、公開対象の`agent.progress`／`agent.acknowledge`を表示し、IdleChat会話欄は`idlechat.message`だけを表示してmode間で混在させない。`message_id`をSSE再接続時の重複排除へ使い、`agent.thinking`やrouting／worker eventは会話本文として残さない
-- `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。現行は認証UIを持たないため`user_id=viewer-user`、`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
+- `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。`user_id=viewer-user`は観測用metadataであり認証主体ではない。`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
 - PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat | portal-games`を付ける。profileは能力policyであり認証credentialではない
+- `auth_mode=tailscale_serve`では、loopbackで待ち受け、Tailscale Serveが付与する固定`Tailscale-User-Login`をPORTAL入口で検証する。page、asset、API、Gamesは未認証を401で拒否し、healthだけを公開する。raw loginとTailscale identity headerはCOREへ渡さず、PORTALが生成した`tailscale-sha256:<digest>`だけを`X-RenCrow-Authenticated-Actor`として上書きする
 - Gamesはstatus、sessions、events、Observer、launch、sessionのRetry／Start overだけを許可する。`/viewer/games/decision`、`/viewer/games/result`、Observerのlaunch／frame／summary ingestは中継しない
 - Games画面は`/viewer/games/observer`を同一origin iframeへ表示する。Observer responseだけを`SAMEORIGIN`とし、PORTAL pageとPuruPuru assetは引き続きframe不可とする
 - Observerの動的style属性はObserver responseの`style-src`だけで許可し、inline scriptは許可しない。PORTAL本体のCSPへ`unsafe-inline`を追加しない
@@ -204,11 +205,14 @@ cp portal.example.json portal.json
 ```text
 RENCROW_PORTAL_LISTEN
 RENCROW_CORE_URL
+RENCROW_PORTAL_AUTH_MODE
 RENCROW_PORTAL_DEFAULT_MODE
 RENCROW_PORTAL_CONFIG
 ```
 
-外部公開時はPORTALの前段に認証済みリバースプロキシまたはTailscale Serveを置いてください。既定では安全側としてloopbackだけで待ち受けます。
+`auth_mode`は`disabled | tailscale_serve`です。既定はlocal開発互換の`disabled`ですが、外部向け正規構成は
+PORTALをloopbackだけで待ち受けさせ、tailnet-onlyのTailscale Serveを前段に置き、
+`auth_mode=tailscale_serve`を明示します。FunnelやPORTALの直接network bindをこの認証契約の代用にしません。
 
 通常のDebug ViewerはCOREの`/viewer`に残ります。外部利用者向けViewerはPORTALが所有し、次の3 URLを公開します。
 
