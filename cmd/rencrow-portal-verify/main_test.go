@@ -12,6 +12,10 @@ import (
 )
 
 func TestMainEmitsBlockedReceiptWhenBrowserPrerequisitesAreMissing(t *testing.T) {
+	// Keep this failure-path test independent from the developer machine's
+	// installed Tailscale and browser runtime.
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 	manifest := writeManifest(t, "portal_browser_proxy_e2e", "portal-browser-proxy-e2e")
 	evidenceDir := t.TempDir()
 	var stdout, stderr bytes.Buffer

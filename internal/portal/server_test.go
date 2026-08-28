@@ -1547,6 +1547,9 @@ func TestPortalTailscaleServeExposesBoundedActorAndSanitizesProxyHeaders(t *test
 	if got := rec.Header().Get("X-RenCrow-Authenticated-Actor"); got != wantActor {
 		t.Fatalf("response actor = %q, want %q", got, wantActor)
 	}
+	if got := rec.Header().Values("X-RenCrow-Authenticated-Actor"); len(got) != 1 {
+		t.Fatalf("response actor header count = %d, want 1: %#v", len(got), got)
+	}
 	if strings.Contains(rec.Header().Get("X-RenCrow-Authenticated-Actor"), login) {
 		t.Fatal("response actor must not contain the raw login")
 	}

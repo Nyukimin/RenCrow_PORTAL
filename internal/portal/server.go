@@ -119,6 +119,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		r = authenticatedRequest
+		if !isPortalProxyPath(r.URL.Path) {
+			if actor, ok := authenticatedActorFromContext(r.Context()); ok {
+				w.Header().Set(authenticatedActorHeader, actor)
+			}
+		}
 	}
 	switch {
 	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat" || r.URL.Path == "/games":
@@ -139,6 +144,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func isPortalProxyPath(path string) bool {
+	return strings.HasPrefix(path, "/api/") ||
+		path == "/viewer/games/observer" ||
+		strings.HasPrefix(path, "/viewer/games/observer-api/")
 }
 
 func isProtectedPortalPath(path string) bool {
@@ -162,7 +173,6 @@ func (h *handler) authorizePortalRequest(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "authentication required", http.StatusUnauthorized)
 		return nil, false
 	}
-	w.Header().Set(authenticatedActorHeader, actor)
 	return r.WithContext(context.WithValue(r.Context(), authenticatedActorContextKey{}, actor)), true
 }
 
