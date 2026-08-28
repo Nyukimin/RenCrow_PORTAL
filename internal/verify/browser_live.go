@@ -19,6 +19,7 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/kb"
 )
 
 const (
@@ -234,7 +235,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		chromedp.Click(`#roomMioChip`, chromedp.ByQuery),
 		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond)),
 		chromedp.SetValue(`#roomInput`, prompt, chromedp.ByQuery),
-		chromedp.KeyEvent("\r"),
+		chromedp.SendKeys(`#roomInput`, kb.Enter, chromedp.ByQuery),
 	); err != nil {
 		return nil, fmt.Errorf("published Portal browser interaction failed: %w", err)
 	}
@@ -265,7 +266,11 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 
 	var responseBody []byte
 	for attempts := 0; attempts < 20; attempts++ {
-		responseBody, err = network.GetResponseBody(capture.RequestID).Do(browser)
+		err = chromedp.Run(browser, chromedp.ActionFunc(func(actionContext context.Context) error {
+			var bodyErr error
+			responseBody, bodyErr = network.GetResponseBody(capture.RequestID).Do(actionContext)
+			return bodyErr
+		}))
 		if err == nil {
 			break
 		}
