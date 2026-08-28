@@ -155,12 +155,23 @@ type capturedBrowserResponse struct {
 	Status    int64
 }
 
-func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time) (map[string]any, error) {
+func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, publishedURL string) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(parent, browserRunTimeout)
 	defer cancel()
-	route, err := discoverPublishedPortal(ctx)
-	if err != nil {
-		return nil, err
+	var route tailscaleServeRoute
+	preferred := strings.TrimRight(strings.TrimSpace(publishedURL), "/")
+	if strings.HasPrefix(preferred, "https://") {
+		parsed, err := validatePortalURL(preferred)
+		if err != nil || !strings.HasSuffix(strings.ToLower(parsed.Hostname()), ".ts.net") {
+			return nil, errors.New("published Portal URL must be an HTTPS Tailscale Serve origin")
+		}
+		route = tailscaleServeRoute{Origin: preferred, Proxy: portalProxyURL}
+	} else {
+		var err error
+		route, err = discoverPublishedPortal(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	tagged, err := localTailscaleSourceIsTagged(ctx)
 	if err != nil {

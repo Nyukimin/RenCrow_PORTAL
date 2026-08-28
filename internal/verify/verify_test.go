@@ -129,7 +129,7 @@ func TestRunBrowserProxyRequiresExplicitAuthAndBrowserEvidence(t *testing.T) {
 
 func TestCommonArgsBrowserChecksUseOwnerSelfCollection(t *testing.T) {
 	originalCollector := liveBrowserEvidenceCollector
-	liveBrowserEvidenceCollector = func(context.Context, time.Time) (map[string]any, error) {
+	liveBrowserEvidenceCollector = func(context.Context, time.Time, string) (map[string]any, error) {
 		return nil, errors.New("owner self collection invoked")
 	}
 	defer func() { liveBrowserEvidenceCollector = originalCollector }()
