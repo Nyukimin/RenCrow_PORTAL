@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "purpose": "operational_status",
   "phase": "runtime",
   "checks": [
@@ -15,7 +15,15 @@
       "cost": "low",
       "safety_gate": false,
       "coverage": ["readiness"],
-      "executor": {"kind": "owner_cli", "command_id": "portal-readiness"},
+      "executor": {
+        "kind": "owner_cli",
+        "command_id": "portal-readiness",
+        "acquisition": {
+          "mode": "owner_self_collect",
+          "verification_safe": false,
+          "inputs": [{"id": "health_route", "class": "discoverable", "required": true, "source": "owner_operations_api"}]
+        }
+      },
       "receipt_schema": "rencrow.check-receipt.v1",
       "surfaces": ["browser_ui", "route_security_exposure", "lifecycle_resources"]
     },
@@ -29,9 +37,20 @@
       "consumer": "diagnostic browser proxy acceptance",
       "failure_action": "notify",
       "cost": "high",
-      "safety_gate": false,
+      "safety_gate": true,
       "coverage": ["canonical_e2e"],
-      "executor": {"kind": "owner_cli", "command_id": "portal-browser-proxy-e2e"},
+      "executor": {
+        "kind": "owner_cli",
+        "command_id": "portal-browser-proxy-e2e",
+        "acquisition": {
+          "mode": "owner_self_collect",
+          "verification_safe": true,
+          "inputs": [
+            {"id": "browser_scenario", "class": "verification_fixture", "required": true, "source": "owner_fixed_fixture"},
+            {"id": "canonical_auth", "class": "credential_reference", "required": true, "source": "owner_active_config"}
+          ]
+        }
+      },
       "receipt_schema": "rencrow.check-receipt.v1"
     },
     {
@@ -46,7 +65,19 @@
       "cost": "high",
       "safety_gate": false,
       "coverage": ["source_identity", "artifact_identity", "publication"],
-      "executor": {"kind": "owner_cli", "command_id": "portal-deploy-identity-chain"},
+      "executor": {
+        "kind": "owner_cli",
+        "command_id": "portal-deploy-identity-chain",
+        "acquisition": {
+          "mode": "owner_self_collect",
+          "verification_safe": false,
+          "inputs": [
+            {"id": "source_identity", "class": "discoverable", "required": true, "source": "ecosystem_catalog"},
+            {"id": "artifact_identity", "class": "discoverable", "required": true, "source": "owner_active_config"},
+            {"id": "publication_identity", "class": "discoverable", "required": true, "source": "owner_service_manager"}
+          ]
+        }
+      },
       "receipt_schema": "rencrow.check-receipt.v1",
       "surfaces": ["browser_ui", "lifecycle_resources", "publication"]
     },
@@ -62,7 +93,19 @@
       "cost": "high",
       "safety_gate": true,
       "coverage": ["runtime_identity", "lifecycle", "security_exposure"],
-      "executor": {"kind": "owner_cli", "command_id": "portal-runtime-identity-lifecycle-security"},
+      "executor": {
+        "kind": "owner_cli",
+        "command_id": "portal-runtime-identity-lifecycle-security",
+        "acquisition": {
+          "mode": "owner_self_collect",
+          "verification_safe": false,
+          "inputs": [
+            {"id": "active_config", "class": "discoverable", "required": true, "source": "owner_active_config"},
+            {"id": "service", "class": "discoverable", "required": true, "source": "owner_service_manager"},
+            {"id": "proxy_route", "class": "discoverable", "required": true, "source": "owner_operations_api"}
+          ]
+        }
+      },
       "receipt_schema": "rencrow.check-receipt.v1",
       "surfaces": ["browser_ui", "route_security_exposure", "lifecycle_resources", "publication"]
     },
@@ -76,9 +119,20 @@
       "consumer": "PORTAL canonical browser acceptance",
       "failure_action": "blocked",
       "cost": "high",
-      "safety_gate": false,
+      "safety_gate": true,
       "coverage": ["canonical_e2e", "actor_result", "receipt_trace"],
-      "executor": {"kind": "owner_cli", "command_id": "portal-canonical-actor-e2e"},
+      "executor": {
+        "kind": "owner_cli",
+        "command_id": "portal-canonical-actor-e2e",
+        "acquisition": {
+          "mode": "owner_self_collect",
+          "verification_safe": true,
+          "inputs": [
+            {"id": "browser_scenario", "class": "verification_fixture", "required": true, "source": "owner_fixed_fixture"},
+            {"id": "canonical_auth", "class": "credential_reference", "required": true, "source": "owner_active_config"}
+          ]
+        }
+      },
       "receipt_schema": "rencrow.check-receipt.v1",
       "surfaces": ["browser_ui", "route_security_exposure", "lifecycle_resources", "publication"]
     }

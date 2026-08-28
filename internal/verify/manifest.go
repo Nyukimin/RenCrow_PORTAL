@@ -15,6 +15,8 @@ var errUTCRequired = errors.New("observed-at must be RFC3339 UTC")
 
 var stableVerifierID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 
+const maxManifestInputs = 32
+
 type ownerManifest struct {
 	SchemaVersion int             `json:"schema_version"`
 	Purpose       string          `json:"purpose"`
@@ -42,8 +44,22 @@ type manifestCheck struct {
 }
 
 type manifestExecutor struct {
-	Kind      string `json:"kind"`
-	CommandID string `json:"command_id"`
+	Kind        string               `json:"kind"`
+	CommandID   string               `json:"command_id"`
+	Acquisition *manifestAcquisition `json:"acquisition"`
+}
+
+type manifestAcquisition struct {
+	Mode             string          `json:"mode"`
+	VerificationSafe *bool           `json:"verification_safe"`
+	Inputs           []manifestInput `json:"inputs"`
+}
+
+type manifestInput struct {
+	ID       string `json:"id"`
+	Class    string `json:"class"`
+	Required *bool  `json:"required"`
+	Source   string `json:"source"`
 }
 
 // commandForCheck is the verifier's fixed allowlist.  It is deliberately
@@ -70,8 +86,8 @@ func readOwnerManifest(path string) (ownerManifest, error) {
 	if err := decodeStrict(data, &manifest); err != nil {
 		return ownerManifest{}, fmt.Errorf("decode manifest: %w", err)
 	}
-	if manifest.SchemaVersion != 2 {
-		return ownerManifest{}, fmt.Errorf("manifest schema_version must be 2, got %d", manifest.SchemaVersion)
+	if manifest.SchemaVersion != 3 {
+		return ownerManifest{}, fmt.Errorf("manifest schema_version must be 3, got %d", manifest.SchemaVersion)
 	}
 	if strings.TrimSpace(manifest.Purpose) == "" || strings.TrimSpace(manifest.Phase) == "" {
 		return ownerManifest{}, errors.New("manifest purpose and phase are required")
@@ -129,6 +145,9 @@ func validateManifestCheck(check manifestCheck) error {
 	if !stableVerifierID.MatchString(check.Executor.CommandID) {
 		return errors.New("executor.command_id must be a stable identifier")
 	}
+	if err := validateManifestAcquisition(check); err != nil {
+		return err
+	}
 	wantCommand, ok := commandForCheck[check.CheckID]
 	if !ok {
 		return fmt.Errorf("check_id %q is not implemented by this verifier", check.CheckID)
@@ -147,6 +166,49 @@ func validateManifestCheck(check manifestCheck) error {
 	for _, value := range check.Surfaces {
 		if strings.TrimSpace(value) == "" {
 			return errors.New("surfaces entries must not be empty")
+		}
+	}
+	return nil
+}
+
+func validateManifestAcquisition(check manifestCheck) error {
+	acquisition := check.Executor.Acquisition
+	if acquisition == nil {
+		return errors.New("executor.acquisition is required")
+	}
+	if acquisition.Mode != "owner_self_collect" {
+		return fmt.Errorf("executor.acquisition.mode must be owner_self_collect, got %q", acquisition.Mode)
+	}
+	if acquisition.VerificationSafe == nil {
+		return errors.New("executor.acquisition.verification_safe is required")
+	}
+	if *acquisition.VerificationSafe && !check.SafetyGate {
+		return errors.New("executor.acquisition.verification_safe=true requires safety_gate=true")
+	}
+	if len(acquisition.Inputs) == 0 || len(acquisition.Inputs) > maxManifestInputs {
+		return fmt.Errorf("executor.acquisition.inputs must contain 1..%d entries", maxManifestInputs)
+	}
+	seen := make(map[string]struct{}, len(acquisition.Inputs))
+	for index, input := range acquisition.Inputs {
+		if !stableVerifierID.MatchString(input.ID) {
+			return fmt.Errorf("executor.acquisition.inputs[%d].id must be a stable identifier", index)
+		}
+		if _, exists := seen[input.ID]; exists {
+			return fmt.Errorf("executor.acquisition.inputs contains duplicate id %q", input.ID)
+		}
+		seen[input.ID] = struct{}{}
+		if input.Required == nil {
+			return fmt.Errorf("executor.acquisition.inputs[%d].required is required", index)
+		}
+		switch input.Class {
+		case "discoverable", "credential_reference", "verification_fixture", "external_prerequisite":
+		default:
+			return fmt.Errorf("executor.acquisition.inputs[%d].class is invalid", index)
+		}
+		switch input.Source {
+		case "ecosystem_catalog", "owner_active_config", "owner_service_manager", "owner_operations_api", "owner_fixed_fixture", "owner_external_artifact":
+		default:
+			return fmt.Errorf("executor.acquisition.inputs[%d].source is invalid", index)
 		}
 	}
 	return nil

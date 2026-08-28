@@ -44,7 +44,7 @@ func TestMainRejectsMalformedInvocationWithoutReceipt(t *testing.T) {
 func writeManifest(t *testing.T, checkID, commandID string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "runtime.json")
-	data := `{"schema_version":2,"purpose":"operational_status","phase":"runtime","checks":[{"check_id":"` + checkID + `","guarantee_id":"guarantee-` + checkID + `","owner":"RenCrow_PORTAL","purpose":"test","target":"test","phase":"runtime","consumer":"test","failure_action":"blocked","cost":"low","safety_gate":false,"coverage":["readiness"],"executor":{"kind":"owner_cli","command_id":"` + commandID + `"},"receipt_schema":"rencrow.check-receipt.v1"}]}`
+	data := `{"schema_version":3,"purpose":"operational_status","phase":"runtime","checks":[{"check_id":"` + checkID + `","guarantee_id":"guarantee-` + checkID + `","owner":"RenCrow_PORTAL","purpose":"test","target":"test","phase":"runtime","consumer":"test","failure_action":"blocked","cost":"low","safety_gate":true,"coverage":["readiness"],"executor":{"kind":"owner_cli","command_id":"` + commandID + `","acquisition":{"mode":"owner_self_collect","verification_safe":true,"inputs":[{"id":"fixture","class":"verification_fixture","required":true,"source":"owner_fixed_fixture"}]}},"receipt_schema":"rencrow.check-receipt.v1"}]}`
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
