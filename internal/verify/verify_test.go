@@ -127,6 +127,24 @@ func TestRunBrowserProxyRequiresExplicitAuthAndBrowserEvidence(t *testing.T) {
 	}
 }
 
+func TestCommonArgsBrowserChecksExposeAuthenticationBoundary(t *testing.T) {
+	for _, tc := range []struct{ checkID, command string }{
+		{"portal_browser_proxy_e2e", "portal-browser-proxy-e2e"},
+		{"portal_canonical_actor_e2e", "portal-canonical-actor-e2e"},
+	} {
+		receipt, err := Run(context.Background(), Options{
+			ManifestPath: writeManifest(t, tc.checkID, tc.command), CheckID: tc.checkID,
+			ObservedAt: testObservedAt, EvidenceDir: t.TempDir(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if receipt.Status != StatusBlocked || receipt.FailureBoundary != "authentication_unavailable" {
+			t.Fatalf("%s receipt=%+v", tc.checkID, receipt)
+		}
+	}
+}
+
 func TestRunBrowserProxyRequiresPortalAllowlistedRoute(t *testing.T) {
 	dir := t.TempDir()
 	evidencePath := filepath.Join(dir, "browser.json")

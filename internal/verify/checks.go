@@ -163,6 +163,9 @@ func isAllowlistedBrowserRunner(value string) bool {
 }
 
 func runBrowserCheck(_ context.Context, options Options, canonical bool) (Observation, error) {
+	if commonArgsOnly(options) {
+		return blockedObservation(browserTarget(canonical), errors.New("authentication_unavailable")), nil
+	}
 	if err := browserPrerequisites(options); err != nil {
 		return blockedObservation(browserTarget(canonical), err), nil
 	}
@@ -178,6 +181,15 @@ func runBrowserCheck(_ context.Context, options Options, canonical bool) (Observ
 		return blockedObservation(browserTarget(canonical), err), nil
 	}
 	return Observation{Status: StatusPassed, RouteOrTarget: browserTarget(canonical), Evidence: object}, nil
+}
+
+func commonArgsOnly(options Options) bool {
+	return strings.TrimSpace(options.BrowserEvidence) == "" &&
+		strings.TrimSpace(options.BrowserRunner) == "" &&
+		strings.TrimSpace(options.BrowserName) == "" &&
+		strings.TrimSpace(options.BrowserPlatform) == "" &&
+		strings.TrimSpace(options.Auth.HeaderName) == "" &&
+		strings.TrimSpace(options.Auth.HeaderValue) == ""
 }
 
 func browserTarget(canonical bool) string {

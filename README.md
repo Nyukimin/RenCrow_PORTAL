@@ -230,6 +230,9 @@ Linux／macOSでは`go test ./...`で振る舞いを検証します。ローカ�
 
 Push済みcommitのUbuntu testとWindows build/vetは次のscriptから起動・確認します。
 
+Full-system owner Evidenceの取得境界とfail-closed規則は
+[`docs/調査/owner-evidence-self-collection.md`](docs/調査/owner-evidence-self-collection.md)を参照してください。
+
 ```powershell
 .\scripts\test-github-ci.ps1
 ```
