@@ -403,6 +403,9 @@ func looksLikeTestDouble(value string) bool {
 
 func runDeployIdentity(_ context.Context, input DeployIdentityInput) (Observation, error) {
 	if strings.TrimSpace(input.SourceEvidence) == "" || strings.TrimSpace(input.ArtifactEvidence) == "" || strings.TrimSpace(input.PublicationEvidence) == "" {
+		if input.SourceEvidence == "" && input.ArtifactEvidence == "" && input.PublicationEvidence == "" {
+			return discoverPortalDeployIdentity(input.ObservedAt)
+		}
 		return blockedObservation(deployTarget, errors.New("source, artifact, and publication evidence are all required")), nil
 	}
 	if input.ObservedAt.IsZero() {

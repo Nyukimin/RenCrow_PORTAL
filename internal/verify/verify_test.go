@@ -308,6 +308,16 @@ func TestRunDeployIdentityChainChecksDigestsAndSourceRevision(t *testing.T) {
 	assertEvidenceRefsExist(t, dir, receipt.EvidenceRefs)
 }
 
+func TestLoadPortalCatalogIdentity(t *testing.T) {
+	revision := strings.Repeat("a", 40)
+	path := filepath.Join(t.TempDir(), "ecosystem.yaml")
+	writeJSON(t, path, map[string]any{"components": map[string]any{"portal": map[string]any{"repository": "Nyukimin/RenCrow_PORTAL", "workspace_path": "./RenCrow_PORTAL", "version": revision}}})
+	workspace, gotRevision, err := loadPortalCatalogIdentity(path)
+	if err != nil || workspace != "./RenCrow_PORTAL" || gotRevision != revision {
+		t.Fatalf("identity=(%q,%q,%v)", workspace, gotRevision, err)
+	}
+}
+
 func TestRunDeployIdentityEvidenceFreshnessWindow(t *testing.T) {
 	requested, err := time.Parse(time.RFC3339Nano, testObservedAt)
 	if err != nil {
