@@ -45,7 +45,7 @@ type tailscaleServeStatus struct {
 }
 
 func discoverPublishedPortal(ctx context.Context) (tailscaleServeRoute, error) {
-	tailscale, err := exec.LookPath("tailscale")
+	tailscale, err := discoverTailscaleCLI()
 	if err != nil {
 		return tailscaleServeRoute{}, errors.New(browserPrerequisiteError("tailscale CLI"))
 	}
@@ -95,6 +95,13 @@ func discoverChromium() (string, error) {
 	if home, err := os.UserHomeDir(); err == nil {
 		patterns = append(patterns, chromiumCandidates(filepath.Join(home, ".cache", "ms-playwright"))...)
 		patterns = append(patterns, filepath.Join(home, "Library", "Caches", "ms-playwright", "chromium-*", "chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"))
+	}
+	if runtime.GOOS == "darwin" {
+		patterns = append(patterns,
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+			"/Applications/Chromium.app/Contents/MacOS/Chromium",
+		)
 	}
 	if localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); localAppData != "" {
 		patterns = append(patterns, chromiumCandidates(filepath.Join(localAppData, "ms-playwright"))...)
@@ -290,7 +297,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time) (m
 }
 
 func localTailscaleSourceIsTagged(ctx context.Context) (bool, error) {
-	tailscale, err := exec.LookPath("tailscale")
+	tailscale, err := discoverTailscaleCLI()
 	if err != nil {
 		return false, errors.New(browserPrerequisiteError("tailscale CLI"))
 	}
@@ -307,4 +314,17 @@ func localTailscaleSourceIsTagged(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("decode tailscale node identity: %w", err)
 	}
 	return len(status.Self.Tags) > 0, nil
+}
+
+func discoverTailscaleCLI() (string, error) {
+	if path, err := exec.LookPath("tailscale"); err == nil {
+		return path, nil
+	}
+	if runtime.GOOS == "darwin" {
+		const appCLI = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+		if info, err := os.Stat(appCLI); err == nil && !info.IsDir() {
+			return appCLI, nil
+		}
+	}
+	return "", errors.New(browserPrerequisiteError("tailscale CLI"))
 }

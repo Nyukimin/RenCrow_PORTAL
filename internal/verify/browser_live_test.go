@@ -64,6 +64,15 @@ func TestBrowserPlatformEvidenceUsesRuntimePlatform(t *testing.T) {
 	}
 }
 
+func TestChromiumCandidatesArePlatformPortable(t *testing.T) {
+	joined := strings.Join(chromiumCandidates("cache"), "\n")
+	for _, expected := range []string{"chrome-linux", "chrome-win", "chrome.exe"} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("Chromium candidates are missing %q", expected)
+		}
+	}
+}
+
 func TestBrowserLiveFailureBoundaryIsPrecise(t *testing.T) {
 	for _, want := range []string{"tailscale", "chromium", "Portal"} {
 		if !strings.Contains(strings.ToLower(browserPrerequisiteError(want)), strings.ToLower(want)) {
