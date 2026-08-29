@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 const remoteBrowserConfigRelative = ".config/rencrow/portal/browser-verifier.json"
 
 var remoteBrowserUserPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+var remoteBrowserCommandContext = exec.CommandContext
 
 type remoteBrowserConfig struct {
 	Host             string `json:"host"`
@@ -47,16 +49,29 @@ func collectRemoteBrowserEvidence(ctx context.Context, observedAt time.Time, che
 		config.BrowserDirectory, config.VerifierPath, config.ManifestPath, checkID,
 		observedAt.UTC().Format(time.RFC3339Nano), config.EvidenceDir, config.PortalURL,
 	)
-	output, err := exec.CommandContext(ctx, ssh,
+	command := remoteBrowserCommandContext(ctx, ssh,
 		"-i", config.IdentityFile, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
 		"-o", "ConnectTimeout=8", target, remoteCommand,
-	).Output()
-	if err != nil {
-		return nil, fmt.Errorf("remote browser verifier failed: %w", err)
-	}
+	)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	commandErr := command.Run()
+	output := stdout.Bytes()
 	var receipt Receipt
-	if err := json.Unmarshal(output, &receipt); err != nil {
-		return nil, fmt.Errorf("decode remote browser receipt: %w", err)
+	receiptErr := json.Unmarshal(output, &receipt)
+	if commandErr != nil {
+		if receiptErr == nil && receipt.CheckID == checkID {
+			if receipt.Status != StatusPassed {
+				return nil, fmt.Errorf("remote browser verifier returned %s: %s", receipt.Status, receipt.FailureBoundary)
+			}
+			return nil, fmt.Errorf("remote browser verifier process failed after passed receipt: %w", commandErr)
+		}
+		return nil, fmt.Errorf("remote browser verifier failed: %w", commandErr)
+	}
+	if receiptErr != nil {
+		return nil, fmt.Errorf("decode remote browser receipt: %w", receiptErr)
 	}
 	if receipt.CheckID != checkID || receipt.Status != StatusPassed || len(receipt.EvidenceRefs) != 1 {
 		return nil, fmt.Errorf("remote browser verifier returned %s: %s", receipt.Status, receipt.FailureBoundary)
@@ -70,7 +85,7 @@ func collectRemoteBrowserEvidence(ctx context.Context, observedAt time.Time, che
 		return nil, errors.New("remote browser Evidence reference is invalid")
 	}
 	evidencePath := strings.TrimRight(config.EvidenceDir, `\/`) + `\` + name
-	evidenceOutput, err := exec.CommandContext(ctx, ssh,
+	evidenceOutput, err := remoteBrowserCommandContext(ctx, ssh,
 		"-i", config.IdentityFile, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
 		"-o", "ConnectTimeout=8", target, "cmd.exe /d /c type "+evidencePath,
 	).Output()

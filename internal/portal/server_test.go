@@ -1301,6 +1301,24 @@ func TestPortalChatGuardsRecipientUntilMatchingResponse(t *testing.T) {
 	}
 }
 
+func TestPortalChatRendersBoundedEventCorrelationMetadata(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	for _, marker := range []string{
+		`function boundedEventAttribute`,
+		`row.dataset.jobId = boundedEventAttribute(event.job_id);`,
+		`row.dataset.eventType = boundedEventAttribute(event.type);`,
+		`row.dataset.actor = actor;`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("PORTAL event correlation marker %q is missing", marker)
+		}
+	}
+}
+
 func TestPortalChatRejectsCrossOriginWrite(t *testing.T) {
 	var calls atomic.Int32
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

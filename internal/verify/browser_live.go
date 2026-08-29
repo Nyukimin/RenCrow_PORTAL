@@ -23,11 +23,21 @@ import (
 )
 
 const (
-	portalProxyURL        = "http://127.0.0.1:18791"
-	tailscaleActorPrefix  = "tailscale-sha256:"
-	browserRunTimeout     = 5 * time.Minute
-	taggedBrowserBoundary = "external_untagged_browser_prerequisite_absent"
-	mioReadyExpression    = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
+	portalProxyURL                  = "http://127.0.0.1:18791"
+	tailscaleActorPrefix            = "tailscale-sha256:"
+	browserRunTimeout               = 5 * time.Minute
+	taggedBrowserBoundary           = "external_untagged_browser_prerequisite_absent"
+	mioReadyExpression              = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
+	portalAgentResponsePageFunction = `function(jobID) {
+  const items = document.querySelectorAll('#chat article');
+  for (const item of items) {
+    if (item.getAttribute('data-job-id') !== String(jobID)) continue;
+    if (item.getAttribute('data-event-type') !== 'agent.response') continue;
+    const text = item.innerText.trim();
+    if (text) return text;
+  }
+  return false;
+}`
 )
 
 var liveBrowserEvidenceCollector = collectLiveBrowserEvidence
@@ -215,7 +225,6 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	})
 
 	prompt := fmt.Sprintf("PORTAL E2E %s: Mio、短く『PORTAL確認完了』と返答して。", observedAt.UTC().Format("20060102T150405.000000000Z"))
-	var initialArticles int64
 	if err := chromedp.Run(browser,
 		network.Enable(),
 		chromedp.Navigate(route.Origin+"/?mode=Chat"),
@@ -231,7 +240,6 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	if err := chromedp.Run(browser,
 		chromedp.WaitVisible(`#roomInput`, chromedp.ByQuery),
 		chromedp.Evaluate(`localStorage.setItem('rencrow.portal.ttsPreference','off')`, nil),
-		chromedp.Evaluate(`document.querySelectorAll('#chat article').length`, &initialArticles),
 		chromedp.Click(`#roomMioChip`, chromedp.ByQuery),
 		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond)),
 		chromedp.SetValue(`#roomInput`, prompt, chromedp.ByQuery),
@@ -289,12 +297,10 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	}
 
 	var visibleText string
-	waitExpression := fmt.Sprintf(`document.querySelectorAll('#chat article').length > %d && document.getElementById('operationStatus').textContent.includes('応答を受信しました')`, initialArticles)
 	responseContext, cancelResponse := context.WithTimeout(browser, 4*time.Minute)
 	defer cancelResponse()
 	if err := chromedp.Run(responseContext,
-		chromedp.Poll(waitExpression, nil, chromedp.WithPollingInterval(500*time.Millisecond)),
-		chromedp.Evaluate(`(() => { const items = document.querySelectorAll('#chat article'); return items.length ? items[items.length - 1].innerText.trim() : ''; })()`, &visibleText),
+		chromedp.PollFunction(portalAgentResponsePageFunction, &visibleText, chromedp.WithPollingArgs(jobID), chromedp.WithPollingInterval(500*time.Millisecond), chromedp.WithPollingTimeout(4*time.Minute)),
 	); err != nil {
 		return nil, fmt.Errorf("real CORE Agent response was not rendered by Portal: %w", err)
 	}

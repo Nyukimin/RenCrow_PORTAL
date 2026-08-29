@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -16,6 +17,25 @@ func TestBrowserWaitsForMioSwitchBeforeSending(t *testing.T) {
 	for _, required := range []string{"roomMioChip", "aria-pressed", "roomInput", "disabled"} {
 		if !strings.Contains(mioReadyExpression, required) {
 			t.Fatalf("Mio readiness expression is missing %q", required)
+		}
+	}
+}
+
+func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
+	source, err := os.ReadFile("browser_live.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(source)
+	for _, required := range []string{
+		`portalAgentResponsePageFunction =`,
+		`getAttribute('data-job-id') !== String(jobID)`,
+		`getAttribute('data-event-type') !== 'agent.response'`,
+		`chromedp.PollFunction(portalAgentResponsePageFunction`,
+		`chromedp.WithPollingArgs(jobID)`,
+	} {
+		if !strings.Contains(body, required) {
+			t.Errorf("browser exact job/type correlation marker %q is missing", required)
 		}
 	}
 }

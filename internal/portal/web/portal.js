@@ -452,6 +452,12 @@
     window.setTimeout(() => target.classList.remove('is-speaking'), 1300);
   }
 
+  function boundedEventAttribute(value) {
+    const text = String(value || '').trim();
+    if (!text || text.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(text)) return '';
+    return text;
+  }
+
   function renderEvent(event) {
     if (!shouldRenderEvent(event)) return;
     const key = eventKey(event);
@@ -465,6 +471,9 @@
 
     const row = document.createElement('article');
     row.className = `msg${actor === 'shiro' ? ' shiro' : ''}`;
+    row.dataset.jobId = boundedEventAttribute(event.job_id);
+    row.dataset.eventType = boundedEventAttribute(event.type);
+    row.dataset.actor = actor;
     const avatar = document.createElement('div');
     avatar.className = 'av';
     avatar.style.color = info.color;
