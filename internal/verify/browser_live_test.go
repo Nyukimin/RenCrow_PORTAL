@@ -40,6 +40,20 @@ func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
 	}
 }
 
+func TestPortalAgentResponseTextAllowsPromptQuote(t *testing.T) {
+	prompt := "PORTAL E2E unique prompt"
+	response := "Mio: 「" + prompt + "」って確認したよ。"
+	if err := validatePortalAgentResponseText(response); err != nil {
+		t.Fatalf("quoted prompt response rejected: %v", err)
+	}
+}
+
+func TestPortalAgentResponseTextRejectsEmpty(t *testing.T) {
+	if err := validatePortalAgentResponseText(" \n\t"); err == nil {
+		t.Fatal("empty Agent response unexpectedly passed")
+	}
+}
+
 func TestParseTailscaleServeStatusSelectsTailnetPortalRoute(t *testing.T) {
 	raw := []byte(`{
   "TCP": {"443": {"HTTPS": true}},

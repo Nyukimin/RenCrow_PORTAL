@@ -162,6 +162,13 @@ func browserPrerequisiteError(name string) string {
 	return strings.TrimSpace(name) + " prerequisite is unavailable"
 }
 
+func validatePortalAgentResponseText(visibleText string) error {
+	if strings.TrimSpace(visibleText) == "" {
+		return errors.New("Portal did not render a distinct Agent response")
+	}
+	return nil
+}
+
 type capturedBrowserResponse struct {
 	RequestID network.RequestID
 	Status    int64
@@ -305,8 +312,8 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		return nil, fmt.Errorf("real CORE Agent response was not rendered by Portal: %w", err)
 	}
 	visibleText = strings.TrimSpace(visibleText)
-	if visibleText == "" || strings.Contains(visibleText, prompt) {
-		return nil, errors.New("Portal did not render a distinct Agent response")
+	if err := validatePortalAgentResponseText(visibleText); err != nil {
+		return nil, err
 	}
 
 	return map[string]any{
