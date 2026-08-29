@@ -211,6 +211,23 @@ RENCROW_PORTAL_DEFAULT_MODE
 RENCROW_PORTAL_CONFIG
 ```
 
+## Workspace Migration Owner Hook
+
+`rencrow-portal migration-hook`は、Workspace Migration Snapshotから呼び出す
+PORTAL所有の固定CLI境界です。追加引数を受け取らず、標準入力の64 KiB以下のstrict JSON
+objectを1件だけ処理し、標準出力へ64 KiB以下のreceiptを1件だけ返します。
+
+- `config_validate`は、regular fileかつ非symlinkの`candidate_config`を既存の
+  `portal.LoadConfig`で検証します。Config本文、path、credential、内部errorはreceiptや
+  標準errorへ出しません。
+- `state_describe`は`state_class=none`、`schema_revision=none`、
+  `consistency_mode=none`を返します。PORTAL serverはPersona、Memory、会話、Jobなどの
+  durable application stateを所有しないためです。
+
+browserの`localStorage`、`sessionStorage`、cacheにある文字サイズ、recipient、TTS選択、
+tab識別子などは各client deviceだけの表示・session情報であり、PORTAL serverのmigration
+stateではありません。Migration Hookを理由にPORTALへstate storeを追加しません。
+
 `auth_mode`は`disabled | tailscale_serve`です。既定はlocal開発互換の`disabled`ですが、外部向け正規構成は
 PORTALをloopbackだけで待ち受けさせ、tailnet-onlyのTailscale Serveを前段に置き、
 `auth_mode=tailscale_serve`を明示します。FunnelやPORTALの直接network bindをこの認証契約の代用にしません。

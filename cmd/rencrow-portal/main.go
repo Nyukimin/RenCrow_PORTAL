@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -11,12 +13,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Nyukimin/RenCrow_PORTAL/internal/migrationhook"
 	"github.com/Nyukimin/RenCrow_PORTAL/internal/portal"
 )
 
 var version = "dev"
 
 func main() {
+	if handled, code := runMigrationCommand(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); handled {
+		os.Exit(code)
+	}
 	defaultConfig := strings.TrimSpace(os.Getenv("RENCROW_PORTAL_CONFIG"))
 	configPath := flag.String("config", defaultConfig, "PORTAL JSON設定ファイル")
 	flag.Parse()
@@ -52,4 +58,15 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("PORTALサーバーエラー: %v", err)
 	}
+}
+
+func runMigrationCommand(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (bool, int) {
+	if len(args) == 0 || args[0] != "migration-hook" {
+		return false, 0
+	}
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "[NG] migration-hook does not accept arguments")
+		return true, 2
+	}
+	return true, migrationhook.Execute(stdin, stdout, stderr)
 }
