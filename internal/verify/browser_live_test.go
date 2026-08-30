@@ -62,6 +62,27 @@ func TestBrowserSendCaptureWindowCoversRemoteDispatch(t *testing.T) {
 	}
 }
 
+func TestBrowserCorrelatesSendRequestAndResponseByRequestID(t *testing.T) {
+	source, err := os.ReadFile("browser_live.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(source)
+	for _, required := range []string{"network.EventRequestWillBeSent", "sentRequestID", "observed.RequestID == sentRequestID"} {
+		if !strings.Contains(body, required) {
+			t.Fatalf("browser send correlation is missing %q", required)
+		}
+	}
+}
+
+func TestBrowserSubmitsThroughOnePageKeydownEvent(t *testing.T) {
+	for _, required := range []string{"roomInput", "KeyboardEvent", "keydown", "Enter", "dispatchEvent"} {
+		if !strings.Contains(submitMessageExpression, required) {
+			t.Fatalf("browser submit expression is missing %q", required)
+		}
+	}
+}
+
 func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
 	source, err := os.ReadFile("browser_live.go")
 	if err != nil {

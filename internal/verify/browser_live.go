@@ -19,7 +19,6 @@ import (
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
-	"github.com/chromedp/chromedp/kb"
 )
 
 const (
@@ -31,6 +30,7 @@ const (
 	portalBrowserPreferencesExpression = `localStorage.setItem('roomConversation.selectedPartner','mio'); localStorage.setItem('rencrow.portal.ttsPreference','off')`
 	surfaceReadyExpression             = `!document.querySelector('#roomInput').disabled && !document.querySelector('#roomMioChip').disabled`
 	mioReadyExpression                 = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
+	submitMessageExpression            = `document.querySelector('#roomInput').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}))`
 	portalAgentResponsePageFunction    = `function(jobID) {
   const items = document.querySelectorAll('#chat article');
   for (const item of items) {
@@ -214,23 +214,27 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 
 	var mu sync.Mutex
 	actor := ""
+	var sentRequestID network.RequestID
 	accepted := capturedBrowserResponse{}
 	chromedp.ListenTarget(browser, func(event any) {
-		response, ok := event.(*network.EventResponseReceived)
-		if !ok {
-			return
-		}
 		mu.Lock()
 		defer mu.Unlock()
-		if response.Type == network.ResourceTypeDocument && strings.HasPrefix(response.Response.URL, route.Origin+"/") {
-			for name, value := range response.Response.Headers {
-				if strings.EqualFold(name, "X-RenCrow-Authenticated-Actor") {
-					actor = fmt.Sprint(value)
+		switch observed := event.(type) {
+		case *network.EventRequestWillBeSent:
+			if parsed, parseErr := url.Parse(observed.Request.URL); parseErr == nil && parsed.Path == browserSendPath {
+				sentRequestID = observed.RequestID
+			}
+		case *network.EventResponseReceived:
+			if observed.Type == network.ResourceTypeDocument && strings.HasPrefix(observed.Response.URL, route.Origin+"/") {
+				for name, value := range observed.Response.Headers {
+					if strings.EqualFold(name, "X-RenCrow-Authenticated-Actor") {
+						actor = fmt.Sprint(value)
+					}
 				}
 			}
-		}
-		if parsed, parseErr := url.Parse(response.Response.URL); parseErr == nil && parsed.Path == browserSendPath {
-			accepted = capturedBrowserResponse{RequestID: response.RequestID, Status: response.Response.Status}
+			if sentRequestID != "" && observed.RequestID == sentRequestID {
+				accepted = capturedBrowserResponse{RequestID: observed.RequestID, Status: observed.Response.Status}
+			}
 		}
 	})
 
@@ -258,7 +262,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	if err := chromedp.Run(browser,
 		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond), chromedp.WithPollingTimeout(45*time.Second)),
 		chromedp.SetValue(`#roomInput`, prompt, chromedp.ByQuery),
-		chromedp.SendKeys(`#roomInput`, kb.Enter, chromedp.ByQuery),
+		chromedp.Evaluate(submitMessageExpression, nil),
 	); err != nil {
 		return nil, fmt.Errorf("published Portal browser interaction failed: %w", err)
 	}

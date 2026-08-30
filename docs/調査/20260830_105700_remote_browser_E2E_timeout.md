@@ -13,6 +13,8 @@ headless browserのChat既定recipientがShiroであるため、検証開始後�
 PuruPuru assetを直列取得し、座標clickと切替完了待ちが送信前の高遅延境界になった。
 さらにremote Edgeでは送信dispatchがnetwork observerへ現れるまで30秒を超える場合があり、
 PORTALとCOREがjobを正常受理しても固定30秒のcapture窓が先に閉じた。
+OS入力注入の`SendKeys`はremote Edgeで長時間blockした後にEnterを再dispatchし、同一browser clientから
+複数jobを作る場合があった。
 
 ## Cause
 
@@ -30,6 +32,7 @@ local preferenceは公開origin上でChat load前に設定し、検証対象外�
 - browser fixtureは公開Tailscale origin、PORTAL allowlisted route、CORE job、DOM resultを迂回しない。
 - 固定recipientはChat load前に決定し、送信前に選択状態とinput readinessを確認する。
 - send response captureは全体5分上限内の90秒に固定し、remote dispatch遅延を許容する。
+- Enterはtextareaのowner `keydown` handlerへ単発DOM eventとして渡し、OS入力再送を許さない。
 
 ## Enforcement
 
@@ -41,4 +44,5 @@ Mio選択とinput readinessをpollしてから送信する。remote configはown
 - `TestBrowserPrimesMioBeforeLoadingChat`
 - `TestBrowserWaitsForMioReadyBeforeSending`
 - `TestBrowserSendCaptureWindowCoversRemoteDispatch`
+- `TestBrowserSubmitsThroughOnePageKeydownEvent`
 - moca-PC Edgeによる`portal_browser_proxy_e2e`
