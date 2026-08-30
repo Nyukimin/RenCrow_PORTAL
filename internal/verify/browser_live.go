@@ -26,6 +26,7 @@ const (
 	portalProxyURL                     = "http://127.0.0.1:18791"
 	tailscaleActorPrefix               = "tailscale-sha256:"
 	browserRunTimeout                  = 5 * time.Minute
+	browserSendCaptureTimeout          = 90 * time.Second
 	taggedBrowserBoundary              = "external_untagged_browser_prerequisite_absent"
 	portalBrowserPreferencesExpression = `localStorage.setItem('roomConversation.selectedPartner','mio'); localStorage.setItem('rencrow.portal.ttsPreference','off')`
 	surfaceReadyExpression             = `!document.querySelector('#roomInput').disabled && !document.querySelector('#roomMioChip').disabled`
@@ -262,7 +263,7 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		return nil, fmt.Errorf("published Portal browser interaction failed: %w", err)
 	}
 
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(browserSendCaptureTimeout)
 	for {
 		mu.Lock()
 		capture := accepted

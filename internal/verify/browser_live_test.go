@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTaggedVerifierFailureBoundaryIsExplicit(t *testing.T) {
@@ -52,6 +53,12 @@ func TestBrowserPrimesMioBeforeLoadingChat(t *testing.T) {
 	chat := strings.Index(body, `chromedp.Navigate(route.Origin+"/?mode=Chat")`)
 	if preferences < 0 || chat < 0 || preferences > chat {
 		t.Fatal("Mio preference must be set on the published origin before Chat loads")
+	}
+}
+
+func TestBrowserSendCaptureWindowCoversRemoteDispatch(t *testing.T) {
+	if browserSendCaptureTimeout < 90*time.Second {
+		t.Fatalf("browser send capture timeout = %s, want at least 90s", browserSendCaptureTimeout)
 	}
 }
 
