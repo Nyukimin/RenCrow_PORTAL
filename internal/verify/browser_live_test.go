@@ -21,6 +21,40 @@ func TestBrowserWaitsForMioSwitchBeforeSending(t *testing.T) {
 	}
 }
 
+func TestBrowserWaitsForMioReadyBeforeSending(t *testing.T) {
+	source, err := os.ReadFile("browser_live.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(source)
+	ready := strings.Index(body, "chromedp.Poll(mioReadyExpression")
+	send := strings.Index(body, "chromedp.SetValue(`#roomInput`")
+	if ready < 0 || send < 0 {
+		t.Fatal("browser interaction is missing the Mio-ready wait or send input")
+	}
+	if ready > send {
+		t.Fatal("browser send runs before Mio is ready")
+	}
+}
+
+func TestBrowserPrimesMioBeforeLoadingChat(t *testing.T) {
+	for _, required := range []string{"roomConversation.selectedPartner", "mio", "rencrow.portal.ttsPreference", "off"} {
+		if !strings.Contains(portalBrowserPreferencesExpression, required) {
+			t.Fatalf("browser preferences are missing %q", required)
+		}
+	}
+	source, err := os.ReadFile("browser_live.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(source)
+	preferences := strings.Index(body, "chromedp.Evaluate(portalBrowserPreferencesExpression")
+	chat := strings.Index(body, `chromedp.Navigate(route.Origin+"/?mode=Chat")`)
+	if preferences < 0 || chat < 0 || preferences > chat {
+		t.Fatal("Mio preference must be set on the published origin before Chat loads")
+	}
+}
+
 func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
 	source, err := os.ReadFile("browser_live.go")
 	if err != nil {
@@ -28,7 +62,7 @@ func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
 	}
 	body := string(source)
 	for _, required := range []string{
-		`portalAgentResponsePageFunction =`,
+		`portalAgentResponsePageFunction`,
 		`getAttribute('data-job-id') !== String(jobID)`,
 		`getAttribute('data-event-type') !== 'agent.response'`,
 		`chromedp.PollFunction(portalAgentResponsePageFunction`,

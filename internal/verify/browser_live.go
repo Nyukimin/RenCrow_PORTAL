@@ -23,12 +23,14 @@ import (
 )
 
 const (
-	portalProxyURL                  = "http://127.0.0.1:18791"
-	tailscaleActorPrefix            = "tailscale-sha256:"
-	browserRunTimeout               = 5 * time.Minute
-	taggedBrowserBoundary           = "external_untagged_browser_prerequisite_absent"
-	mioReadyExpression              = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
-	portalAgentResponsePageFunction = `function(jobID) {
+	portalProxyURL                     = "http://127.0.0.1:18791"
+	tailscaleActorPrefix               = "tailscale-sha256:"
+	browserRunTimeout                  = 5 * time.Minute
+	taggedBrowserBoundary              = "external_untagged_browser_prerequisite_absent"
+	portalBrowserPreferencesExpression = `localStorage.setItem('roomConversation.selectedPartner','mio'); localStorage.setItem('rencrow.portal.ttsPreference','off')`
+	surfaceReadyExpression             = `!document.querySelector('#roomInput').disabled && !document.querySelector('#roomMioChip').disabled`
+	mioReadyExpression                 = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
+	portalAgentResponsePageFunction    = `function(jobID) {
   const items = document.querySelectorAll('#chat article');
   for (const item of items) {
     if (item.getAttribute('data-job-id') !== String(jobID)) continue;
@@ -234,6 +236,8 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	prompt := fmt.Sprintf("PORTAL E2E %s: Mio、短く『PORTAL確認完了』と返答して。", observedAt.UTC().Format("20060102T150405.000000000Z"))
 	if err := chromedp.Run(browser,
 		network.Enable(),
+		chromedp.Navigate(route.Origin+"/health/live"),
+		chromedp.Evaluate(portalBrowserPreferencesExpression, nil),
 		chromedp.Navigate(route.Origin+"/?mode=Chat"),
 	); err != nil {
 		return nil, fmt.Errorf("published Portal browser authentication failed: %w", err)
@@ -246,9 +250,12 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	}
 	if err := chromedp.Run(browser,
 		chromedp.WaitVisible(`#roomInput`, chromedp.ByQuery),
-		chromedp.Evaluate(`localStorage.setItem('rencrow.portal.ttsPreference','off')`, nil),
-		chromedp.Click(`#roomMioChip`, chromedp.ByQuery),
-		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond)),
+		chromedp.Poll(surfaceReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond), chromedp.WithPollingTimeout(45*time.Second)),
+	); err != nil {
+		return nil, fmt.Errorf("published Portal surface did not become ready: %w", err)
+	}
+	if err := chromedp.Run(browser,
+		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond), chromedp.WithPollingTimeout(45*time.Second)),
 		chromedp.SetValue(`#roomInput`, prompt, chromedp.ByQuery),
 		chromedp.SendKeys(`#roomInput`, kb.Enter, chromedp.ByQuery),
 	); err != nil {
