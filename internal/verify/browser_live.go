@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,11 +25,13 @@ const (
 	tailscaleActorPrefix               = "tailscale-sha256:"
 	browserRunTimeout                  = 5 * time.Minute
 	browserSendCaptureTimeout          = 90 * time.Second
+	browserChatPrompt                  = "Mio、こんにちは。短く『こんにちは』と返事して。"
 	taggedBrowserBoundary              = "external_untagged_browser_prerequisite_absent"
 	portalBrowserPreferencesExpression = `localStorage.setItem('roomConversation.selectedPartner','mio'); localStorage.setItem('rencrow.portal.ttsPreference','off')`
 	surfaceReadyExpression             = `!document.querySelector('#roomInput').disabled && !document.querySelector('#roomMioChip').disabled`
 	mioReadyExpression                 = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
-	submitMessageExpression            = `document.querySelector('#roomInput').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}))`
+	submitMessageExpression            = `(() => { if (window.__rencrowPortalVerifierSubmitted) return false; window.__rencrowPortalVerifierSubmitted = true; return document.querySelector('#roomInput').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true})); })()`
+	portalSendReceiptPageFunction      = `function() { return window.__rencrowPortalVerifierReceipt ? JSON.stringify(window.__rencrowPortalVerifierReceipt) : false; }`
 	portalAgentResponsePageFunction    = `function(jobID) {
   const items = document.querySelectorAll('#chat article');
   for (const item of items) {
@@ -43,7 +44,10 @@ const (
 }`
 )
 
-var liveBrowserEvidenceCollector = collectLiveBrowserEvidence
+var (
+	liveBrowserEvidenceCollector = collectLiveBrowserEvidence
+	portalSendReceiptInstaller   = fmt.Sprintf(`(() => { if (window.__rencrowPortalVerifierFetchInstalled) return; window.__rencrowPortalVerifierFetchInstalled = true; const originalFetch = window.fetch.bind(window); window.fetch = async (...args) => { const request = new Request(...args); const response = await originalFetch(...args); const target = new URL(request.url, window.location.href); if (target.origin === window.location.origin && target.pathname === %q && request.method === 'POST' && !window.__rencrowPortalVerifierReceipt) { const body = await response.clone().json(); window.__rencrowPortalVerifierReceipt = {status: response.status, body}; } return response; }; })()`, browserSendPath)
+)
 
 type tailscaleServeRoute struct {
 	Origin string
@@ -172,9 +176,9 @@ func validatePortalAgentResponseText(visibleText string) error {
 	return nil
 }
 
-type capturedBrowserResponse struct {
-	RequestID network.RequestID
-	Status    int64
+type capturedPageReceipt struct {
+	Status int64          `json:"status"`
+	Body   map[string]any `json:"body"`
 }
 
 func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, publishedURL, checkID string) (map[string]any, error) {
@@ -214,16 +218,10 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 
 	var mu sync.Mutex
 	actor := ""
-	var sentRequestID network.RequestID
-	accepted := capturedBrowserResponse{}
 	chromedp.ListenTarget(browser, func(event any) {
 		mu.Lock()
 		defer mu.Unlock()
 		switch observed := event.(type) {
-		case *network.EventRequestWillBeSent:
-			if parsed, parseErr := url.Parse(observed.Request.URL); parseErr == nil && parsed.Path == browserSendPath {
-				sentRequestID = observed.RequestID
-			}
 		case *network.EventResponseReceived:
 			if observed.Type == network.ResourceTypeDocument && strings.HasPrefix(observed.Response.URL, route.Origin+"/") {
 				for name, value := range observed.Response.Headers {
@@ -232,13 +230,10 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 					}
 				}
 			}
-			if sentRequestID != "" && observed.RequestID == sentRequestID {
-				accepted = capturedBrowserResponse{RequestID: observed.RequestID, Status: observed.Response.Status}
-			}
 		}
 	})
 
-	prompt := fmt.Sprintf("PORTAL E2E %s: Mio、短く『PORTAL確認完了』と返答して。", observedAt.UTC().Format("20060102T150405.000000000Z"))
+	prompt := browserChatPrompt
 	if err := chromedp.Run(browser,
 		network.Enable(),
 		chromedp.Navigate(route.Origin+"/health/live"),
@@ -261,55 +256,27 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 	}
 	if err := chromedp.Run(browser,
 		chromedp.Poll(mioReadyExpression, nil, chromedp.WithPollingInterval(200*time.Millisecond), chromedp.WithPollingTimeout(45*time.Second)),
+		chromedp.Evaluate(portalSendReceiptInstaller, nil),
 		chromedp.SetValue(`#roomInput`, prompt, chromedp.ByQuery),
 		chromedp.Evaluate(submitMessageExpression, nil),
 	); err != nil {
 		return nil, fmt.Errorf("published Portal browser interaction failed: %w", err)
 	}
 
-	deadline := time.Now().Add(browserSendCaptureTimeout)
-	for {
-		mu.Lock()
-		capture := accepted
-		mu.Unlock()
-		if capture.RequestID != "" {
-			break
-		}
-		if time.Now().After(deadline) {
-			return nil, errors.New("Portal browser did not observe the allowlisted send response")
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
+	var receiptJSON string
+	if err := chromedp.Run(browser,
+		chromedp.PollFunction(portalSendReceiptPageFunction, &receiptJSON, chromedp.WithPollingInterval(100*time.Millisecond), chromedp.WithPollingTimeout(browserSendCaptureTimeout)),
+	); err != nil {
+		return nil, fmt.Errorf("Portal browser did not observe the allowlisted send response: %w", err)
 	}
-	mu.Lock()
-	capture := accepted
-	mu.Unlock()
+	var capture capturedPageReceipt
+	if err := json.Unmarshal([]byte(receiptJSON), &capture); err != nil {
+		return nil, fmt.Errorf("decode Portal send receipt: %w", err)
+	}
 	if capture.Status < 200 || capture.Status >= 300 {
 		return nil, fmt.Errorf("Portal send returned HTTP %d", capture.Status)
 	}
-
-	var responseBody []byte
-	for attempts := 0; attempts < 20; attempts++ {
-		err = chromedp.Run(browser, chromedp.ActionFunc(func(actionContext context.Context) error {
-			var bodyErr error
-			responseBody, bodyErr = network.GetResponseBody(capture.RequestID).Do(actionContext)
-			return bodyErr
-		}))
-		if err == nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("read Portal send receipt: %w", err)
-	}
-	var acceptedObject map[string]any
-	if err := json.Unmarshal(responseBody, &acceptedObject); err != nil {
-		return nil, fmt.Errorf("decode Portal send receipt: %w", err)
-	}
+	acceptedObject := capture.Body
 	jobID := firstString(acceptedObject, "job_id", "jobID")
 	if jobID == "" {
 		return nil, errors.New("Portal send receipt is missing CORE job_id")

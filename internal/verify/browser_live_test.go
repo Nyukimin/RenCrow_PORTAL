@@ -62,24 +62,28 @@ func TestBrowserSendCaptureWindowCoversRemoteDispatch(t *testing.T) {
 	}
 }
 
-func TestBrowserCorrelatesSendRequestAndResponseByRequestID(t *testing.T) {
-	source, err := os.ReadFile("browser_live.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(source)
-	for _, required := range []string{"network.EventRequestWillBeSent", "sentRequestID", "observed.RequestID == sentRequestID"} {
-		if !strings.Contains(body, required) {
-			t.Fatalf("browser send correlation is missing %q", required)
+func TestBrowserCapturesPageOwnedSendReceipt(t *testing.T) {
+	for _, required := range []string{"window.fetch", "response.clone().json()", browserSendPath, "request.method === 'POST'", "window.__rencrowPortalVerifierReceipt"} {
+		if !strings.Contains(portalSendReceiptInstaller, required) {
+			t.Fatalf("page send receipt capture is missing %q", required)
 		}
 	}
 }
 
 func TestBrowserSubmitsThroughOnePageKeydownEvent(t *testing.T) {
-	for _, required := range []string{"roomInput", "KeyboardEvent", "keydown", "Enter", "dispatchEvent"} {
+	for _, required := range []string{"roomInput", "KeyboardEvent", "keydown", "Enter", "dispatchEvent", "__rencrowPortalVerifierSubmitted"} {
 		if !strings.Contains(submitMessageExpression, required) {
 			t.Fatalf("browser submit expression is missing %q", required)
 		}
+	}
+}
+
+func TestBrowserFixtureRequestsChatWithoutOperationalKeywords(t *testing.T) {
+	if strings.Contains(strings.ToUpper(browserChatPrompt), "E2E") || strings.Contains(browserChatPrompt, "確認") {
+		t.Fatalf("browser chat fixture can be routed as an operational request: %q", browserChatPrompt)
+	}
+	if !strings.Contains(browserChatPrompt, "Mio") || !strings.Contains(browserChatPrompt, "こんにちは") {
+		t.Fatalf("browser chat fixture does not request a bounded Mio greeting: %q", browserChatPrompt)
 	}
 }
 

@@ -15,6 +15,10 @@ PuruPuru assetを直列取得し、座標clickと切替完了待ちが送信前�
 PORTALとCOREがjobを正常受理しても固定30秒のcapture窓が先に閉じた。
 OS入力注入の`SendKeys`はremote Edgeで長時間blockした後にEnterを再dispatchし、同一browser clientから
 複数jobを作る場合があった。
+fixture本文の`PORTAL E2E`はCORE routerに`OPS`と分類され、検証対象外のShiro worker availabilityへ
+依存していた。
+CDPのnetwork callbackはremote Edgeのこのsend responseを安定して観測できず、COREが受理しても
+verifierがresponse bodyとjob IDを取得できなかった。
 
 ## Cause
 
@@ -33,11 +37,15 @@ local preferenceは公開origin上でChat load前に設定し、検証対象外�
 - 固定recipientはChat load前に決定し、送信前に選択状態とinput readinessを確認する。
 - send response captureは全体5分上限内の90秒に固定し、remote dispatch遅延を許容する。
 - Enterはtextareaのowner `keydown` handlerへ単発DOM eventとして渡し、OS入力再送を許さない。
+- fixture本文は通常のMio挨拶に限定し、exact job IDで相関して運用keywordを本文へ混ぜない。
+- send receiptはpageが実際に使う`fetch`のresponse cloneから取得し、同一origin・allowlist path・POSTだけを受理する。
+- page内のverifier submitは一度だけとし、CDP actionの遅延中も同一pageから再dispatchしない。
 
 ## Enforcement
 
 `internal/verify/browser_live.go`が公開origin上のlocal preferenceをMioへ固定してからChatをloadし、
-Mio選択とinput readinessをpollしてから送信する。remote configはowner-only modeで検査する。
+Mio選択とinput readinessをpollし、page-owned `fetch`の限定観測を設置してから送信する。
+remote configはowner-only modeで検査する。
 
 ## Tests
 
@@ -45,4 +53,6 @@ Mio選択とinput readinessをpollしてから送信する。remote configはown
 - `TestBrowserWaitsForMioReadyBeforeSending`
 - `TestBrowserSendCaptureWindowCoversRemoteDispatch`
 - `TestBrowserSubmitsThroughOnePageKeydownEvent`
+- `TestBrowserFixtureRequestsChatWithoutOperationalKeywords`
+- `TestBrowserCapturesPageOwnedSendReceipt`
 - moca-PC Edgeによる`portal_browser_proxy_e2e`
