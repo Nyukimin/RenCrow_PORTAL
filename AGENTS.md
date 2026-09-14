@@ -10,8 +10,69 @@
 
 対象の`README.md`／`docs/README.md`から現行仕様を選ぶ。下表の該当節だけを作業前に読み、対象外の節や他moduleの詳細をまとめて読まない。製品契約の不足は実装・test・production wiringと照合してowner正本へ反映する。
 
-| 作業 | 必須の参照 |
-|---|---|
-| 公開画面・proxy・APIを変更する場合 | [公開画面・proxy・APIを変更する場合](rules/task-rules.md#contract) |
-| 正規経路の復旧・実runtime E2Eを行う場合 | [正規経路の復旧・実runtime E2Eを行う場合](rules/task-rules.md#runtime) |
-| 実装を検証する場合 | [実装を検証する場合](rules/task-rules.md#validation) |
+- Test validation belongs to implementation, not to the Push operation itself. Do not rerun a relevant check during Push when the exact same content has already passed it.
+- A temporary clean worktree is for isolating a diff and creating a commit. When its `git diff` or hashes match content already validated in the primary worktree, do not repeat cold-cache tests there.
+- Rerun a relevant check only when relevant files changed after validation, no successful result exists, or Ren explicitly requests it.
+- When a test command reaches its timeout, do not automatically retry the same step with a longer timeout. Stop residual processes, diagnose the stalled boundary, and report the incomplete check or defer it to GitHub Actions.
+
+- ローカルWindowsでは`.\scripts\test-local.ps1`を使い、`go vet ./...`と
+  `go build ./...`だけを実行する。`.test.exe`を生成・実行する`go test`は使わない。
+- runnerは`TEMP`、`TMP`、`TMPDIR`、`GOTMPDIR`、各種cacheをrepo内の
+  `Tmp/test-runtime/`へ向ける。`t.TempDir()`やcompilerの一時実行fileもこの配下に置く。
+- `Tmp/`はGit管理外とし、security softwareを有効にしたままtestする。
+- repo内`Tmp`でもblockされた場合は、errorとpathを記録し、renameや再実行をせず、
+  GitHub ActionsのUbuntu testへ切り替える。
+
+このリポジトリは、RenCrowを外部利用者へ公開するWeb画面を所有する。
+
+- `mode=IdleChat`: AI VTuberの会話を閲覧する読み取り専用画面。画面在席を伝える`POST /viewer/surface-presence`だけをlifecycle例外として許可し、その他のCORE更新要求を許可しない。
+- `mode=Chat`: 会話送信など、明示的に許可した操作だけをCOREへ中継する。
+- `mode=Games`: Agent-owned gameの選択、起動、観戦、Retry／Start overだけをCOREへ中継する。turn判断を人間へ公開しない。
+- 公開page modeとAPI prefixは`Chat`、`IdleChat`、`Games`に限定する。
+- 共有画面の内部DOM/CSS名は`room-*`を使う。
+- Debug、Ops、Repair、設定変更、管理APIは所有・中継しない。
+- Persona、Memory、会話状態、Job、LLM/STT/TTS演算、ASSISTANTのRoutine／delivery状態の正本を持たない。
+- CORE runtimeとCORE Public APIの正本は `<WORKSPACE>/RenCrow_CORE` とする。
+- personal／family scope、生活Routine、PUSH、端末deliveryの正本は `<WORKSPACE>/RenCrow_ASSISTANT` とする。
+- ASSISTANT Public APIの正本も `<WORKSPACE>/RenCrow_ASSISTANT` とする。
+- 起動管理CLIの正本は `<WORKSPACE>/RenCrow_CMD` とする。
+
+PORTALは静的UIと許可制リバースプロキシだけを持つ薄いGoサーバーとする。
+新しいAPIを中継する場合は、methodとpathをallowlistへ追加し、`IdleChat`からsurface在席通知以外をwriteできないテスト、Gamesからdecision／result／ingestできないテスト、debug/admin APIを遮断するテストを必須とする。
+COREへのproxyは`X-RenCrow-Client: RenCrow_PORTAL`とmode別Interaction profileを必ず上書きし、browser入力をそのまま信頼しない。
+Gamesの盤面とObserverはRenCrow_GAMES、Agent identityと判断はCOREを正本とする。PuruPuru overlayはiframe外のPORTAL documentが所有し、`RuleBasedBrain`や`decision.reason`をAgent発話として表示しない。
+ASSISTANT APIを中継する場合も同じ境界を適用し、他利用者のprivate data、secret、device credentialを公開しない。
+
+正規のCORE／RenCrow_LLM／GAMES経路が利用不能な場合、PORTALのE2Eを通すためにfake CORE、
+direct backend、local代替、別model、短縮proxy経路を独断で作成・起動しない。
+config、credential、process、network、RenCrow LLM Runtime、Backend／Model readiness、
+logを確認して正規経路を
+復旧する。復旧不能なら失敗境界を報告し、代替経路を正規runtimeまたはAgent-owned E2E成功と
+扱わない。Codexが代替topologyを実装・起動できるのは、れんがその例外を明示指示した場合だけとする。
+
+このCodex作業境界をRenCrow製品へ移植しない。PORTALを含むRenCrow runtimeは人の返答待ちを
+作らず、CORE正本、machine-readable policy、認証済みrequest scopeにより、実行、`rejected`、
+`blocked`を同期確定する。`rejected`後は理由を根拠に前提、route、設計、必要なら思想まで再考した
+新revisionを作り、同じ案の言い換えや安全制約の弱体化で再送しない。
+
+## クロスプラットフォーム前提
+
+このリポジトリは Windows / Linux / macOS で共通に動作する。片方の環境でのみ通る実装・テストを書かない。
+
+- パス連結は Go の `filepath.Join()`、Python の `pathlib.Path` を使い、`/` や `\` を文字列連結しない。
+- パス文字列を YAML／JSON／シェルコマンドへ埋め込む場合は必ずエスケープする。Go は `strconv.Quote()` を使う。Windows path は `\` を含むため、生の埋め込みは `\U` などが escape と解釈されパースエラーになる。
+- `/tmp`、`/home/<user>` などの絶対 path を実際の入出力先にしない。Go は `t.TempDir()`、Python は `tempfile` を使う。設定値として素通しするだけの文字列は対象外とする。
+- 改行コード（LF／CRLF）に依存する比較・テストを書かない。
+- 実行権限、symlink、大文字小文字を区別する filesystem を前提にしない。
+- 完了とする前に Windows と Linux の両方でテストを実行するか、CI の該当ジョブ結果を確認する。片方だけの結果で完了と報告しない。
+
+## Windows test policy
+
+- ローカルWindowsでは`.test.exe`を生成する`go test`を実行せず、
+  repository-local runnerで`go vet ./...`と`go build ./...`を実行する。
+- Goの振る舞いtestはGitHub ActionsのUbuntu jobで`go test ./...`を実行する。
+- Windows jobは`go build ./...`と`go vet ./...`を実行する。
+- Push済みcommitのCI確認には`scripts/test-github-ci.ps1`を使う。
+- security softwareの停止、除外設定、testのskip・削除・弱体化は行わない。
+
+詳細は `RenCrow_CORE/rules/common/rules_testing.md` の 9.2 を参照する。
