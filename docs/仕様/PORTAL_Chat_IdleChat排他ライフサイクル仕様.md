@@ -158,3 +158,20 @@ PORTAL serverはbrowserが送ったclient/profile headerを信頼せず、page m
 CORE endpoint、lease集約、PORTAL allowlist、browser lifecycle、event／TTS filterを実装します。
 変更時はCOREを先に検証し、CORE contract test、PORTAL proxy policy test、browser lifecycle test、
 複数tab testの順に確認します。単一tabの表示成功だけで排他制御の完了とは扱いません。
+
+## 9. 現状の実装境界と将来方針（memo）
+
+ChatとIdleChatは§3の表に示す通り横並びの兄弟surfaceであり、`/viewer/surface-presence`は
+どちらにも属さない共有エンドポイントです。本稿更新時点の実装では、surface-presenceの
+handlerとlease集約controllerは`RenCrow_CORE`に存在し、PORTALはreverse proxyで中継します。
+短期対応としてCORE側で、surface-presenceをIdleChat feature配下から兄弟中立な
+`features/presence`へ分離し、IdleChat無効化時でもChatが正常にreadyへ遷移できる状態を
+担保します。
+
+将来の中長期方針（memo、本リリースでは未実装）として、Chat／IdleChat両surfaceの
+backend logic（handler、session、lease集約など）を`RenCrow_PORTAL`へ移管し、COREには
+Viewer層とcross-cutting runtime（LLM、TTS、STT、Vision、Memory等）のみを残す方向を検討
+します。移管後はPORTALが`/viewer/surface-presence`を自前で終端し、IdleChat runtimeの
+起動／停止など必要な部分のみをCORE APIへ委譲する構造を想定します。詳細な正本は
+`RenCrow_CORE/docs/04_アーキテクチャ概要.md`の「PORTAL Chat／IdleChat排他ライフサイクル」に
+揃えます。
