@@ -108,7 +108,7 @@ func TestAccessLogRecordsCoreSendCorrelation(t *testing.T) {
 	handler := withAccessLog(newAccessLogger(&buf), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(`{"ok":true,"job_id":"job-123","trace_id":"trace-456","viewer_client_id":"portal-789"}`))
+		_, _ = w.Write([]byte(`{"ok":true,"root_task_id":"tsk_01h000000000000000000001","trace_id":"trace-456","viewer_client_id":"portal-789"}`))
 	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/Chat/viewer/send", nil)
@@ -116,8 +116,8 @@ func TestAccessLogRecordsCoreSendCorrelation(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	entry := decodeAccessLog(t, buf.String())
-	if entry.JobID != "job-123" {
-		t.Fatalf("job_id = %q, want job-123", entry.JobID)
+	if entry.TaskID != "tsk_01h000000000000000000001" {
+		t.Fatalf("task_id = %q, want tsk_01h000000000000000000001", entry.TaskID)
 	}
 	if entry.TraceID != "trace-456" {
 		t.Fatalf("trace_id = %q, want trace-456", entry.TraceID)
@@ -155,7 +155,7 @@ type accessLogEntry struct {
 	ViewerClientID     string `json:"viewer_client_id"`
 	InteractionProfile string `json:"interaction_profile"`
 	OperationSource    string `json:"operation_source"`
-	JobID              string `json:"job_id"`
+	TaskID             string `json:"task_id"`
 	TraceID            string `json:"trace_id"`
 }
 

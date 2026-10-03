@@ -87,7 +87,7 @@ func TestBrowserFixtureRequestsChatWithoutOperationalKeywords(t *testing.T) {
 	}
 }
 
-func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
+func TestBrowserLiveWaitsForExactAcceptedTaskAgentResponse(t *testing.T) {
 	source, err := os.ReadFile("browser_live.go")
 	if err != nil {
 		t.Fatal(err)
@@ -95,13 +95,13 @@ func TestBrowserLiveWaitsForExactAcceptedJobAgentResponse(t *testing.T) {
 	body := string(source)
 	for _, required := range []string{
 		`portalAgentResponsePageFunction`,
-		`getAttribute('data-job-id') !== String(jobID)`,
+		`getAttribute('data-task-id') !== String(taskID)`,
 		`getAttribute('data-event-type') !== 'agent.response'`,
 		`chromedp.PollFunction(portalAgentResponsePageFunction`,
-		`chromedp.WithPollingArgs(jobID)`,
+		`chromedp.WithPollingArgs(taskID)`,
 	} {
 		if !strings.Contains(body, required) {
-			t.Errorf("browser exact job/type correlation marker %q is missing", required)
+			t.Errorf("browser exact task/type correlation marker %q is missing", required)
 		}
 	}
 }

@@ -91,8 +91,8 @@ func (l *accessLogger) write(r *http.Request, response *statusRecorder, elapsed 
 	if v := strings.TrimSpace(r.Header.Get(interactionProfileHeader)); v != "" {
 		entry["interaction_profile"] = v
 	}
-	if correlation.JobID != "" {
-		entry["job_id"] = correlation.JobID
+	if correlation.TaskID != "" {
+		entry["task_id"] = correlation.TaskID
 	}
 	if correlation.TraceID != "" {
 		entry["trace_id"] = correlation.TraceID
@@ -109,7 +109,7 @@ func shouldCaptureAccessLogResponse(method string, path string) bool {
 }
 
 type accessLogResponseCorrelation struct {
-	JobID          string `json:"job_id"`
+	TaskID         string `json:"root_task_id"`
 	TraceID        string `json:"trace_id"`
 	ViewerClientID string `json:"viewer_client_id"`
 }
@@ -122,7 +122,7 @@ func responseCorrelation(body []byte) accessLogResponseCorrelation {
 	if err := json.Unmarshal(body, &correlation); err != nil {
 		return accessLogResponseCorrelation{}
 	}
-	correlation.JobID = strings.TrimSpace(correlation.JobID)
+	correlation.TaskID = strings.TrimSpace(correlation.TaskID)
 	correlation.TraceID = strings.TrimSpace(correlation.TraceID)
 	correlation.ViewerClientID = strings.TrimSpace(correlation.ViewerClientID)
 	return correlation

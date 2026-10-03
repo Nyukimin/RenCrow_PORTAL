@@ -133,7 +133,7 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - Chat／IdleChat画面は可視状態を`POST /viewer/surface-presence`でCOREへ通知する。Chat在席を最優先としてIdleChatを停止し、ChatがなくIdleChat在席がある場合だけIdleChatを開始する。PORTALから`/viewer/idlechat/start|stop`は使用しない
 - IdleChatの最下部は`再生`、`スキップ（次の話題）`、`前の話題`だけを公開し、`POST /viewer/idlechat/playback`でCOREのTopic Stock再生履歴を操作する。Stockの消費、順序、再生履歴はCOREを正本とする
 - Chatは修飾キーを伴わない`Enter`で送信し、`Shift+Enter`で改行する。IME／FEPの変換確定では送信しない。会話・入力・主要状態表示の文字サイズは小／中／大の3段階とし、browser local storageへ保存する
-- `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`job_id`をrequest / response相関の正本とする。受付から同じ`job_id`の利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
+- `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`root_task_id`をrequest / response相関の正本とする（Canonical ID統一によりlegacyの`job_id`は使用しない）。受付から同じ`task_id`を持つ利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
 - Chat会話欄は`message.received`、利用者向け`agent.response`、公開対象の`agent.progress`／`agent.acknowledge`を表示し、IdleChat会話欄は`idlechat.message`だけを表示してmode間で混在させない。`message_id`をSSE再接続時の重複排除へ使い、`agent.thinking`やrouting／worker eventは会話本文として残さない
 - `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。`user_id=viewer-user`は観測用metadataであり認証主体ではない。`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う

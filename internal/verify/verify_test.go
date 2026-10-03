@@ -159,7 +159,7 @@ func TestRunBrowserProxyRequiresPortalAllowlistedRoute(t *testing.T) {
 		"portal_url": "https://portal.example.test", "request": map[string]any{
 			"method": "POST", "url": "https://core.example.test/viewer/send",
 		},
-		"response": map[string]any{"status": 200, "job_id": "job-1", "text": "こんにちは"},
+		"response": map[string]any{"status": 200, "task_id": "tsk_01h000000000000000000001", "text": "こんにちは"},
 	})
 	receipt, err := Run(context.Background(), Options{
 		ManifestPath:    writeManifest(t, `portal_browser_proxy_e2e`, `portal-browser-proxy-e2e`),
@@ -204,7 +204,7 @@ func TestRunBrowserProxyEvidenceFreshnessWindow(t *testing.T) {
 				"portal_url": "https://portal.example.test", "request": map[string]any{
 					"method": "POST", "url": "https://portal.example.test/api/chat/viewer/send",
 				},
-				"response":     map[string]any{"status": 200, "job_id": "job-1", "text": "応答"},
+				"response":     map[string]any{"status": 200, "task_id": "tsk_01h000000000000000000001", "text": "応答"},
 				"visible_text": "応答",
 			})
 			receipt, runErr := Run(context.Background(), Options{
@@ -236,7 +236,7 @@ func TestRunCanonicalActorBrowserE2ERequiresRealActorAndTrace(t *testing.T) {
 		"portal_url": "https://portal.example.test", "actor": "viewer-user",
 		"request":      map[string]any{"method": "POST", "url": "https://portal.example.test/api/chat/viewer/send"},
 		"core_path":    "/viewer/send",
-		"response":     map[string]any{"status": 200, "job_id": "job-1", "trace_id": "trace-1", "text": "応答"},
+		"response":     map[string]any{"status": 200, "task_id": "tsk_01h000000000000000000001", "trace_id": "trace-1", "text": "応答"},
 		"visible_text": "応答",
 	})
 	receipt, err := Run(context.Background(), Options{
@@ -266,7 +266,7 @@ func TestRunCanonicalActorRejectsTestDouble(t *testing.T) {
 		"browser":     "Firefox", "platform": "Linux", "authenticated": true, "auth_method": "bearer",
 		"portal_url": "https://portal.example.test", "actor": "dummy-agent",
 		"request":      map[string]any{"method": "POST", "url": "https://portal.example.test/api/chat/viewer/send"},
-		"response":     map[string]any{"status": 200, "job_id": "job-1", "trace_id": "trace-1", "text": "応答"},
+		"response":     map[string]any{"status": 200, "task_id": "tsk_01h000000000000000000001", "trace_id": "trace-1", "text": "応答"},
 		"visible_text": "応答",
 	})
 	receipt, err := Run(context.Background(), Options{

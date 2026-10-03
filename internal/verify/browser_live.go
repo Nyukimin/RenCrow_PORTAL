@@ -32,10 +32,10 @@ const (
 	mioReadyExpression                 = `document.querySelector('#roomMioChip').getAttribute('aria-pressed') === 'true' && !document.querySelector('#roomMioChip').disabled && !document.querySelector('#roomInput').disabled`
 	submitMessageExpression            = `(() => { if (window.__rencrowPortalVerifierSubmitted) return false; window.__rencrowPortalVerifierSubmitted = true; return document.querySelector('#roomInput').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true})); })()`
 	portalSendReceiptPageFunction      = `function() { return window.__rencrowPortalVerifierReceipt ? JSON.stringify(window.__rencrowPortalVerifierReceipt) : false; }`
-	portalAgentResponsePageFunction    = `function(jobID) {
+	portalAgentResponsePageFunction    = `function(taskID) {
   const items = document.querySelectorAll('#chat article');
   for (const item of items) {
-    if (item.getAttribute('data-job-id') !== String(jobID)) continue;
+    if (item.getAttribute('data-task-id') !== String(taskID)) continue;
     if (item.getAttribute('data-event-type') !== 'agent.response') continue;
     const text = item.innerText.trim();
     if (text) return text;
@@ -277,16 +277,16 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		return nil, fmt.Errorf("Portal send returned HTTP %d", capture.Status)
 	}
 	acceptedObject := capture.Body
-	jobID := firstString(acceptedObject, "job_id", "jobID")
-	if jobID == "" {
-		return nil, errors.New("Portal send receipt is missing CORE job_id")
+	taskID := firstString(acceptedObject, "root_task_id", "task_id")
+	if taskID == "" {
+		return nil, errors.New("Portal send receipt is missing CORE root_task_id")
 	}
 
 	var visibleText string
 	responseContext, cancelResponse := context.WithTimeout(browser, 4*time.Minute)
 	defer cancelResponse()
 	if err := chromedp.Run(responseContext,
-		chromedp.PollFunction(portalAgentResponsePageFunction, &visibleText, chromedp.WithPollingArgs(jobID), chromedp.WithPollingInterval(500*time.Millisecond), chromedp.WithPollingTimeout(4*time.Minute)),
+		chromedp.PollFunction(portalAgentResponsePageFunction, &visibleText, chromedp.WithPollingArgs(taskID), chromedp.WithPollingInterval(500*time.Millisecond), chromedp.WithPollingTimeout(4*time.Minute)),
 	); err != nil {
 		return nil, fmt.Errorf("real CORE Agent response was not rendered by Portal: %w", err)
 	}
@@ -301,8 +301,8 @@ func collectLiveBrowserEvidence(parent context.Context, observedAt time.Time, pu
 		"portal_url": route.Origin, "published": true,
 		"request":   map[string]any{"method": "POST", "url": route.Origin + browserSendPath, "path": browserSendPath},
 		"core_path": browserCoreSendPath,
-		"response":  map[string]any{"status": capture.Status, "job_id": jobID, "trace_id": jobID, "user_visible_result": visibleText},
-		"job_id":    jobID, "trace_id": jobID, "user_visible_result": visibleText,
+		"response":  map[string]any{"status": capture.Status, "task_id": taskID, "trace_id": taskID, "user_visible_result": visibleText},
+		"task_id":   taskID, "trace_id": taskID, "user_visible_result": visibleText,
 	}, nil
 }
 
