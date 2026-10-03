@@ -385,18 +385,14 @@ func validateBrowserEvidence(raw map[string]any, options Options, canonical bool
 	if visible == "" {
 		return errors.New("browser evidence is missing the user-visible result")
 	}
-	taskID := firstString(raw, "task_id", "root_task_id", "taskID", "request_id")
 	traceID := firstString(raw, "trace_id", "traceID", "receipt_id", "receipt_ref", "correlation_id")
 	if responseObject != nil {
-		if taskID == "" {
-			taskID = firstString(responseObject, "task_id", "root_task_id", "taskID", "request_id")
-		}
 		if traceID == "" {
 			traceID = firstString(responseObject, "trace_id", "traceID", "receipt_id", "receipt_ref", "correlation_id")
 		}
 	}
-	if taskID == "" {
-		return errors.New("browser evidence is missing the CORE task receipt")
+	if traceID == "" {
+		return errors.New("browser evidence is missing the CORE trace receipt")
 	}
 	if canonical && traceID == "" {
 		return errors.New("canonical browser evidence is missing a receipt trace")

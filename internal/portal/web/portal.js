@@ -59,7 +59,7 @@
   let statusRefreshGeneration = 0;
   let chatViewportFrameID = 0;
   let chatOrientationMedia = null;
-  const earlyTerminalTaskIDs = new Set();
+  const earlyTerminalTraceIDs = new Set();
   const requestGuardTimeoutMS = 305000;
   const viewerClientID = getViewerClientID();
   const viewerUserID = 'viewer-user';
@@ -369,7 +369,7 @@
 
   function beginRequestGuard(recipient) {
     if (pendingRequest || !surfaceReady) return false;
-    const guard = {taskID: '', recipient, timeoutID: null};
+    const guard = {traceID: '', recipient, timeoutID: null};
     guard.timeoutID = window.setTimeout(() => {
       if (pendingRequest !== guard) return;
       finishRequestGuard('応答待ちがタイムアウトしました', true);
@@ -382,14 +382,14 @@
 
   function handleRequestTerminalEvent(event) {
     if (!pendingRequest || !isTerminalResponseEvent(event)) return;
-    const taskID = String(event.task_id || '').trim();
-    if (!taskID) return;
-    if (!pendingRequest.taskID) {
-      earlyTerminalTaskIDs.add(taskID);
-      if (earlyTerminalTaskIDs.size > 100) earlyTerminalTaskIDs.delete(earlyTerminalTaskIDs.values().next().value);
+    const traceID = String(event.trace_id || '').trim();
+    if (!traceID) return;
+    if (!pendingRequest.traceID) {
+      earlyTerminalTraceIDs.add(traceID);
+      if (earlyTerminalTraceIDs.size > 100) earlyTerminalTraceIDs.delete(earlyTerminalTraceIDs.values().next().value);
       return;
     }
-    if (taskID !== pendingRequest.taskID) return;
+    if (traceID !== pendingRequest.traceID) return;
     const failed = event.type !== 'agent.response';
     finishRequestGuard(failed ? '応答処理がエラーで終了しました' : '応答を受信しました', failed);
   }
@@ -471,6 +471,7 @@
 
     const row = document.createElement('article');
     row.className = `msg${actor === 'shiro' ? ' shiro' : ''}`;
+    row.dataset.traceId = boundedEventAttribute(event.trace_id);
     row.dataset.taskId = boundedEventAttribute(event.task_id);
     row.dataset.eventType = boundedEventAttribute(event.type);
     row.dataset.actor = actor;
@@ -582,7 +583,7 @@
     events.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
-        if (pendingRequest && event.type === 'agent.thinking' && String(event.task_id || '') === pendingRequest.taskID) {
+        if (pendingRequest && event.type === 'agent.thinking' && String(event.trace_id || '') === pendingRequest.traceID) {
           setOperation(`${actorInfo[pendingRequest.recipient].label}が応答を生成中です`);
         }
         handleRequestTerminalEvent(event);
@@ -1361,13 +1362,13 @@
     setOperation('送信中');
     try {
       const accepted = await post('/viewer/send', buildViewerSendPayload(message, recipient, inputSource, attachments));
-      pendingRequest.taskID = String(accepted.root_task_id || '').trim();
-      if (!pendingRequest.taskID) throw new Error('CORE応答にroot_task_idがありません');
+      pendingRequest.traceID = String(accepted.trace_id || '').trim();
+      if (!pendingRequest.traceID) throw new Error('CORE応答にtrace_idがありません');
       if (normalizeActor(accepted.recipient) !== recipient) throw new Error('CORE受付先が選択中の相手と一致しません');
       if (Number(accepted.attachment_count || 0) !== attachments.length) throw new Error('COREで受理された添付数が一致しません');
       input.value = '';
       clearAttachments();
-      if (earlyTerminalTaskIDs.delete(pendingRequest.taskID)) {
+      if (earlyTerminalTraceIDs.delete(pendingRequest.traceID)) {
         finishRequestGuard('応答を受信しました');
         return;
       }

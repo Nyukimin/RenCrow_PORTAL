@@ -1290,8 +1290,8 @@ func TestPortalChatGuardsRecipientUntilMatchingResponse(t *testing.T) {
 		`user_id: viewerUserID`,
 		`device_name: viewerDeviceName`,
 		`send('stt')`,
-		`pendingRequest.taskID = String(accepted.root_task_id || '').trim();`,
-		`taskID !== pendingRequest.taskID`,
+		`pendingRequest.traceID = String(accepted.trace_id || '').trim();`,
+		`traceID !== pendingRequest.traceID`,
 		`type === 'agent.response' && String(event && event.to || '').toLowerCase() === 'user'`,
 		`if (pendingRequest) return;`,
 	} {
@@ -1309,7 +1309,7 @@ func TestPortalChatRendersBoundedEventCorrelationMetadata(t *testing.T) {
 	body := string(script)
 	for _, marker := range []string{
 		`function boundedEventAttribute`,
-		`row.dataset.taskId = boundedEventAttribute(event.task_id);`,
+		`row.dataset.traceId = boundedEventAttribute(event.trace_id);`,
 		`row.dataset.eventType = boundedEventAttribute(event.type);`,
 		`row.dataset.actor = actor;`,
 	} {
