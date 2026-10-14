@@ -236,11 +236,13 @@ func TestPortalChatFixedLandscapeCentersSinglePortraitSlot(t *testing.T) {
 	}
 	css := string(stylesheet)
 
+	// The Chat portrait box is landscape (988x484) since the 2026-10-13 avatar
+	// layout; the former 760x626.4 box is still used by the IdleChat Shiro slot.
 	portrait := cssRuleBody(t, css, `html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] #chatPortrait`)
 	for _, marker := range []string{
 		`left:50% !important;`,
-		`width:760px !important;`,
-		`height:626.4px !important;`,
+		`width:988px !important;`,
+		`height:484px !important;`,
 		`transform:translateX(-50%);`,
 	} {
 		if !strings.Contains(portrait, marker) {

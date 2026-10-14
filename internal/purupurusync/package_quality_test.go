@@ -11,6 +11,22 @@ import (
 	"testing"
 )
 
+// requiredSettingsKeys are the settings every delivered package should carry.
+var requiredSettingsKeys = []string{"avatarImageSize", "state", "faceCenterSetup", "eyeSetup", "faceDepthSetup", "neckPivotSetup", "hairBundleSetup", "itemLayers"}
+
+// knownMissingSettings lists the rig setup keys a delivered package is known not
+// to ship. Packages are preserved unchanged (avatar-packages/README.md) and
+// runtime-app.js treats these keys as optional, falling back to defaults, but
+// rendering and motion without them are unverified. A key outside this list must
+// exist, and a listed key that exists fails so the list stays current.
+var knownMissingSettings = map[string][]string{
+	"Mio":    {"hairBundleSetup"},
+	"Shiro":  {"hairBundleSetup"},
+	"Kuro":   {"hairBundleSetup"},
+	"Midori": {"hairBundleSetup"},
+	"Lumina": {"faceCenterSetup", "eyeSetup", "faceDepthSetup", "neckPivotSetup", "hairBundleSetup"},
+}
+
 func TestVendoredCharacterPackagesAreCompleteAndTransparent(t *testing.T) {
 	root := filepath.Join("..", "portal", "web", "purupuru", "assets")
 	layers := []string{
@@ -70,9 +86,17 @@ func TestVendoredCharacterPackagesAreCompleteAndTransparent(t *testing.T) {
 			if err := json.Unmarshal(data, &settings); err != nil {
 				t.Fatalf("settings JSON: %v", err)
 			}
-			for _, key := range []string{"avatarImageSize", "state", "faceCenterSetup", "eyeSetup", "faceDepthSetup", "neckPivotSetup", "hairBundleSetup", "itemLayers"} {
-				if len(settings[key]) == 0 || string(settings[key]) == "null" {
+			knownMissing := map[string]bool{}
+			for _, key := range knownMissingSettings[character] {
+				knownMissing[key] = true
+			}
+			for _, key := range requiredSettingsKeys {
+				present := len(settings[key]) != 0 && string(settings[key]) != "null"
+				switch {
+				case !present && !knownMissing[key]:
 					t.Errorf("settings key %q is missing", key)
+				case present && knownMissing[key]:
+					t.Errorf("settings key %q is now present; remove it from knownMissingSettings", key)
 				}
 			}
 			var itemLayers []struct {
