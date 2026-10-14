@@ -12,9 +12,11 @@ import (
 )
 
 func main() {
-	source := flag.String("source", "../PuruPuruPNGTuber", "PuruPuruPNGTuber checkout")
+	source := flag.String("source", "internal/portal/web/purupuru", "PuruPuruPNGTuber checkout")
 	destination := flag.String("destination", "internal/portal/web/purupuru", "generated runtime destination")
 	character := flag.String("character", "", "extract only this character (comma-separated); empty syncs all")
+	packages := flag.String("packages", "avatar-packages", "durable package root; empty uses source/assets")
+	sourceCommit := flag.String("source-commit", "9dc1e735155faae8f54f9ee3076b52db7da36624", "upstream provenance commit override")
 	flag.Parse()
 
 	absSource, err := filepath.Abs(*source)
@@ -26,13 +28,23 @@ func main() {
 		log.Fatal(err)
 	}
 	commit := strings.TrimSpace(gitOutput(absSource, "rev-parse", "HEAD"))
+	if *sourceCommit != "" {
+		commit = *sourceCommit
+	}
+	packageRoot := filepath.Join(absSource, "assets")
+	if *packages != "" {
+		packageRoot, err = filepath.Abs(*packages)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	var selected []string
 	for _, value := range strings.Split(*character, ",") {
 		if value = strings.TrimSpace(value); value != "" {
 			selected = append(selected, value)
 		}
 	}
-	manifest, err := purupurusync.SyncSelected(absSource, absDestination, commit, selected)
+	manifest, err := purupurusync.SyncSelectedWithPackages(absSource, packageRoot, absDestination, commit, selected)
 	if err != nil {
 		log.Fatal(err)
 	}

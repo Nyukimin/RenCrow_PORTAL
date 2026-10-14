@@ -1,0 +1,36 @@
+{
+  "upstream_commit": "9dc1e735155faae8f54f9ee3076b52db7da36624",
+  "characters": {
+    "Mio": {
+      "package": "avatar-packages/Mio/Mio-refined-DRAFT.purupuru",
+      "sha256": "574659a377103bfb9a7963a4c9f761d871d820ab6184fd4b501ecbcd06a66a3b",
+      "png_references": 18,
+      "review_status": "DRAFT_STATIC_ONLY_RUNTIME_NOT_TESTED"
+    },
+    "Shiro": {
+      "package": "avatar-packages/Shiro/Shiro-finish-v2-STATIC-v1.purupuru",
+      "sha256": "5800a99e850c5dc0914e78b55c5f57f3e4f35d21792949d48132b2972ba6ac84",
+      "png_references": 10,
+      "review_status": null
+    },
+    "Kuro": {
+      "package": "avatar-packages/Kuro/Kuro-materials-v4-STATIC-v3.purupuru",
+      "sha256": "6ace3ffa47d699e1e4e05684dad3cc6935e70d05ad05baaf6af930e2d3ceda63",
+      "png_references": 12,
+      "review_status": null
+    },
+    "Midori": {
+      "package": "avatar-packages/Midori/Midori-independent-glasses-STATIC-v1.purupuru",
+      "sha256": "73cfd796f514df3232f1c6ea52d8d31c1ffc563a75c665c97b1aa28ddbf2ffdb",
+      "png_references": 15,
+      "review_status": null
+    },
+    "Lumina": {
+      "package": "avatar-packages/Lumina/Lumina_overlay6_PATCHED_ONLY_STATIC_v01.purupuru",
+      "sha256": "bbfee0b2bdfc69df9fbc23797f721c2b00107262a454c939f262ab47ac6bca48",
+      "png_references": 23,
+      "review_status": "STATIC_VALIDATED_RUNTIME_NOT_TESTED"
+    }
+  },
+  "runtime_verified": false
+}

@@ -1,18 +1,22 @@
 {
-    "format":  "purupuru-avatar-package",
-    "formatVersion":  1,
-    "app":  "PuruPuru PNGTuber",
-    "createdAt":  "2026-07-21T11:39:20.8827293Z",
-    "settings":  "settings.json",
-    "thumbnail":  "thumbnail.png",
-    "avatar":  {
-                   "backHair":  "avatar/back-hair.png",
-                   "frontHair":  "avatar/front-hair.png",
-                   "eyesOpenMouthClosed":  "avatar/eyes-open-mouth-closed.png",
-                   "eyesOpenMouthHalf":  "avatar/eyes-open-mouth-half.png",
-                   "eyesOpenMouthOpen":  "avatar/eyes-open-mouth-open.png",
-                   "eyesClosedMouthClosed":  "avatar/eyes-closed-mouth-closed.png",
-                   "eyesClosedMouthHalf":  "avatar/eyes-closed-mouth-half.png",
-                   "eyesClosedMouthOpen":  "avatar/eyes-closed-mouth-open.png"
-               }
+  "format": "purupuru-avatar-package",
+  "formatVersion": 1,
+  "app": "PuruPuru PNGTuber",
+  "settings": "settings.json",
+  "avatar": {
+    "backHair": "avatar/back-hair.png",
+    "frontHair": "avatar/front-hair.png",
+    "eyesOpenMouthClosed": "avatar/eyes-open-mouth-closed.png",
+    "eyesOpenMouthHalf": "avatar/eyes-open-mouth-half.png",
+    "eyesOpenMouthOpen": "avatar/eyes-open-mouth-open.png",
+    "eyesClosedMouthClosed": "avatar/eyes-closed-mouth-closed.png",
+    "eyesClosedMouthHalf": "avatar/eyes-closed-mouth-half.png",
+    "eyesClosedMouthOpen": "avatar/eyes-closed-mouth-open.png"
+  },
+  "reviewStatus": "DRAFT_STATIC_ONLY_RUNTIME_NOT_TESTED",
+  "provenance": {
+    "sourceZip": "Mio-PuruPuru-refined-assets-DRAFT.zip",
+    "sha256": "c4fc8fde4bb187026cbe284c2eee052455cdcb7b2d6fd2adc2bf14679a26795f",
+    "note": "Repackaged existing PNG bytes and provisional settings; no image regeneration."
+  }
 }

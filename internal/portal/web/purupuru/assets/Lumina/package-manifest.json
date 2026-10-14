@@ -1,0 +1,33 @@
+{
+  "format": "purupuru-avatar-package+feature-overlays-v1",
+  "formatVersion": 1,
+  "app": "PuruPuru PNGTuber",
+  "createdAt": "2026-10-12T10:40:28.310830+00:00",
+  "settings": "settings.json",
+  "avatar": {
+    "backHair": "avatar/back-hair.png",
+    "frontHair": "avatar/front-hair.png",
+    "eyesOpenMouthClosed": "avatar/eyes-open-mouth-closed.png",
+    "eyesOpenMouthHalf": "avatar/eyes-open-mouth-half.png",
+    "eyesOpenMouthOpen": "avatar/eyes-open-mouth-open.png",
+    "eyesClosedMouthClosed": "avatar/eyes-closed-mouth-closed.png",
+    "eyesClosedMouthHalf": "avatar/eyes-closed-mouth-half.png",
+    "eyesClosedMouthOpen": "avatar/eyes-closed-mouth-open.png"
+  },
+  "extensions": {
+    "featureOverlays": {
+      "version": 1,
+      "assets": {
+        "eyesOpenMouthClosed": "avatar/feature-overlays/eyes-open-mouth-closed.png",
+        "eyesOpenMouthHalf": "avatar/feature-overlays/eyes-open-mouth-half.png",
+        "eyesOpenMouthOpen": "avatar/feature-overlays/eyes-open-mouth-open.png",
+        "eyesClosedMouthClosed": "avatar/feature-overlays/eyes-closed-mouth-closed.png",
+        "eyesClosedMouthHalf": "avatar/feature-overlays/eyes-closed-mouth-half.png",
+        "eyesClosedMouthOpen": "avatar/feature-overlays/eyes-closed-mouth-open.png"
+      }
+    }
+  },
+  "thumbnail": "thumbnail.png",
+  "reviewStatus": "STATIC_VALIDATED_RUNTIME_NOT_TESTED",
+  "compatibilityNotice": "標準PuruPuru非対応・付属パッチ適用版専用・実機未検証。静止比較用設定で、可動リグは未調整。"
+}

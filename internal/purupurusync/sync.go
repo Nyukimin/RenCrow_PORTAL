@@ -11,22 +11,24 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
 // Characters is the PORTAL-visible set. The directory names are part of the
 // PuruPuru package contract and intentionally retain their original casing.
-var Characters = []string{"Mio", "Shiro", "Kuro", "Midori"}
+var Characters = []string{"Mio", "Shiro", "Kuro", "Midori", "Lumina"}
 
 // CharacterPackages pins the generated model that PORTAL renders. Loose PNGs
 // in each directory can be intermediate material and are not necessarily the
 // same content as the latest exported .purupuru package.
 var CharacterPackages = map[string]string{
-	"Mio":    "Mio.purupuru",
-	"Shiro":  "Shiro02.purupuru",
-	"Kuro":   "Kuro.purupuru",
-	"Midori": "Midori02.purupuru",
+	"Mio":    "Mio-refined-DRAFT.purupuru",
+	"Shiro":  "Shiro-finish-v2-STATIC-v1.purupuru",
+	"Kuro":   "Kuro-materials-v4-STATIC-v3.purupuru",
+	"Midori": "Midori-independent-glasses-STATIC-v1.purupuru",
+	"Lumina": "Lumina_overlay6_PATCHED_ONLY_STATIC_v01.purupuru",
 }
 
 const puruPuruJSNotice = `// SPDX-License-Identifier: Apache-2.0
@@ -104,11 +106,34 @@ func TransformApp(source []byte) ([]byte, error) {
 
 	replace(`  const OBS_MODE = APP_MODE === "obs";`, `  const OBS_MODE = APP_MODE === "obs";
   const PORTAL_RUNTIME_MODE = Boolean(runtime.portal);
-  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori" });
+  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori", lumina: "Lumina" });
   const PORTAL_CHARACTER = Object.hasOwn(PORTAL_CHARACTER_DIRS, String(runtime.character || "").toLowerCase())
     ? String(runtime.character).toLowerCase()
     : "mio";
-  const PORTAL_CHARACTER_DIR = PORTAL_CHARACTER_DIRS[PORTAL_CHARACTER];`, "runtime mode")
+  const PORTAL_CHARACTER_DIR = PORTAL_CHARACTER_DIRS[PORTAL_CHARACTER];
+  function portalStorageName(name) {
+    return PORTAL_RUNTIME_MODE && PORTAL_CHARACTER === "lumina"
+      ? name + "-feature-overlays-v1"
+      : name;
+  }`, "runtime mode")
+
+	for _, storage := range []struct{ binding, key string }{
+		{"STORAGE_KEY", "purupuru-pngtuber-deformers-v2"},
+		{"EYE_SETUP_STORAGE_KEY", "purupuru-pngtuber-eye-setup-v2"},
+		{"FACE_CENTER_SETUP_STORAGE_KEY", "purupuru-pngtuber-face-center-setup-v2"},
+		{"HIGHLIGHT_SETUP_STORAGE_KEY", "purupuru-pngtuber-highlight-setup-v2"},
+		{"FACE_DEPTH_SETUP_STORAGE_KEY", "purupuru-pngtuber-face-depth-setup-v2"},
+		{"NECK_PIVOT_SETUP_STORAGE_KEY", "purupuru-pngtuber-neck-pivot-setup-v2"},
+		{"HAIR_BUNDLE_SETUP_STORAGE_KEY", "purupuru-pngtuber-hair-bundle-setup-v2"},
+		{"ALL_SETTINGS_STORAGE_KEY", "purupuru-pngtuber-all-settings-v1"},
+		{"ACTIVE_CHARACTER_STORAGE_KEY", "purupuru-pngtuber-active-character-id-v1"},
+		{"DELETED_AUTO_CHARACTER_SOURCES_STORAGE_KEY", "purupuru-pngtuber-deleted-auto-character-sources-v1"},
+		{"CHARACTER_DB_NAME", "purupuru-pngtuber-character-library-v1"},
+	} {
+		replace("  const "+storage.binding+" = "+strconv.Quote(storage.key)+";",
+			"  const "+storage.binding+" = portalStorageName("+strconv.Quote(storage.key)+");",
+			"storage compatibility "+storage.binding)
+	}
 
 	assetStart := strings.Index(s, "  const ASSETS = {\n")
 	assetEnd := strings.Index(s, "  const DEMO_AVATAR02_ASSETS = {\n")
@@ -122,7 +147,7 @@ func TransformApp(source []byte) ([]byte, error) {
   }
   function portalAvatarAssets(directory) {
     const root = ` + "`assets/${directory}/`" + `;
-    return {
+    const assets = {
       backHair: portalAssetURL(root + "back-hair.png"),
       frontHair: portalAssetURL(root + "front-hair.png"),
       eyesOpenMouthClosed: portalAssetURL(root + "eyes-open-mouth-closed.png"),
@@ -132,6 +157,13 @@ func TransformApp(source []byte) ([]byte, error) {
       eyesClosedMouthHalf: portalAssetURL(root + "eyes-closed-mouth-half.png"),
       eyesClosedMouthOpen: portalAssetURL(root + "eyes-closed-mouth-open.png"),
     };
+    if (directory === "Lumina") {
+      const variants = {"featureOverlayEyesOpenMouthClosed": "eyes-open-mouth-closed.png", "featureOverlayEyesOpenMouthHalf": "eyes-open-mouth-half.png", "featureOverlayEyesOpenMouthOpen": "eyes-open-mouth-open.png", "featureOverlayEyesClosedMouthClosed": "eyes-closed-mouth-closed.png", "featureOverlayEyesClosedMouthHalf": "eyes-closed-mouth-half.png", "featureOverlayEyesClosedMouthOpen": "eyes-closed-mouth-open.png"};
+      for (const [imageKey, file] of Object.entries(variants)) {
+        assets[imageKey] = portalAssetURL(root + "feature-overlays/" + file);
+      }
+    }
+    return assets;
   }
 ` + originalAssets + `  const ASSETS = PORTAL_RUNTIME_MODE ? portalAvatarAssets(PORTAL_CHARACTER_DIR) : DEFAULT_ASSETS;
 `
@@ -345,6 +377,11 @@ func Sync(sourceRoot, destinationRoot, sourceCommit string) (*Manifest, error) {
 // full-sync behavior. This lets a single character be updated without
 // overwriting a known non-target asset difference.
 func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []string) (*Manifest, error) {
+	return SyncSelectedWithPackages(sourceRoot, filepath.Join(sourceRoot, "assets"), destinationRoot, sourceCommit, selected)
+}
+
+// SyncSelectedWithPackages keeps durable character packages separate from upstream code.
+func SyncSelectedWithPackages(sourceRoot, packageRoot, destinationRoot, sourceCommit string, selected []string) (*Manifest, error) {
 	targets, err := configuredCharacters(selected)
 	if err != nil {
 		return nil, err
@@ -355,6 +392,9 @@ func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []s
 	app, err := os.ReadFile(filepath.Join(sourceRoot, "app.js"))
 	if err != nil {
 		return nil, fmt.Errorf("read upstream app.js: %w", err)
+	}
+	if !bytes.Contains(app, []byte("function drawStateLinkedFeatureOverlayLayer")) || !bytes.Contains(app, []byte("const FEATURE_OVERLAY_KEYS =")) {
+		return nil, fmt.Errorf("Lumina requires the reviewed feature-overlay runtime; use PORTAL vendored app.js")
 	}
 	runtimeApp, err := TransformApp(app)
 	if err != nil {
@@ -385,7 +425,7 @@ func SyncSelected(sourceRoot, destinationRoot, sourceCommit string, selected []s
 		return nil, err
 	}
 	for _, character := range Characters {
-		sourceDir := filepath.Join(sourceRoot, "assets", character)
+		sourceDir := filepath.Join(packageRoot, character)
 		packageName := CharacterPackages[character]
 		if packageName == "" {
 			return nil, fmt.Errorf("%s package is not configured", character)
@@ -646,6 +686,9 @@ func copyTree(sourceRoot, destinationRoot string) error {
 }
 
 func copyFile(source, destination string) error {
+	if filepath.Clean(source) == filepath.Clean(destination) {
+		return nil
+	}
 	input, err := os.Open(source)
 	if err != nil {
 		return err
