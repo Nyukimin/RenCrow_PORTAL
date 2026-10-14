@@ -116,6 +116,30 @@ SSE eventは受信時点の現在modeでfilterします。mode変更前に受信
 - mode切替時は旧modeの再生待ちqueueと再生中audioを停止し、旧modeのmessageを新しい会話欄へ移しません。
 - 重複eventは`message_id`で除外しますが、重複除外より先にmode filterを適用しても、後に適用しても表示結果が同じでなければなりません。
 
+### Chatの音声入力（STT）のerrorとclose
+
+Chatのマイク入力は、COREの`WS /stt`（`protocol="utterance.v1"`）へPCM16を送り、発話ごとの
+`final`／`error`／`cancelled`を受け取ります。話し終わりの判定（無音による自動区切り）は
+RenCrow_STTが持ち、PORTALは持ちません。自動区切りで発話が増えるため、1発話の失敗でマイクを
+止めてはなりません。event別の扱いは次の通りです。
+
+| 受信event | PORTALの扱い |
+| --- | --- |
+| `draft`／`partial`（textあり） | 入力欄へ表示するだけで送信しない |
+| `final`（textあり） | 入力欄へ入れて`input_source=stt`で送信する。`end_reason`は判定に使わず、未知の値（`silence`など）も通常の`final`として扱う |
+| `final`（textなし）、`cancelled`、`speech_start`、`ready`、未知のtype | 何もしない。マイクとinput権は維持する |
+| `error`で`utterance_id`あり（発話単位。`stt_busy`、`stt_provider_error`、`stt_failed`など） | 状態行へ`STT発話エラー: <code>: <error>`を短く表示する。マイクとinput権は維持し、直前のerrorとして保持する |
+| `error`で`utterance_id`なし（session-level） | マイクをOFFにし、input権を解放し、`STTエラー: <code>: <error>`を表示する |
+| WebSocket close（マイクON中の、現在の接続の意図しないclose） | マイクをOFFにし、input権を解放し、closeのcode／reason／直前の発話errorを添えて表示する。自動再接続はしない |
+
+- `utterance_id`の有無だけで発話単位とsession-levelを区別する。errorの`code`の値で区別しない。
+- COREは接続を閉じるとき（上限超過）、終端を持たない各発話へ`code=stt_limit_exceeded`の発話errorを送ってから閉じる。
+  発話errorではマイクを止めず、続くcloseで止めて、直前の発話errorを理由に含める。
+- 既に`cleanup`で解放・差し替え済みの古い接続のcloseは、新しいSTTセッションを止めない。
+- マイクOFF操作の後（停止処理中）に届いた発話errorは状態行を上書きしない。
+- この判定は`internal/portal/web/stt_events.js`の純関数（`classifySTTMessage`、`describeSTTClose`）が持ち、
+  効果（マイク、input権、状態行）の適用は`portal.js`が行う。
+
 ## 6. 権限境界
 
 `mode=IdleChat`は会話送信や管理操作について読み取り専用です。state-changingな例外は
@@ -152,6 +176,9 @@ PORTAL serverはbrowserが送ったclient/profile headerを信頼せず、page m
 13. Chatでは通常時のDOMとscheduler登録runtimeが選択中の1体だけであり、切替時は
     `avatar準備 -> CORE recipient確認 -> 同期commit -> 選択状態更新`の順を守る。各失敗時は
     current avatarと選択状態を維持し、ロード画面や空白frameを表示しない。
+14. STTの`error`が`utterance_id`を持つ場合、マイクとinput権は維持され、状態行へ発話errorが表示される。
+15. STTの`error`が`utterance_id`を持たない場合と、マイクON中の意図しないWebSocket closeでは、マイクがOFFになりinput権が解放され、理由が表示される。
+16. `end_reason`が未知の値（`silence`など）の`final`は、通常の`final`と同じく入力欄へ入り送信される。
 
 ## 8. 実装と検証境界
 

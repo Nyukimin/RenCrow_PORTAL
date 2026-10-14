@@ -148,6 +148,7 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - 接続元IPのforwardingとHTTP User-AgentはCORE側で操作元ログとして安全化して記録する
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
+- STTのerrorは範囲で扱いを分ける（`WS /stt`の`utterance.v1`はRenCrow_COREの`docs/06_Public_API仕様.md`を正とする）。`utterance_id`を持つerror（`stt_busy`など1発話の失敗）は状態行に短く表示するだけで、マイクとinput権を維持する。`utterance_id`を持たないerror（session-level）と、マイクON中の意図しないWebSocket closeは、マイクをOFFにしてinput権を解放し、理由を表示する。`final`／`cancelled`の`end_reason`は判定に使わず、未知の値（`silence`など）も通常の`final`として扱う。話し終わりの判定はRenCrow_STT側が持ち、PORTALはVADを持たない。自動再接続は行わない。この判定は純関数の`internal/portal/web/stt_events.js`が持ち、`internal/portal/webtest/stt_events.test.js`で検証する
 - `IdleChat`はsurface在席通知以外のこれらの操作を許可しない
 
 Chat／IdleChatの排他表示、lease、複数tab、event／TTS filter、失敗時表示の詳細は

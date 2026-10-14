@@ -204,7 +204,7 @@ func TestRunBrowserProxyEvidenceFreshnessWindow(t *testing.T) {
 				"portal_url": "https://portal.example.test", "request": map[string]any{
 					"method": "POST", "url": "https://portal.example.test/api/chat/viewer/send",
 				},
-				"response":     map[string]any{"status": 200, "task_id": "tsk_01h000000000000000000001", "text": "応答"},
+				"response":     map[string]any{"status": 200, "task_id": "tsk_01h000000000000000000001", "trace_id": "trace-1", "text": "応答"},
 				"visible_text": "応答",
 			})
 			receipt, runErr := Run(context.Background(), Options{
