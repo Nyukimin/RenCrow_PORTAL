@@ -10,7 +10,7 @@ in `LICENSE`, and repository-level attribution is in
 
 The following files contain PuruPuru-derived Apache-2.0 code:
 
-- `app.js`, `index.html`, and `styles.css`: upstream source bodies with the
+- `app.js`, `index.html`, and `styles.css`: upstream source bodies (app.js also includes the reviewed state-linked feature-overlay extension) with the
   RenCrow_PORTAL attribution and modification notice added by
   `internal/purupurusync`;
 - `runtime-app.js`: generated from `app.js` by `internal/purupurusync` and
@@ -34,7 +34,7 @@ check for a newly added upstream `NOTICE` and preserve any applicable contents.
 `runtime-app.js` wraps the full application in a scoped instance factory and
 adds only:
 
-- `character=mio|shiro|kuro|midori` package selection;
+- `character=mio|shiro|kuro|midori|lumina` package selection;
 - scoped DOM, storage, boot and teardown boundaries;
 - the upstream control-mode motion path, with PORTAL forcing mouse-follow off
   while preserving each package's idle-motion setting;
@@ -56,7 +56,12 @@ records the upstream commit and SHA-256 hashes used for provenance checks.
 Character assets are extracted from the pinned generated packages, not copied
 from loose intermediate PNGs:
 
-- `Mio/Mio.purupuru`
-- `Shiro/Shiro02.purupuru`
-- `Kuro/Kuro.purupuru`
-- `Midori/Midori02.purupuru`
+- `avatar-packages/Mio/Mio-refined-DRAFT.purupuru`
+- `avatar-packages/Shiro/Shiro-finish-v2-STATIC-v1.purupuru`
+- `avatar-packages/Kuro/Kuro-materials-v4-STATIC-v3.purupuru`
+- `avatar-packages/Midori/Midori-independent-glasses-STATIC-v1.purupuru`
+- `avatar-packages/Lumina/Lumina_overlay6_PATCHED_ONLY_STATIC_v01.purupuru`
+
+Lumina is registered only for rendering. Its six state-linked brow/lash overlays are drawn above front hair, preserving the same face deformation path. CORE recipient selection, Chat participation and IdleChat placement are not enabled for Lumina. Durable package sources are stored in the repository avatar-packages directory; use the root README sync command.
+
+Storage compatibility: the upstream storage literals and all four existing PORTAL characters retain their original ten localStorage keys and IndexedDB name. The existing scopedStorage(character) prefix remains unchanged. Only the Lumina runtime resolves these names with the feature-overlays-v1 suffix; it keeps its own localStorage prefix and independent IndexedDB name. No old data is deleted or migrated.

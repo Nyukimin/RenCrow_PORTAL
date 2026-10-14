@@ -68,7 +68,45 @@ foreach ($property in $manifest.files.PSObject.Properties) {
 }
 $fontExtensions = @(".eot", ".otf", ".ttf", ".woff", ".woff2")
 $imageExtensions = @(".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp")
-$characters = @("Kuro", "Midori", "Mio", "Shiro")
+$locationsPath = Join-Path $repoRoot "skills\rencrow-avatar-manager\references\locations.json"
+$locations = Get-Content -LiteralPath $locationsPath -Raw -ErrorAction Stop | ConvertFrom-Json
+$entries = @($locations.characters.PSObject.Properties)
+if ($entries.Count -eq 0) {
+    throw "Avatar location registry has no characters."
+}
+
+$expectedPackages = @{}
+$characters = @(
+    foreach ($entry in $entries) {
+        $directory = [string]$entry.Value.portal_directory
+        $package = [string]$entry.Value.package
+        if ($directory -notmatch '^[A-Za-z][A-Za-z0-9_-]*$') {
+            throw "Invalid portal directory in registry entry '$($entry.Name)'."
+        }
+        if ($package -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]*\.purupuru$') {
+            throw "Invalid package filename in registry entry '$($entry.Name)'."
+        }
+        if ($expectedPackages.ContainsKey($directory)) {
+            throw "Duplicate portal directory in registry: $directory"
+        }
+        $expectedPackages[$directory] = $package
+        $directory
+    }
+)
+
+if ($null -eq $manifest.character_packages) {
+    throw "Manifest is missing character_packages."
+}
+$expectedKeys = @($expectedPackages.Keys | Sort-Object -CaseSensitive)
+$actualKeys = @($manifest.character_packages.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+if (($expectedKeys -join "`n") -cne ($actualKeys -join "`n")) {
+    throw "Manifest character_packages keys do not match the avatar location registry."
+}
+foreach ($directory in $expectedKeys) {
+    if ([string]$manifest.character_packages.$directory -cne $expectedPackages[$directory]) {
+        throw "Manifest package filename for '$directory' does not match the avatar location registry."
+    }
+}
 $imageCount = 0
 foreach ($file in Get-ChildItem -LiteralPath $puruPuruRoot -Recurse -File) {
     $relative = $file.FullName.Substring($puruPuruRoot.Length + 1).Replace("\", "/")

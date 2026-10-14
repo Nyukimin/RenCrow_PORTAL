@@ -53,11 +53,16 @@
   const APP_MODE = String(URL_PARAMS.get("mode") || "control").toLowerCase();
   const OBS_MODE = APP_MODE === "obs";
   const PORTAL_RUNTIME_MODE = Boolean(runtime.portal);
-  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori" });
+  const PORTAL_CHARACTER_DIRS = Object.freeze({ mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori", lumina: "Lumina" });
   const PORTAL_CHARACTER = Object.hasOwn(PORTAL_CHARACTER_DIRS, String(runtime.character || "").toLowerCase())
     ? String(runtime.character).toLowerCase()
     : "mio";
   const PORTAL_CHARACTER_DIR = PORTAL_CHARACTER_DIRS[PORTAL_CHARACTER];
+  function portalStorageName(name) {
+    return PORTAL_RUNTIME_MODE && PORTAL_CHARACTER === "lumina"
+      ? name + "-feature-overlays-v1"
+      : name;
+  }
   const OBS_PRESETS = {
     light: { label: "軽量", fps: 30, quality: "low", width: 960, height: 540, sendFps: 20 },
     standard: { label: "標準", fps: 30, quality: "standard", width: 1280, height: 720, sendFps: 30 },
@@ -72,7 +77,7 @@
   }
   function portalAvatarAssets(directory) {
     const root = `assets/${directory}/`;
-    return {
+    const assets = {
       backHair: portalAssetURL(root + "back-hair.png"),
       frontHair: portalAssetURL(root + "front-hair.png"),
       eyesOpenMouthClosed: portalAssetURL(root + "eyes-open-mouth-closed.png"),
@@ -82,6 +87,13 @@
       eyesClosedMouthHalf: portalAssetURL(root + "eyes-closed-mouth-half.png"),
       eyesClosedMouthOpen: portalAssetURL(root + "eyes-closed-mouth-open.png"),
     };
+    if (directory === "Lumina") {
+      const variants = {"featureOverlayEyesOpenMouthClosed": "eyes-open-mouth-closed.png", "featureOverlayEyesOpenMouthHalf": "eyes-open-mouth-half.png", "featureOverlayEyesOpenMouthOpen": "eyes-open-mouth-open.png", "featureOverlayEyesClosedMouthClosed": "eyes-closed-mouth-closed.png", "featureOverlayEyesClosedMouthHalf": "eyes-closed-mouth-half.png", "featureOverlayEyesClosedMouthOpen": "eyes-closed-mouth-open.png"};
+      for (const [imageKey, file] of Object.entries(variants)) {
+        assets[imageKey] = portalAssetURL(root + "feature-overlays/" + file);
+      }
+    }
+    return assets;
   }
   const DEFAULT_ASSETS = {
     backHair: "assets/demo-avatar/back-hair.png",
@@ -116,6 +128,68 @@
     eyesClosedMouthOpen: "assets/demo-avatar03/eyes-closed-mouth-open.png",
   };
   const DEMO_AVATAR03_SOURCE_KIND = "asset-demo-avatar03";
+  // Optional six-state face features, drawn above hair. Old eight-image avatars
+  // retain their original format and behavior. Extended formats fail closed in
+  // unmodified readers, which otherwise silently ignore unknown image keys.
+  const FEATURE_OVERLAY_PACKAGE_FORMAT = "purupuru-avatar-package+feature-overlays-v1";
+  const FEATURE_OVERLAY_OBS_TYPE = "purupuru-obs-snapshot+feature-overlays-v1";
+  const FEATURE_OVERLAY_KEYS = Object.freeze({
+    eyesOpenMouthClosed: "featureOverlayEyesOpenMouthClosed",
+    eyesOpenMouthHalf: "featureOverlayEyesOpenMouthHalf",
+    eyesOpenMouthOpen: "featureOverlayEyesOpenMouthOpen",
+    eyesClosedMouthClosed: "featureOverlayEyesClosedMouthClosed",
+    eyesClosedMouthHalf: "featureOverlayEyesClosedMouthHalf",
+    eyesClosedMouthOpen: "featureOverlayEyesClosedMouthOpen",
+  });
+  let featureOverlayBlendCanvas = null;
+  let featureOverlayBlendCtx = null;
+  let featureOverlayBlendWarningShown = false;
+
+  function avatarImageKeysWithFeatureOverlays(container) {
+    const optionalKeys = Object.values(FEATURE_OVERLAY_KEYS);
+    const present = optionalKeys.filter((key) => container?.[key] != null);
+    if (present.length && (present.length !== optionalKeys.length || present.some((key) => !container[key]))) {
+      throw new Error("feature overlay は対応する6状態すべてが必要です。");
+    }
+    return [...Object.keys(AVATAR_PACKAGE_ASSETS), ...present];
+  }
+
+  function featureOverlayPackagePaths(container) {
+    const keys = avatarImageKeysWithFeatureOverlays(container);
+    if (keys.length === Object.keys(AVATAR_PACKAGE_ASSETS).length) return {};
+    return Object.fromEntries(Object.entries(FEATURE_OVERLAY_KEYS).map(([stateKey, imageKey]) =>
+      [imageKey, AVATAR_PACKAGE_ASSETS[stateKey].replace("avatar/", "avatar/feature-overlays/")]
+    ));
+  }
+
+  function readFeatureOverlayPackagePaths(manifest) {
+    const extension = manifest?.extensions?.featureOverlays;
+    if (manifest?.format === "purupuru-avatar-package") {
+      if (extension != null) throw new Error("feature overlay を含むパッケージは拡張形式で保存してください。");
+      return {};
+    }
+    if (manifest?.format !== FEATURE_OVERLAY_PACKAGE_FORMAT) throw new Error(".purupuru 形式ではありません。");
+    if (!extension || extension.version !== 1 || !extension.assets || Array.isArray(extension.assets) || typeof extension.assets !== "object") {
+      throw new Error("feature overlay 拡張の形式またはバージョンが不正です。");
+    }
+    const states = Object.keys(FEATURE_OVERLAY_KEYS);
+    if (Object.keys(extension.assets).length !== states.length || states.some((key) => typeof extension.assets[key] !== "string" || !extension.assets[key])) {
+      throw new Error("feature overlay 拡張には6状態のPNGパスが必要です。");
+    }
+    return Object.fromEntries(states.map((stateKey) =>
+      [FEATURE_OVERLAY_KEYS[stateKey], assertSafePackagePath(extension.assets[stateKey])]
+    ));
+  }
+
+  function featureOverlaySnapshotKeys(snapshot) {
+    const keys = avatarImageKeysWithFeatureOverlays(snapshot?.avatarImages);
+    const hasOverlays = keys.length > Object.keys(AVATAR_PACKAGE_ASSETS).length;
+    if (hasOverlays !== (snapshot?.type === FEATURE_OVERLAY_OBS_TYPE)) {
+      throw new Error("OBS feature overlay の形式と画像セットが一致しません。通常画面とOBS側を同じ対応版にしてください。");
+    }
+    return keys;
+  }
+
   const DEFAULT_SETTINGS_URL = PORTAL_RUNTIME_MODE
     ? portalAssetURL(`assets/${PORTAL_CHARACTER_DIR}/default-settings.json`)
     : "assets/demo-avatar/default-settings.json";
@@ -194,14 +268,14 @@
     up: { x: 0, y: -1 },
     down: { x: 0, y: 1 },
   };
-  const STORAGE_KEY = "purupuru-pngtuber-deformers-v2";
-  const EYE_SETUP_STORAGE_KEY = "purupuru-pngtuber-eye-setup-v2";
-  const FACE_CENTER_SETUP_STORAGE_KEY = "purupuru-pngtuber-face-center-setup-v2";
-  const HIGHLIGHT_SETUP_STORAGE_KEY = "purupuru-pngtuber-highlight-setup-v2";
-  const FACE_DEPTH_SETUP_STORAGE_KEY = "purupuru-pngtuber-face-depth-setup-v2";
-  const NECK_PIVOT_SETUP_STORAGE_KEY = "purupuru-pngtuber-neck-pivot-setup-v2";
-  const HAIR_BUNDLE_SETUP_STORAGE_KEY = "purupuru-pngtuber-hair-bundle-setup-v2";
-  const ALL_SETTINGS_STORAGE_KEY = "purupuru-pngtuber-all-settings-v1";
+  const STORAGE_KEY = portalStorageName("purupuru-pngtuber-deformers-v2");
+  const EYE_SETUP_STORAGE_KEY = portalStorageName("purupuru-pngtuber-eye-setup-v2");
+  const FACE_CENTER_SETUP_STORAGE_KEY = portalStorageName("purupuru-pngtuber-face-center-setup-v2");
+  const HIGHLIGHT_SETUP_STORAGE_KEY = portalStorageName("purupuru-pngtuber-highlight-setup-v2");
+  const FACE_DEPTH_SETUP_STORAGE_KEY = portalStorageName("purupuru-pngtuber-face-depth-setup-v2");
+  const NECK_PIVOT_SETUP_STORAGE_KEY = portalStorageName("purupuru-pngtuber-neck-pivot-setup-v2");
+  const HAIR_BUNDLE_SETUP_STORAGE_KEY = portalStorageName("purupuru-pngtuber-hair-bundle-setup-v2");
+  const ALL_SETTINGS_STORAGE_KEY = portalStorageName("purupuru-pngtuber-all-settings-v1");
   // control-group廃止で未使用（Phase 2）。旧アコーディオン開閉状態の保存に使われていた。
   // const UI_STATE_STORAGE_KEY = "move-avatar-ui-state-v6";
   // Phase 2: ナビレール一本化に伴い旧2階層タブは廃止。以下2つは移行読取専用で残す。
@@ -243,9 +317,9 @@
     diagonalFaceWarpEnabled: true,
   });
   const OBS_PRESET_STORAGE_KEY = "purupuru-pngtuber-obs-preset-v1";
-  const ACTIVE_CHARACTER_STORAGE_KEY = "purupuru-pngtuber-active-character-id-v1";
-  const DELETED_AUTO_CHARACTER_SOURCES_STORAGE_KEY = "purupuru-pngtuber-deleted-auto-character-sources-v1";
-  const CHARACTER_DB_NAME = "purupuru-pngtuber-character-library-v1";
+  const ACTIVE_CHARACTER_STORAGE_KEY = portalStorageName("purupuru-pngtuber-active-character-id-v1");
+  const DELETED_AUTO_CHARACTER_SOURCES_STORAGE_KEY = portalStorageName("purupuru-pngtuber-deleted-auto-character-sources-v1");
+  const CHARACTER_DB_NAME = portalStorageName("purupuru-pngtuber-character-library-v1");
   const CHARACTER_DB_VERSION = 1;
   const CHARACTER_STORE_NAME = "characters";
   const MAX_CHARACTER_PROFILES = 12;
@@ -1934,7 +2008,7 @@
 
   function validateAvatarImageSetDimensions(loadedImages) {
     let expected = null;
-    for (const key of Object.keys(AVATAR_PACKAGE_ASSETS)) {
+    for (const key of avatarImageKeysWithFeatureOverlays(loadedImages)) {
       const image = loadedImages?.[key];
       if (!image) throw new Error(`キャラ素材が不足しています: ${key}`);
       const size = validateAvatarImageDimensions(image, key, expected);
@@ -2004,9 +2078,16 @@
   }
 
   function applyLoadedAvatarImages(loadedImages) {
+    // Optional groups are replaced, never inherited from the previous avatar.
+    avatarImageKeysWithFeatureOverlays(loadedImages);
     const mergedImages = { ...images, ...(loadedImages || {}) };
+    for (const key of Object.values(FEATURE_OVERLAY_KEYS)) {
+      delete mergedImages[key];
+      if (loadedImages?.[key]) mergedImages[key] = loadedImages[key];
+    }
     const size = validateAvatarImageSetDimensions(mergedImages);
     setAvatarImageSize(size.w, size.h);
+    for (const key of Object.values(FEATURE_OVERLAY_KEYS)) delete images[key];
     for (const [key, image] of Object.entries(loadedImages || {})) {
       images[key] = image;
     }
@@ -2024,17 +2105,23 @@
     }
 
     const files = Object.create(null);
+    const overlayPaths = featureOverlayPackagePaths(images);
+    const hasOverlays = Object.keys(overlayPaths).length > 0;
     const manifest = {
-      format: "purupuru-avatar-package",
+      format: hasOverlays ? FEATURE_OVERLAY_PACKAGE_FORMAT : "purupuru-avatar-package",
       formatVersion: PURUPURU_PACKAGE_VERSION,
       app: "PuruPuru PNGTuber",
       createdAt: new Date().toISOString(),
       settings: "settings.json",
       thumbnail: "thumbnail.png",
       avatar: { ...AVATAR_PACKAGE_ASSETS },
+      ...(hasOverlays ? { extensions: { featureOverlays: {
+        version: 1,
+        assets: Object.fromEntries(Object.entries(FEATURE_OVERLAY_KEYS).map(([stateKey, imageKey]) => [stateKey, overlayPaths[imageKey]])),
+      } } } : {}),
     };
 
-    for (const [key, path] of Object.entries(AVATAR_PACKAGE_ASSETS)) {
+    for (const [key, path] of Object.entries({ ...AVATAR_PACKAGE_ASSETS, ...overlayPaths })) {
       const image = images[key];
       if (!image) throw new Error(`キャラ素材が不足しています: ${key}`);
       validateAvatarImageDimensions(image, key, { w: CROP.w, h: CROP.h });
@@ -2103,9 +2190,7 @@
     if (!manifestRaw) throw new Error("manifest.json がありません。");
 
     const manifest = parseSettingsJsonBytes(manifestRaw, "manifest.json", MAX_PURUPURU_MANIFEST_JSON_BYTES);
-    if (manifest.format !== "purupuru-avatar-package") {
-      throw new Error(".purupuru 形式ではありません。");
-    }
+    const overlayPaths = readFeatureOverlayPackagePaths(manifest);
 
     const settingsPath = assertSafePackagePath(manifest.settings || "settings.json");
     const settingsRaw = unzipped[settingsPath];
@@ -2116,8 +2201,8 @@
     const loadedAvatarImages = {};
     const avatarImageBlobs = {};
     let expectedAvatarSize = null;
-    for (const [key, fallbackPath] of Object.entries(AVATAR_PACKAGE_ASSETS)) {
-      const assetPath = assertSafePackagePath(manifest.avatar?.[key] || fallbackPath);
+    for (const [key, fallbackPath] of Object.entries({ ...AVATAR_PACKAGE_ASSETS, ...overlayPaths })) {
+      const assetPath = assertSafePackagePath(overlayPaths[key] || manifest.avatar?.[key] || fallbackPath);
       const assetU8 = unzipped[assetPath];
       if (!assetU8) throw new Error(`キャラ素材がありません: ${assetPath}`);
       const image = await loadPngImageFromU8(assetU8, assetPath);
@@ -3601,7 +3686,9 @@
     const thumbnailCtx = canvasElement.getContext("2d");
     if (!thumbnailCtx) return canvasToThumbnailDataUrl(face, name);
     thumbnailCtx.clearRect(0, 0, thumbnailSize.w, thumbnailSize.h);
-    for (const image of [loadedImages.backHair, face, loadedImages.frontHair]) {
+    const faceKey = Object.keys(FEATURE_OVERLAY_KEYS).find((key) => loadedImages[key] === face);
+    const featureOverlay = faceKey ? loadedImages[FEATURE_OVERLAY_KEYS[faceKey]] : null;
+    for (const image of [loadedImages.backHair, face, loadedImages.frontHair, featureOverlay]) {
       if (image) thumbnailCtx.drawImage(image, 0, 0, thumbnailSize.w, thumbnailSize.h);
     }
     const dataUrl = await canvasToPngDataUrl(canvasElement, name);
@@ -3647,7 +3734,7 @@
 
   async function collectAvatarImageBlobsFromRuntime() {
     const avatarImageBlobs = {};
-    for (const key of Object.keys(AVATAR_PACKAGE_ASSETS)) {
+    for (const key of avatarImageKeysWithFeatureOverlays(images)) {
       const image = images[key];
       if (!image) throw new Error(`キャラ素材が不足しています: ${key}`);
       validateAvatarImageDimensions(image, key, { w: CROP.w, h: CROP.h });
@@ -3658,7 +3745,7 @@
 
   async function avatarImageBlobsSignature(avatarImageBlobs) {
     const parts = [];
-    for (const key of Object.keys(AVATAR_PACKAGE_ASSETS)) {
+    for (const key of avatarImageKeysWithFeatureOverlays(avatarImageBlobs)) {
       const blob = avatarImageBlobs?.[key];
       if (!blob) throw new Error(`キャラ素材が不足しています: ${key}`);
       const u8 = new Uint8Array(await blob.arrayBuffer());
@@ -4103,7 +4190,7 @@
   async function loadAvatarImagesFromProfileRecord(record) {
     const loaded = {};
     let expectedAvatarSize = null;
-    for (const key of Object.keys(AVATAR_PACKAGE_ASSETS)) {
+    for (const key of avatarImageKeysWithFeatureOverlays(record?.avatarImageBlobs)) {
       const blob = record?.avatarImageBlobs?.[key];
       if (!blob) throw new Error(`キャラ素材が不足しています: ${key}`);
       const image = await loadPngImageFromU8(new Uint8Array(await blob.arrayBuffer()), key);
@@ -6935,11 +7022,12 @@
   async function buildObsSnapshotPayload() {
     if (!imagesReady) throw new Error("キャラ素材の読み込みが完了していません。");
     const avatarImages = {};
-    for (const key of Object.keys(AVATAR_PACKAGE_ASSETS)) {
+    const keys = avatarImageKeysWithFeatureOverlays(images);
+    for (const key of keys) {
       avatarImages[key] = await imageToPngDataUrl(images[key]);
     }
     return {
-      type: "purupuru-obs-snapshot",
+      type: keys.length > Object.keys(AVATAR_PACKAGE_ASSETS).length ? FEATURE_OVERLAY_OBS_TYPE : "purupuru-obs-snapshot",
       version: 1,
       createdAt: new Date().toISOString(),
       settings: buildAllSettingsPayload({ includeItemImages: true }),
@@ -7003,9 +7091,10 @@
   }
 
   async function applyObsSnapshot(snapshot) {
-    if (!snapshot || snapshot.type !== "purupuru-obs-snapshot") return false;
+    if (!snapshot || !["purupuru-obs-snapshot", FEATURE_OVERLAY_OBS_TYPE].includes(snapshot.type)) return false;
+    const requiredKeys = featureOverlaySnapshotKeys(snapshot);
+    if (snapshot.type === FEATURE_OVERLAY_OBS_TYPE && !snapshot.avatarImages) throw new Error("OBS feature overlay 画像がありません。");
     if (snapshot.avatarImages && typeof snapshot.avatarImages === "object") {
-      const requiredKeys = Object.keys(AVATAR_PACKAGE_ASSETS);
       const loaded = {};
       let expectedAvatarSize = null;
       const settled = await Promise.allSettled(requiredKeys.map(async (key) => {
@@ -11091,6 +11180,59 @@
     }
   }
 
+
+  function drawStateLinkedFeatureOverlayLayer() {
+    const currentImage = images[FEATURE_OVERLAY_KEYS[expressionKey()]];
+    if (!currentImage) return;
+    const faceSpec = currentFaceMeshSpec();
+    const durationMs = mouthCrossfadeDurationMs();
+    const blendT = durationMs > 0
+      ? clamp(((lastTimestamp || performance.now()) - mouthBlendStartedAt) / durationMs, 0, 1)
+      : 1;
+    clearCharacterCanvas();
+    if (mouthBlendFromState === mouthBlendToState || blendT >= 1) {
+      drawMeshCroppedImage(charCtx, currentImage, faceSpec.warpFn, faceSpec.cols, faceSpec.rows);
+    } else {
+      // Transparent overlays require a weighted premultiplied crossfade.
+      // First warp each image at full opacity, then combine the finished images;
+      // additive triangle draws directly onto charCtx can create mesh seams.
+      if (!featureOverlayBlendCanvas) {
+        featureOverlayBlendCanvas = document.createElement("canvas");
+        featureOverlayBlendCtx = featureOverlayBlendCanvas.getContext("2d");
+      }
+      if (!featureOverlayBlendCtx) {
+        if (!featureOverlayBlendWarningShown) {
+          console.warn("feature overlay 用Canvasを作成できないため、口のクロスフェードを省略します。");
+          featureOverlayBlendWarningShown = true;
+        }
+        drawMeshCroppedImage(charCtx, currentImage, faceSpec.warpFn, faceSpec.cols, faceSpec.rows);
+        drawCharacterCanvasToStage();
+        return;
+      }
+      resizeCanvasToAvatarSize(featureOverlayBlendCanvas);
+      const blendImages = [
+        [images[FEATURE_OVERLAY_KEYS[expressionKeyForMouth(mouthBlendFromState)]], 1 - blendT],
+        [images[FEATURE_OVERLAY_KEYS[expressionKeyForMouth(mouthBlendToState)]], blendT],
+      ];
+      try {
+        for (const [image, alpha] of blendImages) {
+          featureOverlayBlendCtx.setTransform(1, 0, 0, 1, 0, 0);
+          featureOverlayBlendCtx.globalAlpha = 1;
+          featureOverlayBlendCtx.globalCompositeOperation = "source-over";
+          featureOverlayBlendCtx.clearRect(0, 0, CROP.w, CROP.h);
+          drawMeshCroppedImage(featureOverlayBlendCtx, image, faceSpec.warpFn, faceSpec.cols, faceSpec.rows);
+          charCtx.globalAlpha = alpha;
+          charCtx.globalCompositeOperation = "lighter";
+          charCtx.drawImage(featureOverlayBlendCanvas, 0, 0);
+        }
+      } finally {
+        charCtx.globalAlpha = 1;
+        charCtx.globalCompositeOperation = "source-over";
+      }
+    }
+    drawCharacterCanvasToStage();
+  }
+
   function drawFrontHairLayer() {
     if (!state.hairVisible) return;
     const frontHairImage = getTintedHairImage(images.frontHair);
@@ -12535,6 +12677,7 @@
     drawFrontHairCastShadow();
     drawFrontHairLayer();
     drawCharacterAnchoredItemLayers("frontHairFront");
+    drawStateLinkedFeatureOverlayLayer();
     drawCharacterMeshGuideLayer();
     drawItemLayers(ctx, "stageFront");
     if (OBS_MODE) return;

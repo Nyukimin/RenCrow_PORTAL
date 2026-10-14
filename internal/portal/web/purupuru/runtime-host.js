@@ -168,7 +168,7 @@
     }
 
     assertCharacter(character) {
-      if (!['mio', 'shiro', 'kuro', 'midori'].includes(character)) {
+      if (!['mio', 'shiro', 'kuro', 'midori', 'lumina'].includes(character)) {
         throw new Error(`Unknown PuruPuru character: ${character}`);
       }
     }

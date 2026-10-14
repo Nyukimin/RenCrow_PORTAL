@@ -41,10 +41,11 @@ PORTALは[PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)の描�
 
 | character | PuruPuru source package | runtime element |
 | --- | --- | --- |
-| Mio | `assets/Mio/Mio.purupuru` | `<purupuru-avatar character="mio">` |
-| Shiro | `assets/Shiro/Shiro02.purupuru` | `<purupuru-avatar character="shiro">` |
-| Kuro | `assets/Kuro/Kuro.purupuru` | `<purupuru-avatar character="kuro">` |
-| Midori | `assets/Midori/Midori02.purupuru` | `<purupuru-avatar character="midori">` |
+| Mio | `avatar-packages/Mio/Mio-refined-DRAFT.purupuru` | `<purupuru-avatar character="mio">` |
+| Shiro | `avatar-packages/Shiro/Shiro-finish-v2-STATIC-v1.purupuru` | `<purupuru-avatar character="shiro">` |
+| Kuro | `avatar-packages/Kuro/Kuro-materials-v4-STATIC-v3.purupuru` | `<purupuru-avatar character="kuro">` |
+| Midori | `avatar-packages/Midori/Midori-independent-glasses-STATIC-v1.purupuru` | `<purupuru-avatar character="midori">` |
+| Lumina (visual-only) | `avatar-packages/Lumina/Lumina_overlay6_PATCHED_ONLY_STATIC_v01.purupuru` | `<purupuru-avatar character="lumina">` |
 
 各キャラは、6表情、前髪、後ろ髪、packageで定義されたitem layer、`default-settings.json`を持ちます。画像は透過PNGで同じキャンバス寸法に揃えます。表示サイズと4人の配置は`portal.css`が所有します。
 
@@ -53,7 +54,7 @@ PORTALは[PuruPuruPNGTuber](https://github.com/rotejin/PuruPuruPNGTuber)の描�
 PuruPuru更新時は手編集で差分を移植せず、同期コマンドで原版と生成runtimeを更新します。キャラの正本はフォルダ直下のLoose PNGではなく、上表の生成済み`.purupuru`です。同期処理がpackage内の表情、前後髪、item layer、`settings.json`を展開し、PuruPuru由来コードの帰属・Apache-2.0・改変表示を再付与します。生成テストは、同梱した原版`app.js`から`runtime-app.js`が再現できることも検証します。
 
 ```powershell
-go run ./cmd/sync-purupuru -source C:\Users\nyuki\Documents\GenerativeAI\PuruPuruPNGTuber
+go run ./cmd/sync-purupuru -source internal/portal/web/purupuru -packages avatar-packages -source-commit 9dc1e735155faae8f54f9ee3076b52db7da36624
 ```
 
 ### アバター素材の差し替え
@@ -261,3 +262,7 @@ Full-system owner Evidenceの取得境界とfail-closed規則は
 
 GitHub管理の`ubuntu-latest` runnerが`go test ./...`と`go vet ./...`を、
 `windows-latest` runnerが`go build ./...`と`go vet ./...`を実行します。
+
+### Reviewed replacement packages (2026-10-13)
+
+The local source is avatar-packages/; see avatar-packages/README.md. Mio uses existing refined DRAFT pixels and provisional settings; Shiro uses finish v2, Kuro uses STATIC v3, and Midori uses the independent-glasses package. Lumina is a separate visual runtime (lumina, Lumina) with six-state brow/lash overlays above front hair. It is not a CORE Chat recipient or IdleChat participant. The existing four conversation choices and Mio/Shiro IdleChat layout remain in effect. Rig values are preserved, not tuned; live rendering and motion are unverified.
