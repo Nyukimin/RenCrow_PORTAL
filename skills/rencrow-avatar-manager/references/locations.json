@@ -10,8 +10,8 @@
   "characters": {
     "mio": {
       "display_name": "Mio",
-      "source_directory": "assets\\Mio",
-      "package": "Mio.purupuru",
+      "source_directory": "Mio",
+      "package": "Mio-refined-DRAFT.purupuru",
       "portal_directory": "Mio",
       "chat": {
         "enabled": true,
@@ -24,8 +24,8 @@
     },
     "shiro": {
       "display_name": "Shiro",
-      "source_directory": "assets\\Shiro",
-      "package": "Shiro02.purupuru",
+      "source_directory": "Shiro",
+      "package": "Shiro-finish-v2-STATIC-v1.purupuru",
       "portal_directory": "Shiro",
       "chat": {
         "enabled": true,
@@ -38,8 +38,8 @@
     },
     "kuro": {
       "display_name": "Kuro",
-      "source_directory": "assets\\Kuro",
-      "package": "Kuro.purupuru",
+      "source_directory": "Kuro",
+      "package": "Kuro-materials-v4-STATIC-v3.purupuru",
       "portal_directory": "Kuro",
       "chat": {
         "enabled": true,
@@ -52,8 +52,8 @@
     },
     "midori": {
       "display_name": "Midori",
-      "source_directory": "assets\\Midori",
-      "package": "Midori02.purupuru",
+      "source_directory": "Midori",
+      "package": "Midori-independent-glasses-STATIC-v1.purupuru",
       "portal_directory": "Midori",
       "chat": {
         "enabled": true,
@@ -63,6 +63,22 @@
         "enabled": false,
         "placement": null
       }
+    },
+    "lumina": {
+      "display_name": "Lumina",
+      "source_directory": "Lumina",
+      "package": "Lumina_overlay6_PATCHED_ONLY_STATIC_v01.purupuru",
+      "portal_directory": "Lumina",
+      "chat": {
+        "enabled": false,
+        "placement": null
+      },
+      "idle_chat": {
+        "enabled": false,
+        "placement": null
+      },
+      "core_recipient": false
     }
-  }
+  },
+  "packages_root": "avatar-packages"
 }

@@ -39,7 +39,7 @@ current synchronizer resets all configured character directories.
 4. Run the repository synchronizer from the configured PORTAL root:
 
 ```powershell
-go run .\cmd\sync-purupuru -source C:\Users\nyuki\Documents\GenerativeAI\PuruPuruPNGTuber
+go run ./cmd/sync-purupuru -source internal/portal/web/purupuru -packages avatar-packages -source-commit 9dc1e735155faae8f54f9ee3076b52db7da36624
 ```
 
 5. Run `inspect --all` again. Require zero package-to-PORTAL mismatches.

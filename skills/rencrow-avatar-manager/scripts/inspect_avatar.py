@@ -8,12 +8,13 @@ import hashlib
 import json
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = SKILL_ROOT / "references" / "locations.json"
+PORTAL_REPO_ROOT = SKILL_ROOT.parents[1]
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 REQUIRED_PACKAGE_FILES = {
     "avatar/back-hair.png",
@@ -58,9 +59,23 @@ def output_name(package_name: str) -> str | None:
     }.get(normalized)
 
 
+def resolve_packages_root(config: dict[str, Any]) -> Path:
+    """Return the package root: packages_root, else the legacy purupuru_root.
+
+    A relative packages_root is resolved against the PORTAL repository root
+    (derived from this script location); an absolute one is used as written.
+    """
+    configured = config.get("packages_root")
+    if configured is None:
+        return Path(config["purupuru_root"])
+    if Path(configured).is_absolute() or PureWindowsPath(configured).is_absolute():
+        return Path(configured)
+    return PORTAL_REPO_ROOT / configured
+
+
 def inspect_character(config: dict[str, Any], actor: str) -> dict[str, Any]:
     character = config["characters"][actor]
-    purupuru_root = Path(config["purupuru_root"])
+    purupuru_root = resolve_packages_root(config)
     portal_root = Path(config["portal_root"])
     package_path = (
         purupuru_root
