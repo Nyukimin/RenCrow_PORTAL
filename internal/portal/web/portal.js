@@ -101,7 +101,10 @@
     heartbeat: null,
     stopTimer: null,
     releaseOnCleanup: false,
+    lastUtteranceError: '',
   };
+  // Event decisions live in stt_events.js (pure, unit-tested); this file applies the effects.
+  const sttEvents = window.RenCrowSTTEvents;
 
   const actorInfo = {
     user: {label: 'あなた', mark: 'U', color: '#64748b'},
@@ -1061,20 +1064,25 @@
     } catch (_) {
       return;
     }
-    const type = String(payload.type || '').toLowerCase();
-    const text = String(payload.text || payload.transcript || '').trim();
-    if (type === 'draft' || type === 'partial') {
-      if (text) input.value = text;
+    const event = sttEvents.classifySTTMessage(payload);
+    if (event.kind === 'draft') {
+      input.value = event.text;
       return;
     }
-    if (type === 'final' && text) {
-      input.value = text;
+    if (event.kind === 'final') {
+      input.value = event.text;
       send('stt');
       if (!sttControl.enabled) cleanupSTT(true);
       return;
     }
-    if (type === 'error') {
-      stopSTT(true, `STTエラー: ${payload.error || payload.message || 'unknown'}`, true);
+    if (event.kind === 'utterance_error') {
+      // One utterance failed (it carries an utterance_id). The microphone and the input right stay as they are.
+      sttControl.lastUtteranceError = event.detail;
+      if (sttControl.enabled) setOperation(`STT発話エラー: ${event.detail}`, true);
+      return;
+    }
+    if (event.kind === 'session_error') {
+      stopSTT(true, `STTエラー: ${event.detail}`, true);
     }
   }
 
@@ -1088,6 +1096,11 @@
       setOperation('このブラウザではマイク入力を利用できません', true);
       return;
     }
+    if (!sttEvents) {
+      setOperation('STTをONにできません: stt_events.jsを読み込めていません', true);
+      return;
+    }
+    sttControl.lastUtteranceError = '';
     try {
       await setActiveControl('input', 'claim', 'portal_stt_on');
       const stream = await navigator.mediaDevices.getUserMedia({audio: true});
@@ -1114,8 +1127,11 @@
       });
       socket.addEventListener('message', handleSTTMessage);
       socket.addEventListener('error', () => setOperation('STT WebSocketへ接続できません', true));
-      socket.addEventListener('close', () => {
-        if (sttControl.enabled) stopSTT(true, 'STT接続が終了しました');
+      socket.addEventListener('close', (closeEvent) => {
+        // Only an unintended close of the current connection stops the microphone. The close of a
+        // connection that cleanupSTT already replaced or released must not stop a newer session.
+        if (sttControl.socket !== socket || !sttControl.enabled) return;
+        stopSTT(true, sttEvents.describeSTTClose(closeEvent, sttControl.lastUtteranceError));
       });
       setToggleState(control, 'STT', true);
       window.clearInterval(sttControl.heartbeat);
