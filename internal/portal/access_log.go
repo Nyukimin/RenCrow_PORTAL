@@ -1,9 +1,11 @@
 package portal
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -196,4 +198,21 @@ func (s *statusRecorder) Flush() {
 	if flusher, ok := s.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
+}
+
+// Unwrap lets net/http.ResponseController reach optional features of the
+// underlying ResponseWriter, including deadlines and full-duplex handling.
+func (s *statusRecorder) Unwrap() http.ResponseWriter {
+	return s.ResponseWriter
+}
+
+// Hijack is required for WebSocket 101 upgrades through httputil.ReverseProxy.
+// The access-log middleware must not hide the underlying connection hijacker.
+func (s *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, rw, err := http.NewResponseController(s.ResponseWriter).Hijack()
+	if err == nil {
+		s.status = http.StatusSwitchingProtocols
+		s.wroteHeader = true
+	}
+	return conn, rw, err
 }

@@ -1,12 +1,18 @@
 package portal
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestAccessLogRecordsForwardedRequest は proxy したリクエストを
@@ -170,4 +176,106 @@ func decodeAccessLog(t *testing.T, raw string) accessLogEntry {
 		t.Fatalf("access log is not valid JSON: %v (raw=%s)", err, line)
 	}
 	return entry
+}
+
+type websocketAccessLogWriter struct {
+	lines chan<- string
+}
+
+func (w websocketAccessLogWriter) Write(data []byte) (int, error) {
+	w.lines <- string(data)
+	return len(data), nil
+}
+
+// TestAccessLogPreservesWebSocketUpgrade proves that PORTAL's access-log
+// ResponseWriter supports a real 101 upgrade across httputil.ReverseProxy.
+// A wrapper that lacks Hijack/Unwrap blocks all Chat STT WebSocket sessions.
+func TestAccessLogPreservesWebSocketUpgrade(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, rw, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			t.Errorf("upstream hijack: %v", err)
+			return
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		_, err = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n")
+		if err != nil {
+			t.Errorf("write upstream upgrade: %v", err)
+			return
+		}
+		if err := rw.Flush(); err != nil {
+			t.Errorf("flush upstream upgrade: %v", err)
+			return
+		}
+		data := make([]byte, 4)
+		if _, err := io.ReadFull(rw, data); err != nil {
+			t.Errorf("read upstream payload: %v", err)
+			return
+		}
+		if _, err := rw.Write(data); err != nil {
+			t.Errorf("echo upstream payload: %v", err)
+			return
+		}
+		if err := rw.Flush(); err != nil {
+			t.Errorf("flush upstream payload: %v", err)
+		}
+	}))
+	defer backend.Close()
+	upstreamURL, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logs := make(chan string, 1)
+	proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
+	portal := httptest.NewServer(withAccessLog(newAccessLogger(websocketAccessLogWriter{lines: logs}), proxy))
+	defer portal.Close()
+	portalURL, err := url.Parse(portal.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.DialTimeout("tcp", portalURL.Host, 3*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	request := "GET /api/chat/stt HTTP/1.1\r\nHost: " + portalURL.Host +
+		"\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13" +
+		"\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+	if _, err := io.WriteString(conn, request); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(conn)
+	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodGet})
+	if err != nil {
+		t.Fatalf("read WebSocket upgrade response: %v", err)
+	}
+	if response.StatusCode != http.StatusSwitchingProtocols {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 512))
+		t.Fatalf("status = %d, want 101 (response %q)", response.StatusCode, body)
+	}
+
+	if _, err := conn.Write([]byte("ping")); err != nil {
+		t.Fatalf("write through proxy: %v", err)
+	}
+	echoed := make([]byte, 4)
+	if _, err := io.ReadFull(reader, echoed); err != nil {
+		t.Fatalf("read through proxy: %v", err)
+	}
+	if string(echoed) != "ping" {
+		t.Fatalf("proxied payload = %q, want ping", echoed)
+	}
+	_ = conn.Close()
+	select {
+	case raw := <-logs:
+		entry := decodeAccessLog(t, raw)
+		if entry.Status != http.StatusSwitchingProtocols {
+			t.Errorf("upgrade access log status = %d, want 101", entry.Status)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for completed WebSocket access log")
+	}
 }
