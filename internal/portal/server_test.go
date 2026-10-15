@@ -1,14 +1,19 @@
 package portal
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestPortalRejectsUnknownViewerMode(t *testing.T) {
@@ -950,6 +955,244 @@ func TestPortalProxyAddsTrustedOperationSourceProfileAndClientIP(t *testing.T) {
 	}
 	if gotUserAgent != "Mozilla/5.0 test-browser" {
 		t.Fatalf("User-Agent = %q", gotUserAgent)
+	}
+}
+
+func TestWorldPOCIsDisabledByDefault(t *testing.T) {
+	var calls atomic.Int32
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	if cfg.EnableWorldPOC {
+		t.Fatal("World PoC must be disabled by default")
+	}
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{
+		"/world-poc",
+		"/world-poc.js",
+		"/world-poc.css",
+		"/assets/world-poc.html",
+		"/assets/world-poc.js",
+		"/assets/./world-poc.js",
+		"/api/world-poc",
+		"/api/world-poc/viewer/world/snapshot",
+		"/api/world-poc/viewer/world/stream",
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s status = %d, want 404", target, rec.Code)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("disabled World PoC reached CORE: calls=%d", calls.Load())
+	}
+}
+
+func TestLoadConfigEnablesWorldPOCOnlyWhenRequested(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "portal.json")
+	data := []byte(`{"enable_world_poc":true}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.EnableWorldPOC {
+		t.Fatal("enable_world_poc=true was not loaded")
+	}
+}
+
+func TestWorldPOCUsesReadOnlyCoreProxyProfile(t *testing.T) {
+	var calls atomic.Int32
+	var gotPath, gotQuery, gotProfile, gotClient string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotProfile = r.Header.Get(interactionProfileHeader)
+		gotClient = r.Header.Get("X-RenCrow-Client")
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/viewer/world/stream" {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = io.WriteString(w, "event: caught_up\ndata: {\"schema_version\":\"r04.mock.v1\",\"source\":\"mock\",\"world_id\":\"r04-house\",\"world_revision\":1}\n\n")
+			return
+		}
+		_, _ = io.WriteString(w, `{"schema_version":"r04.mock.v1","world_revision":1}`)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	cfg.EnableWorldPOC = true
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		path  string
+		core  string
+		query string
+	}{
+		{path: "/api/world-poc/viewer/world/snapshot", core: "/viewer/world/snapshot"},
+		{path: "/api/world-poc/viewer/world/stream", core: "/viewer/world/stream", query: "after_revision=0"},
+		{path: "/api/world-poc/viewer/world/stream", core: "/viewer/world/stream", query: "after_revision=18446744073709551615"},
+	} {
+		target := test.path
+		if test.query != "" {
+			target += "?" + test.query
+		}
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.Header.Set(interactionProfileHeader, "spoofed-profile")
+		req.Header.Set("X-RenCrow-Client", "spoofed-client")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200: %s", test.path, rec.Code, rec.Body.String())
+		}
+		if gotPath != test.core || gotQuery != test.query || gotProfile != "portal-world-poc" || gotClient != "RenCrow_PORTAL" {
+			t.Fatalf("CORE path=%q query=%q profile=%q client=%q", gotPath, gotQuery, gotProfile, gotClient)
+		}
+	}
+
+	for _, test := range []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{method: http.MethodGet, path: "/api/world-poc", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/api/world-poc/viewer/world/snapshot", want: http.StatusMethodNotAllowed},
+		{method: http.MethodHead, path: "/api/world-poc/viewer/world/stream", want: http.StatusMethodNotAllowed},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/snapshot?unused=1", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/stream", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/stream?after_revision=%2B0", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/stream?after_revision=00", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/stream?after_revision=-1", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/stream?after_revision=1&after_revision=2", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/stream?after_revision=1&unused=1", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/world-poc/viewer/world/unknown", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/api/world-poc/viewer/world/unknown", want: http.StatusNotFound},
+	} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(test.method, test.path, nil))
+		if rec.Code != test.want {
+			t.Errorf("%s %s status = %d, want %d", test.method, test.path, rec.Code, test.want)
+		}
+	}
+	if calls.Load() != 3 {
+		t.Fatalf("rejected World PoC requests reached CORE: calls=%d, want 3", calls.Load())
+	}
+}
+
+func TestWorldPOCRoutesKeepPortalAuthentication(t *testing.T) {
+	var calls atomic.Int32
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if got := r.Header.Get(authenticatedActorHeader); got == "" {
+			t.Error("authenticated World PoC request must forward PORTAL actor")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	cfg.AuthMode = AuthModeTailscaleServe
+	cfg.EnableWorldPOC = true
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{"/world-poc", "/world-poc.js", "/world-poc.css", "/api/world-poc/viewer/world/snapshot"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("unauthenticated %s status = %d, want 401", target, rec.Code)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("unauthenticated World PoC request reached CORE: calls=%d", calls.Load())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/world-poc/viewer/world/snapshot", nil)
+	req.Header.Set(tailscaleUserLoginHeader, "ren@example.test")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || calls.Load() != 1 {
+		t.Fatalf("authenticated snapshot status=%d calls=%d", rec.Code, calls.Load())
+	}
+}
+
+func TestWorldPOCServesStandalonePageAndAssets(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.EnableWorldPOC = true
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	page := httptest.NewRecorder()
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/world-poc", nil))
+	if page.Code != http.StatusOK {
+		t.Fatalf("page status = %d", page.Code)
+	}
+	for _, marker := range []string{"LCP", "Workplace", "未測量", "unverified", "/world-poc.js", "/world-poc.css"} {
+		if !strings.Contains(page.Body.String(), marker) {
+			t.Errorf("World PoC page missing %q", marker)
+		}
+	}
+	for _, forbidden := range []string{"portal.js", "surface-presence", "IdleChat", "Task"} {
+		if strings.Contains(page.Body.String(), forbidden) {
+			t.Errorf("World PoC page must not load or trigger %q", forbidden)
+		}
+	}
+	for _, target := range []string{"/world-poc.js", "/world-poc.css"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s status = %d", target, rec.Code)
+		}
+	}
+	for _, target := range []string{"/assets/world-poc.html", "/assets/world-poc.js", "/assets/world-poc.css"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("PoC asset alias %s status = %d, want 404", target, rec.Code)
+		}
+	}
+}
+
+func TestWorldPOCStoreStateMachine(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("node is required in CI to test the World PoC store: %v", err)
+		}
+		t.Skipf("node not found; skipping World PoC store test: %v", err)
+	}
+	script, err := filepath.Abs(filepath.Join("webtest", "world-poc.test.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, node, script)
+	cmd.Dir = filepath.Dir(script)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("node world-poc.test.js failed: %v\n%s", err, out)
 	}
 }
 

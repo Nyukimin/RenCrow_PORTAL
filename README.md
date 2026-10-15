@@ -33,6 +33,12 @@ GamesではCOREの`supported_games`に含まれるタイトルだけを起動で
 
 Debug、Ops、Repair、設定変更などの管理APIは中継しません。
 
+R04のmock-only World PoCは通常modeではなく、既定OFFの個別例外です。設定JSONで
+`"enable_world_poc": true`を指定した場合だけ`/world-poc`と、GET-onlyの
+`/api/world-poc/viewer/world/snapshot`、`/api/world-poc/viewer/world/stream`を公開します。
+この画面はmock値を表示し、実空間の位置や最終アートを表しません。Chat／IdleChat／Gamesの
+mode、在席通知、Task／Event経路は利用しません。
+
 ASSISTANT連携でも、読み取り画面からwrite actionを許可せず、他利用者のprivate data、secret、device credentialを中継しません。
 
 ## PuruPuruアバター描画

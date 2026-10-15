@@ -1,0 +1,144 @@
+:root {
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #111820;
+  color: #e9f0f4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: radial-gradient(circle at 20% 0, #22343d 0, #111820 42rem);
+}
+
+button {
+  border: 1px solid #5e7580;
+  border-radius: 0.55rem;
+  padding: 0.65rem 1rem;
+  background: #1b2a32;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button[aria-pressed="true"] {
+  border-color: #8dd9cb;
+  background: #24483f;
+}
+
+.world-poc {
+  width: min(100%, 70rem);
+  margin: 0 auto;
+}
+
+.world-poc__header {
+  max-width: 54rem;
+}
+
+.world-poc__eyebrow,
+.world-poc__footer {
+  color: #a8bec8;
+  font-size: 0.9rem;
+}
+
+.world-poc__header h1 {
+  margin: 0.3rem 0 0.75rem;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.world-poc__disclaimer,
+.world-poc__mock-note {
+  line-height: 1.65;
+  color: #d1dce1;
+}
+
+.world-poc__status {
+  min-height: 1.5rem;
+  color: #9be1ce;
+}
+
+.world-poc[data-stale="true"] .world-poc__status {
+  color: #ffd08a;
+}
+
+.world-poc__views {
+  display: flex;
+  gap: 0.6rem;
+  margin: 1.5rem 0;
+}
+
+[data-world-panel] {
+  border: 1px solid #40535d;
+  border-radius: 0.9rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: rgb(18 29 36 / 92%);
+}
+
+[data-world-panel][hidden] {
+  display: none;
+}
+
+.world-poc__panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  border-bottom: 1px solid #354851;
+  margin-bottom: 1rem;
+}
+
+.world-poc__panel-heading h2 {
+  margin: 0 0 0.8rem;
+}
+
+.world-poc__panel-heading p {
+  margin: 0 0 0.8rem;
+  color: #b4c7ce;
+}
+
+.world-poc__actors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 0.9rem;
+}
+
+.world-poc__actor {
+  border: 1px solid #3a505a;
+  border-radius: 0.7rem;
+  padding: 1rem;
+  background: #17232a;
+}
+
+.world-poc__actor h3 {
+  margin: 0 0 0.75rem;
+}
+
+.world-poc__actor dl {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.4rem 0.8rem;
+  margin: 0;
+}
+
+.world-poc__actor dt {
+  color: #a8bec8;
+}
+
+.world-poc__actor dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.world-poc__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-top: 1rem;
+}

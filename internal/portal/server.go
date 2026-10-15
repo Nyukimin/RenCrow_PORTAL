@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -128,6 +130,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat" || r.URL.Path == "/games":
 		h.servePage(w, r)
+	case r.URL.Path == "/world-poc":
+		h.serveWorldPOCAsset(w, r, "web/world-poc.html", "text/html; charset=utf-8")
+	case r.URL.Path == "/world-poc.js":
+		h.serveWorldPOCAsset(w, r, "web/world-poc.js", "text/javascript; charset=utf-8")
+	case r.URL.Path == "/world-poc.css":
+		h.serveWorldPOCAsset(w, r, "web/world-poc.css", "text/css; charset=utf-8")
 	case r.URL.Path == "/health/live":
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok": true, "status": "live", "service": "rencrow-portal", "runtime": "go",
@@ -135,14 +143,32 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/health/ready":
 		h.serveReadiness(w, r)
 	case strings.HasPrefix(r.URL.Path, "/assets/"):
+		assetPath := path.Clean(strings.TrimPrefix(r.URL.Path, "/assets"))
+		if isWorldPOCAssetPath(assetPath) {
+			http.NotFound(w, r)
+			return
+		}
 		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/assets")
 		h.assets.ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
-		h.serveAPI(w, r)
+		if r.URL.Path == "/api/world-poc" || strings.HasPrefix(r.URL.Path, "/api/world-poc/") {
+			h.serveWorldPOCAPI(w, r)
+		} else {
+			h.serveAPI(w, r)
+		}
 	case r.URL.Path == "/viewer/games/observer" || strings.HasPrefix(r.URL.Path, "/viewer/games/observer-api/"):
 		h.serveGamesObserverProxy(w, r)
 	default:
 		http.NotFound(w, r)
+	}
+}
+
+func isWorldPOCAssetPath(path string) bool {
+	switch path {
+	case "/world-poc.html", "/world-poc.js", "/world-poc.css":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -154,13 +180,74 @@ func isPortalProxyPath(path string) bool {
 
 func isProtectedPortalPath(path string) bool {
 	switch path {
-	case "/", "/idlechat", "/chat", "/games":
+	case "/", "/idlechat", "/chat", "/games", "/world-poc", "/world-poc.js", "/world-poc.css":
 		return true
 	}
 	return strings.HasPrefix(path, "/assets/") ||
 		strings.HasPrefix(path, "/api/") ||
 		path == "/viewer/games/observer" ||
 		strings.HasPrefix(path, "/viewer/games/observer-api/")
+}
+
+func (h *handler) serveWorldPOCAsset(w http.ResponseWriter, r *http.Request, assetPath, contentType string) {
+	if !h.cfg.EnableWorldPOC {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	content, err := webFiles.ReadFile(assetPath)
+	if err != nil {
+		http.Error(w, "World PoC assetを読み込めません", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, _ = w.Write(content)
+}
+
+func (h *handler) serveWorldPOCAPI(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.EnableWorldPOC {
+		http.NotFound(w, r)
+		return
+	}
+	if r.URL.Path != "/api/world-poc/viewer/world/snapshot" && r.URL.Path != "/api/world-poc/viewer/world/stream" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.URL.Path == "/api/world-poc/viewer/world/snapshot" && r.URL.RawQuery != "" {
+		http.Error(w, "unexpected query", http.StatusBadRequest)
+		return
+	}
+	if r.URL.Path == "/api/world-poc/viewer/world/stream" && !validWorldPOCStreamQuery(r.URL.RawQuery) {
+		http.Error(w, "invalid after_revision", http.StatusBadRequest)
+		return
+	}
+	r.Header.Set(interactionProfileHeader, "portal-world-poc")
+	r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/world-poc")
+	h.proxy.ServeHTTP(w, r)
+}
+
+func validWorldPOCStreamQuery(rawQuery string) bool {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil || len(query) != 1 {
+		return false
+	}
+	revisions := query["after_revision"]
+	if len(revisions) != 1 {
+		return false
+	}
+	revision, err := strconv.ParseUint(revisions[0], 10, 64)
+	return err == nil && strconv.FormatUint(revision, 10) == revisions[0]
 }
 
 func (h *handler) authorizePortalRequest(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {

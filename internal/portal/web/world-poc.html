@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>R04 World PoC</title>
+  <link rel="stylesheet" href="/world-poc.css">
+  <script src="/world-poc.js" defer></script>
+</head>
+<body>
+  <main class="world-poc">
+    <header class="world-poc__header">
+      <p class="world-poc__eyebrow">R04 · Mock data</p>
+      <h1>World state PoC</h1>
+      <p class="world-poc__disclaimer">この画面はmock snapshotの確認用です。床・部屋名はPoC値であり、最終アートや実空間の位置・座標を示しません。</p>
+      <p id="worldStatus" class="world-poc__status" aria-live="polite">接続待ち</p>
+    </header>
+
+    <nav class="world-poc__views" aria-label="表示切替">
+      <button type="button" data-world-view="lcp" aria-pressed="true">LCP</button>
+      <button type="button" data-world-view="workplace" aria-pressed="false">Workplace</button>
+    </nav>
+
+    <section data-world-panel="lcp" aria-label="LCP view">
+      <div class="world-poc__panel-heading">
+        <h2>LCP</h2>
+        <p>World revision <output data-world-revision>—</output></p>
+      </div>
+      <div data-world-actors class="world-poc__actors">
+        <p>Snapshotを待っています。</p>
+      </div>
+    </section>
+
+    <section data-world-panel="workplace" aria-label="Workplace view" hidden>
+      <div class="world-poc__panel-heading">
+        <h2>Workplace</h2>
+        <p>World revision <output data-world-revision>—</output></p>
+      </div>
+      <p class="world-poc__mock-note">この一覧は同じWorldStoreの値を表示します。位置は未測量で、空間情報は未検証です。</p>
+      <div data-world-actors class="world-poc__actors">
+        <p>Snapshotを待っています。</p>
+      </div>
+    </section>
+
+    <footer class="world-poc__footer">
+      <span>source: mock</span>
+      <span>spatial_revision: unverified</span>
+      <span>spatial_ready: false</span>
+    </footer>
+  </main>
+</body>
+</html>
