@@ -199,7 +199,7 @@ func TestAccessLogPreservesWebSocketUpgrade(t *testing.T) {
 		}
 		defer conn.Close()
 		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-		_, err = rw.WriteString("HTTP/1.1 101 Switching Protocols\\r\\nConnection: Upgrade\\r\\nUpgrade: websocket\\r\\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\\r\\n\\r\\n")
+		_, err = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n")
 		if err != nil {
 			t.Errorf("write upstream upgrade: %v", err)
 			return
@@ -242,9 +242,9 @@ func TestAccessLogPreservesWebSocketUpgrade(t *testing.T) {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
-	request := "GET /api/chat/stt HTTP/1.1\\r\\nHost: " + portalURL.Host +
-		"\\r\\nConnection: Upgrade\\r\\nUpgrade: websocket\\r\\nSec-WebSocket-Version: 13" +
-		"\\r\\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\\r\\n\\r\\n"
+	request := "GET /api/chat/stt HTTP/1.1\r\nHost: " + portalURL.Host +
+		"\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13" +
+		"\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
 	if _, err := io.WriteString(conn, request); err != nil {
 		t.Fatal(err)
 	}
