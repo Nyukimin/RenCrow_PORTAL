@@ -94,6 +94,37 @@ function fakeTimers() {
   };
 }
 
+test('WorldStore preserves the browser receiver for default timers', () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const scheduled = [];
+  const cleared = [];
+  globalThis.setTimeout = function (callback, delay) {
+    assert.equal(this, globalThis);
+    scheduled.push({callback, delay});
+    return scheduled.length;
+  };
+  globalThis.clearTimeout = function (timerID) {
+    assert.equal(this, globalThis);
+    cleared.push(timerID);
+  };
+
+  const store = new WorldStore();
+  try {
+    store.setDeadline(0, 50, () => {});
+    store.clearDeadline();
+    assert.deepEqual(scheduled.map((task) => task.delay), [50]);
+    assert.deepEqual(cleared, [1]);
+  } finally {
+    try {
+      store.stop();
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    }
+  }
+});
+
 function harness(responses, options = {}) {
   FakeEventSource.instances = [];
   const timers = fakeTimers();

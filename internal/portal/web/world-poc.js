@@ -219,8 +219,8 @@
       this.fetcher = options.fetcher || (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
       this.EventSourceCtor = options.EventSourceCtor || (typeof EventSource === 'function' ? EventSource : null);
       this.AbortControllerCtor = options.AbortControllerCtor || (typeof AbortController === 'function' ? AbortController : null);
-      this.setTimer = options.setTimer || setTimeout;
-      this.clearTimer = options.clearTimer || clearTimeout;
+      this.setTimer = options.setTimer || setTimeout.bind(globalThis);
+      this.clearTimer = options.clearTimer || clearTimeout.bind(globalThis);
       this.reconnectDelayMs = options.reconnectDelayMs === undefined ? 1000 : options.reconnectDelayMs;
       this.maxReconnectDelayMs = options.maxReconnectDelayMs === undefined ? 16000 : options.maxReconnectDelayMs;
       this.maxReconnectAttempts = options.maxReconnectAttempts === undefined ? 5 : options.maxReconnectAttempts;
