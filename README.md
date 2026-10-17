@@ -28,6 +28,8 @@ Config、health、errorを提供します。PORTALはWSLや外部databaseを標�
 - `Games`: ゲームとAgentの選択、Agent-owned sessionの起動、GAMES Observerの観戦、Retry／Start over
 
 公開modeは`Chat`、`IdleChat`、`Games`の3系統です。
+
+Luminaの素材確認は、認証済みPORTALの`/lumina`で行えます。これは表示確認専用の画面で、配置済みのプレビュー素材を使った立ち絵と表情切替を提供します。LuminaをChat／IdleChatのAgentとして公開するには、別途`.purupuru`正規パッケージとCORE側のActor契約を追加し、既存のキャラクター登録・同期経路へ統合します。
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
 GamesではCOREの`supported_games`に含まれるタイトルだけを起動できます。現在のAgent E2E対象はNetHackです。盤面とturn結果はGAMES Observer、Agent identityと判断はCOREを正本とし、PORTALは利用者向けの選択・session・観戦UIだけを持ちます。
 

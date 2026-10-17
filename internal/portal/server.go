@@ -37,12 +37,13 @@ const (
 type authenticatedActorContextKey struct{}
 
 type handler struct {
-	cfg       Config
-	coreURL   *url.URL
-	proxy     *httputil.ReverseProxy
-	page      *template.Template
-	assets    http.Handler
-	readiness *http.Client
+	cfg        Config
+	coreURL    *url.URL
+	proxy      *httputil.ReverseProxy
+	page       *template.Template
+	luminaPage *template.Template
+	assets     http.Handler
+	readiness  *http.Client
 }
 
 type pageData struct {
@@ -73,16 +74,25 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("PORTAL HTMLを解析する: %w", err)
 	}
+	luminaBytes, err := webFiles.ReadFile("web/lumina.html")
+	if err != nil {
+		return nil, fmt.Errorf("Lumina HTMLを読む: %w", err)
+	}
+	luminaPage, err := template.New("lumina").Parse(string(luminaBytes))
+	if err != nil {
+		return nil, fmt.Errorf("Lumina HTMLを解析する: %w", err)
+	}
 	assetFS, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		return nil, fmt.Errorf("PORTAL asset FSを作る: %w", err)
 	}
 	h := &handler{
-		cfg:       cfg,
-		coreURL:   coreURL,
-		page:      page,
-		assets:    http.FileServer(http.FS(assetFS)),
-		readiness: &http.Client{Timeout: 3 * time.Second},
+		cfg:        cfg,
+		coreURL:    coreURL,
+		page:       page,
+		luminaPage: luminaPage,
+		assets:     http.FileServer(http.FS(assetFS)),
+		readiness:  &http.Client{Timeout: 3 * time.Second},
 	}
 	h.proxy = &httputil.ReverseProxy{
 		Director:      h.directProxyRequest,
@@ -130,6 +140,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/" || r.URL.Path == "/idlechat" || r.URL.Path == "/chat" || r.URL.Path == "/games":
 		h.servePage(w, r)
+	case r.URL.Path == "/lumina":
+		h.serveLumina(w, r)
 	case r.URL.Path == "/world-poc":
 		h.serveWorldPOCAsset(w, r, "web/world-poc.html", "text/html; charset=utf-8")
 	case r.URL.Path == "/world-poc.js":
@@ -180,7 +192,7 @@ func isPortalProxyPath(path string) bool {
 
 func isProtectedPortalPath(path string) bool {
 	switch path {
-	case "/", "/idlechat", "/chat", "/games", "/world-poc", "/world-poc.js", "/world-poc.css":
+	case "/", "/idlechat", "/chat", "/games", "/lumina", "/world-poc", "/world-poc.js", "/world-poc.css":
 		return true
 	}
 	return strings.HasPrefix(path, "/assets/") ||
@@ -248,6 +260,22 @@ func validWorldPOCStreamQuery(rawQuery string) bool {
 	}
 	revision, err := strconv.ParseUint(revisions[0], 10, 64)
 	return err == nil && strconv.FormatUint(revision, 10) == revisions[0]
+}
+
+func (h *handler) serveLumina(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if err := h.luminaPage.Execute(w, nil); err != nil {
+		http.Error(w, "Lumina画面を生成できません", http.StatusInternalServerError)
+	}
 }
 
 func (h *handler) authorizePortalRequest(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {

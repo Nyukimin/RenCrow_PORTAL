@@ -35,6 +35,24 @@ func TestPortalRejectsUnknownViewerMode(t *testing.T) {
 	}
 }
 
+func TestPortalServesLuminaDisplay(t *testing.T) {
+	handler, err := NewHandler(DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/lumina", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/lumina status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{"<title>Lumina | RenCrow</title>", "id=\"luminaCharacter\"", "/assets/lumina-assets/Lumina.png", "data-expression=\"smile\""} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("Lumina page is missing %q", marker)
+		}
+	}
+}
+
 func TestPortalServesIdleChatAsCanonicalMode(t *testing.T) {
 	cfg := DefaultConfig()
 	handler, err := NewHandler(cfg)
