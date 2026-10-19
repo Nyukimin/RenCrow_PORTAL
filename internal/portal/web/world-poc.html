@@ -14,34 +14,45 @@
       <p class="world-poc__eyebrow">R04 · Mock data</p>
       <h1>World state PoC</h1>
       <p class="world-poc__disclaimer">この画面はmock snapshotの確認用です。床・部屋名はPoC値であり、最終アートや実空間の位置・座標を示しません。</p>
-      <p id="worldStatus" class="world-poc__status" aria-live="polite">接続待ち</p>
+      <p id="worldStatus" class="world-poc__status" aria-live="polite" aria-atomic="true">接続待ち</p>
     </header>
 
-    <nav class="world-poc__views" aria-label="表示切替">
-      <button type="button" data-world-view="lcp" aria-pressed="true">LCP</button>
-      <button type="button" data-world-view="workplace" aria-pressed="false">Workplace</button>
-    </nav>
+    <div class="world-poc__controls">
+      <button type="button" id="swapWorldViews" aria-controls="worldPOCStage" aria-describedby="worldPositionAnnouncement">MainとPinPを入れ替え</button>
+      <span id="worldPositionAnnouncement" class="world-poc__sr-only" aria-live="polite" aria-atomic="true">Main: LCP。PinP: Workplace。</span>
+    </div>
 
-    <section data-world-panel="lcp" aria-label="LCP view">
-      <div class="world-poc__panel-heading">
-        <h2>LCP</h2>
-        <p>World revision <output data-world-revision>—</output></p>
-      </div>
-      <div data-world-actors class="world-poc__actors">
-        <p>Snapshotを待っています。</p>
-      </div>
-    </section>
+    <div id="worldPOCStage" class="world-poc__stage" role="group" aria-label="LCPとWorkplaceの同時表示">
+      <section id="lcpPanel" data-world-panel="lcp" data-world-position="main" aria-labelledby="lcpPosition lcpTitle">
+        <div class="world-poc__panel-heading">
+          <div>
+            <p id="lcpPosition" class="world-poc__position">表示位置: <span data-world-position-label>Main</span></p>
+            <h2 id="lcpTitle">LCP</h2>
+          </div>
+          <p>World revision <output data-world-revision>—</output></p>
+        </div>
+        <p class="world-poc__view-status" data-world-status aria-live="off">接続待ち</p>
+        <p class="world-poc__mock-note">mock表示です。配置・座標は未測量で、空間情報は未検証です。</p>
+        <div data-world-actors class="world-poc__actors">
+          <p>Snapshotを待っています。</p>
+        </div>
+      </section>
 
-    <section data-world-panel="workplace" aria-label="Workplace view" hidden>
-      <div class="world-poc__panel-heading">
-        <h2>Workplace</h2>
-        <p>World revision <output data-world-revision>—</output></p>
-      </div>
-      <p class="world-poc__mock-note">この一覧は同じWorldStoreの値を表示します。位置は未測量で、空間情報は未検証です。</p>
-      <div data-world-actors class="world-poc__actors">
-        <p>Snapshotを待っています。</p>
-      </div>
-    </section>
+      <section id="workplacePanel" data-world-panel="workplace" data-world-position="pinp" aria-labelledby="workplacePosition workplaceTitle">
+        <div class="world-poc__panel-heading">
+          <div>
+            <p id="workplacePosition" class="world-poc__position">表示位置: <span data-world-position-label>PinP</span></p>
+            <h2 id="workplaceTitle">Workplace</h2>
+          </div>
+          <p>World revision <output data-world-revision>—</output></p>
+        </div>
+        <p class="world-poc__view-status" data-world-status aria-live="off">接続待ち</p>
+        <p class="world-poc__mock-note">mock表示です。このScopeの一覧で、配置・座標は未測量、空間情報は未検証です。</p>
+        <div data-world-actors class="world-poc__actors">
+          <p>Snapshotを待っています。</p>
+        </div>
+      </section>
+    </div>
 
     <footer class="world-poc__footer">
       <span>source: mock</span>

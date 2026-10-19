@@ -480,11 +480,30 @@
     }
   }
 
-  function setActiveView(buttons, panels, view) {
-    if (view !== 'lcp' && view !== 'workplace') return false;
-    for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.worldView === view));
-    for (const panel of panels) panel.hidden = panel.dataset.worldPanel !== view;
-    return true;
+  function setMainView(panels, view) {
+    if (view !== 'lcp' && view !== 'workplace') return null;
+    const mainPanel = panels.find((panel) => panel.dataset.worldPanel === view);
+    const pinpPanel = panels.find((panel) => panel !== mainPanel);
+    if (!mainPanel || !pinpPanel) return null;
+
+    for (const panel of panels) {
+      const position = panel === mainPanel ? 'main' : 'pinp';
+      panel.dataset.worldPosition = position;
+      const positionLabel = panel.querySelector('[data-world-position-label]');
+      if (positionLabel) positionLabel.textContent = position === 'main' ? 'Main' : 'PinP';
+    }
+    return {main: mainPanel.dataset.worldPanel, pinp: pinpPanel.dataset.worldPanel};
+  }
+
+  function swapDisplayPositions(panels) {
+    const currentMain = panels.find((panel) => panel.dataset.worldPosition === 'main');
+    const nextMain = panels.find((panel) => panel !== currentMain);
+    return currentMain && nextMain ? setMainView(panels, nextMain.dataset.worldPanel) : null;
+  }
+
+  function describeDisplayPositions(positions) {
+    const names = {lcp: 'LCP', workplace: 'Workplace'};
+    return `Main: ${names[positions.main]}。PinP: ${names[positions.pinp]}。`;
   }
 
   function createActorCard(document, actor) {
@@ -514,17 +533,23 @@
   function mountWorldPOC(document, window) {
     const root = document.querySelector('.world-poc');
     const statusNode = document.getElementById('worldStatus');
-    const buttons = Array.from(document.querySelectorAll('[data-world-view]'));
+    const swapButton = document.getElementById('swapWorldViews');
+    const positionAnnouncement = document.getElementById('worldPositionAnnouncement');
     const panels = Array.from(document.querySelectorAll('[data-world-panel]'));
     const store = new WorldStore();
 
-    for (const button of buttons) {
-      button.addEventListener('click', () => setActiveView(buttons, panels, button.dataset.worldView));
-    }
+    const initialMain = panels.find((panel) => panel.dataset.worldPosition === 'main')?.dataset.worldPanel || 'lcp';
+    setMainView(panels, initialMain);
+    swapButton.addEventListener('click', () => {
+      const positions = swapDisplayPositions(panels);
+      if (positions) positionAnnouncement.textContent = describeDisplayPositions(positions);
+    });
     store.subscribe((snapshot, status) => {
       root.dataset.stale = String(status.stale);
-      statusNode.textContent = status.stale ? `STALE · ${status.label}` : status.label;
+      const statusText = status.stale ? `STALE · ${status.label}` : status.label;
+      statusNode.textContent = statusText;
       for (const panel of panels) {
+        panel.querySelector('[data-world-status]').textContent = statusText;
         const revisionNode = panel.querySelector('[data-world-revision]');
         const actorContainer = panel.querySelector('[data-world-actors]');
         revisionNode.textContent = snapshot ? snapshot.world_revision : '—';
@@ -561,7 +586,6 @@
     normalizeSnapshot,
     normalizeCursor,
     parseWorldJSON,
-    setActiveView,
     mountWorldPOC,
     snapshotURL,
     streamURL,

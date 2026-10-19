@@ -1,8 +1,10 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
-const {WorldStore, mountWorldPOC, normalizeCursor, normalizeSnapshot, parseWorldJSON, setActiveView, snapshotURL, streamURL} = require('../web/world-poc.js');
+const {WorldStore, mountWorldPOC, normalizeCursor, normalizeSnapshot, parseWorldJSON, snapshotURL, streamURL} = require('../web/world-poc.js');
 
 const actor = {
   actor_id: 'mio',
@@ -153,18 +155,6 @@ async function flushPromises() {
   for (let count = 0; count < 10; count += 1) await Promise.resolve();
 }
 
-function lcpAndWorkplaceViews() {
-  const buttons = [
-    {dataset: {worldView: 'lcp'}, setAttribute(name, value) { this[name] = value; }},
-    {dataset: {worldView: 'workplace'}, setAttribute(name, value) { this[name] = value; }},
-  ];
-  const panels = [
-    {dataset: {worldPanel: 'lcp'}, hidden: false},
-    {dataset: {worldPanel: 'workplace'}, hidden: true},
-  ];
-  return {buttons, panels};
-}
-
 function fakeElement(dataset = {}) {
   return {
     dataset,
@@ -179,6 +169,43 @@ function fakeElement(dataset = {}) {
     replaceChildren(...children) { this.children = children; },
     querySelector(selector) { return this.queries?.[selector] || null; },
   };
+}
+
+function worldPOCDOM() {
+  const root = fakeElement();
+  const status = fakeElement();
+  const swapButton = fakeElement();
+  const positionAnnouncement = fakeElement();
+  const panels = ['lcp', 'workplace'].map((view) => {
+    const position = fakeElement();
+    const revision = fakeElement();
+    const viewStatus = fakeElement();
+    const actors = fakeElement();
+    const panel = fakeElement({worldPanel: view, worldPosition: view === 'lcp' ? 'main' : 'pinp'});
+    panel.queries = {
+      '[data-world-position-label]': position,
+      '[data-world-revision]': revision,
+      '[data-world-status]': viewStatus,
+      '[data-world-actors]': actors,
+    };
+    Object.assign(panel, {position, revision, viewStatus, actors});
+    return panel;
+  });
+  const document = {
+    querySelector: () => root,
+    getElementById: (id) => ({worldStatus: status, swapWorldViews: swapButton, worldPositionAnnouncement: positionAnnouncement})[id] || null,
+    querySelectorAll: (selector) => selector === '[data-world-panel]' ? panels : [],
+    createElement: () => fakeElement(),
+  };
+  const windowHandlers = new Map();
+  const window = {
+    addEventListener(type, handler) {
+      const handlers = windowHandlers.get(type) || [];
+      handlers.push(handler);
+      windowHandlers.set(type, handlers);
+    },
+  };
+  return {root, status, swapButton, positionAnnouncement, panels, document, window, windowHandlers};
 }
 
 test('world revision uint64 values stay exact beyond JavaScript safe integers', () => {
@@ -224,43 +251,107 @@ test('revision zero is invalid and empty actor snapshots remain safe to consume'
   store.stop();
 });
 
-test('one WorldStore subscription feeds both views and view switching has no network effect', async () => {
-  const {store, requests} = harness([snapshot(10)]);
-  const revisions = [];
-  store.subscribe((world) => {
-    if (world) revisions.push({lcp: world.world_revision, workplace: world.world_revision, sameSnapshot: world === store.snapshot});
-  });
-  store.start();
-  store.start();
-  await flushPromises();
+test('World PoC exposes an accessible native control and keeps both view panels present', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../web/world-poc.html'), 'utf8');
+  assert.match(html, /<button\b[^>]*\bid="swapWorldViews"[^>]*aria-controls="worldPOCStage"[^>]*aria-describedby="worldPositionAnnouncement"[^>]*>MainとPinPを入れ替え<\/button>/);
+  assert.match(html, /id="worldPositionAnnouncement"[^>]*aria-live="polite"[^>]*aria-atomic="true"/);
+  assert.match(html, /data-world-panel="lcp" data-world-position="main" aria-labelledby="lcpPosition lcpTitle"/);
+  assert.match(html, /data-world-panel="workplace" data-world-position="pinp" aria-labelledby="workplacePosition workplaceTitle"/);
+  const panelTags = html.match(/<section\b[^>]*data-world-panel=[^>]*>/g) || [];
+  assert.equal(panelTags.length, 2);
+  for (const tag of panelTags) assert.doesNotMatch(tag, /\shidden(?:\s|=|>)/);
+});
 
-  assert.equal(FakeEventSource.instances.length, 1);
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, snapshotURL);
-  assert.equal(requests[0].options.method, 'GET');
-  assert.equal(store.snapshot.world_revision, '10');
-  assert.equal(FakeEventSource.instances[0].url, `${streamURL}?after_revision=10`);
+test('one WorldStore keeps both Main and PinP views synchronized through swap, live update, stale reconnect and empty scope', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalEventSource = globalThis.EventSource;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timers = fakeTimers();
+  const requests = [];
+  const responses = [snapshot(10), snapshot(12, [])];
+  globalThis.fetch = async (url, options) => {
+    requests.push({url, options});
+    return response(responses.shift());
+  };
+  globalThis.EventSource = FakeEventSource;
+  globalThis.setTimeout = (callback, delay) => timers.setTimer(callback, delay);
+  globalThis.clearTimeout = (timerID) => timers.clearTimer(timerID);
+  FakeEventSource.instances = [];
 
-  FakeEventSource.instances[0].emit('snapshot', snapshot(11, [actor], '2026-10-15T12:01:00Z'));
-  assert.equal(store.snapshot.world_revision, '11');
-  assert.equal(store.snapshot.captured_at, '2026-10-15T12:01:00Z');
-  assert.ok(revisions.some((entry) => entry.lcp === entry.workplace && entry.lcp === '11' && entry.sameSnapshot));
-  FakeEventSource.instances[0].emit('cursor', cursor(12));
-  assert.equal(store.snapshot.world_revision, '12');
-  assert.equal(store.snapshot.captured_at, '2026-10-15T12:01:00Z', 'cursor-only event must preserve snapshot contents');
-  assert.deepEqual(store.snapshot.actors, [actor]);
+  const ui = worldPOCDOM();
+  let store;
+  try {
+    store = mountWorldPOC(ui.document, ui.window);
+    await flushPromises();
 
-  const {buttons, panels} = lcpAndWorkplaceViews();
-  const requestCount = requests.length;
-  const streamCount = FakeEventSource.instances.length;
-  assert.equal(setActiveView(buttons, panels, 'workplace'), true);
-  assert.equal(buttons[0]['aria-pressed'], 'false');
-  assert.equal(buttons[1]['aria-pressed'], 'true');
-  assert.equal(panels[0].hidden, true);
-  assert.equal(panels[1].hidden, false);
-  assert.equal(requests.length, requestCount);
-  assert.equal(FakeEventSource.instances.length, streamCount);
-  store.stop();
+    assert.equal(store.listeners.size, 1, 'both panels must share one store subscription');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, snapshotURL);
+    assert.equal(requests[0].options.method, 'GET');
+    assert.equal(FakeEventSource.instances.length, 1);
+    assert.equal(FakeEventSource.instances[0].url, `${streamURL}?after_revision=10`);
+    for (const panel of ui.panels) {
+      assert.equal(panel.dataset.worldPosition, panel.dataset.worldPanel === 'lcp' ? 'main' : 'pinp');
+      assert.equal(panel.position.textContent, panel.dataset.worldPanel === 'lcp' ? 'Main' : 'PinP');
+      assert.equal(panel.revision.textContent, '10');
+      assert.equal(panel.viewStatus.textContent, ui.panels[0].viewStatus.textContent);
+      assert.equal(panel.actors.children[0].className, 'world-poc__actor');
+    }
+
+    ui.swapButton.handlers.click();
+    assert.equal(ui.panels[0].dataset.worldPosition, 'pinp');
+    assert.equal(ui.panels[1].dataset.worldPosition, 'main');
+    assert.equal(ui.panels[0].position.textContent, 'PinP');
+    assert.equal(ui.panels[1].position.textContent, 'Main');
+    assert.equal(ui.positionAnnouncement.textContent, 'Main: Workplace。PinP: LCP。');
+    assert.equal(requests.length, 1, 'swapping must not fetch a new snapshot');
+    assert.equal(FakeEventSource.instances.length, 1, 'swapping must not open another stream');
+    assert.equal(store.listeners.size, 1, 'swapping must not add another store subscription');
+
+    FakeEventSource.instances[0].emit('snapshot', snapshot(11, [], '2026-10-15T12:01:00Z'));
+    for (const panel of ui.panels) {
+      assert.equal(panel.revision.textContent, '11');
+      assert.equal(panel.viewStatus.textContent, 'mock stream更新中');
+      assert.equal(panel.actors.children.length, 1);
+      assert.equal(panel.actors.children[0].textContent, 'このScopeに表示できるAgentはいません。');
+    }
+    assert.equal(ui.panels[0].viewStatus.textContent, ui.panels[1].viewStatus.textContent);
+
+    const firstStream = FakeEventSource.instances[0];
+    firstStream.fail();
+    assert.equal(firstStream.closed, true);
+    assert.equal(ui.root.dataset.stale, 'true');
+    for (const panel of ui.panels) {
+      assert.equal(panel.revision.textContent, '11', 'both views retain the same last revision while stale');
+      assert.equal(panel.viewStatus.textContent, 'STALE · Stream切断・再接続待ち');
+      assert.equal(panel.actors.children[0].textContent, 'このScopeに表示できるAgentはいません。');
+    }
+    assert.equal(requests.length, 1, 'disconnect waits for the scheduled reconnect');
+    assert.equal(FakeEventSource.instances.length, 1);
+
+    timers.runNext(1000);
+    await flushPromises();
+    assert.equal(requests.length, 2);
+    assert.equal(FakeEventSource.instances.length, 2);
+    assert.equal(FakeEventSource.instances[1].url, `${streamURL}?after_revision=12`);
+    for (const panel of ui.panels) {
+      assert.equal(panel.revision.textContent, '12');
+      assert.equal(panel.viewStatus.textContent, 'mock stream更新中');
+      assert.equal(panel.actors.children.length, 1);
+      assert.equal(panel.actors.children[0].textContent, 'このScopeに表示できるAgentはいません。');
+    }
+    assert.equal(ui.root.dataset.stale, 'false');
+    assert.equal(ui.panels[0].viewStatus.textContent, ui.panels[1].viewStatus.textContent);
+    assert.equal(ui.panels[0].revision.textContent, ui.panels[1].revision.textContent);
+  } finally {
+    store?.stop();
+    globalThis.fetch = originalFetch;
+    if (originalEventSource === undefined) delete globalThis.EventSource;
+    else globalThis.EventSource = originalEventSource;
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
 });
 
 test('WorldStore uses the configured stream URL and preserves existing query parameters', async () => {
@@ -270,57 +361,6 @@ test('WorldStore uses the configured stream URL and preserves existing query par
   await flushPromises();
   assert.equal(FakeEventSource.instances[0].url, `${customStreamURL}&after_revision=10`);
   store.stop();
-});
-
-test('a visible snapshot followed by an empty scope removes actor cards from both views', async () => {
-  const previousFetch = globalThis.fetch;
-  const previousEventSource = globalThis.EventSource;
-  const responses = [snapshot(1), snapshot(2, [])];
-  globalThis.fetch = async () => response(responses.shift());
-  globalThis.EventSource = FakeEventSource;
-  FakeEventSource.instances = [];
-
-  const root = fakeElement();
-  const status = fakeElement();
-  const buttons = [fakeElement({worldView: 'lcp'}), fakeElement({worldView: 'workplace'})];
-  const panels = ['lcp', 'workplace'].map((view) => {
-    const revision = fakeElement();
-    const actors = fakeElement();
-    const panel = fakeElement({worldPanel: view});
-    panel.queries = {'[data-world-revision]': revision, '[data-world-actors]': actors};
-    panel.revision = revision;
-    panel.actors = actors;
-    return panel;
-  });
-  const document = {
-    querySelector: () => root,
-    getElementById: () => status,
-    querySelectorAll: (selector) => selector === '[data-world-view]' ? buttons : panels,
-    createElement: () => fakeElement(),
-  };
-  const window = {addEventListener() {}};
-  let store;
-  try {
-    store = mountWorldPOC(document, window);
-    await flushPromises();
-    for (const panel of panels) {
-      assert.equal(panel.revision.textContent, '1');
-      assert.equal(panel.actors.children[0].className, 'world-poc__actor');
-    }
-
-    FakeEventSource.instances[0].emit('snapshot', snapshot(2, []));
-    for (const panel of panels) {
-      assert.equal(panel.revision.textContent, '2');
-      assert.equal(panel.actors.children.length, 1);
-      assert.equal(panel.actors.children[0].textContent, 'このScopeに表示できるAgentはいません。');
-      assert.notEqual(panel.actors.children[0].className, 'world-poc__actor');
-    }
-  } finally {
-    store?.stop();
-    globalThis.fetch = previousFetch;
-    if (previousEventSource === undefined) delete globalThis.EventSource;
-    else globalThis.EventSource = previousEventSource;
-  }
 });
 
 test('BFCache pageshow resumes the same store and remains stale until a new snapshot', async () => {
@@ -335,38 +375,19 @@ test('BFCache pageshow resumes the same store and remains stale until a new snap
   globalThis.EventSource = FakeEventSource;
   FakeEventSource.instances = [];
 
-  const buttons = [fakeElement({worldView: 'lcp'}), fakeElement({worldView: 'workplace'})];
-  const panels = ['lcp', 'workplace'].map((view) => {
-    const panel = fakeElement({worldPanel: view});
-    panel.queries = {'[data-world-revision]': fakeElement(), '[data-world-actors]': fakeElement()};
-    return panel;
-  });
-  const document = {
-    querySelector: () => fakeElement(),
-    getElementById: () => fakeElement(),
-    querySelectorAll: (selector) => selector === '[data-world-view]' ? buttons : panels,
-    createElement: () => fakeElement(),
-  };
-  const windowHandlers = new Map();
-  const window = {
-    addEventListener(type, handler) {
-      const handlers = windowHandlers.get(type) || [];
-      handlers.push(handler);
-      windowHandlers.set(type, handlers);
-    },
-  };
+  const ui = worldPOCDOM();
   let store;
   try {
-    store = mountWorldPOC(document, window);
+    store = mountWorldPOC(ui.document, ui.window);
     await flushPromises();
     assert.equal(store.status.stale, false);
     const subscriptions = store.listeners.size;
-    const pagehide = windowHandlers.get('pagehide')[0];
+    const pagehide = ui.windowHandlers.get('pagehide')[0];
     pagehide({persisted: true});
     assert.equal(store.status.stale, true);
     assert.equal(FakeEventSource.instances[0].closed, true);
 
-    const pageshow = windowHandlers.get('pageshow')[0];
+    const pageshow = ui.windowHandlers.get('pageshow')[0];
     assert.equal(typeof pageshow, 'function');
     pageshow({persisted: true});
     assert.equal(store.status.stale, true, 'resume must stay stale while refetching');

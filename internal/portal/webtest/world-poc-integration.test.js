@@ -26,13 +26,21 @@ function fakeElement(dataset = {}) {
 function fakeDocument() {
   const root = fakeElement();
   const status = fakeElement();
-  const buttons = ['lcp', 'workplace'].map((view) => fakeElement({worldView: view}));
+  const swapButton = fakeElement();
+  const positionAnnouncement = fakeElement();
   const panels = ['lcp', 'workplace'].map((view) => {
-    const panel = fakeElement({worldPanel: view});
+    const panel = fakeElement({
+      worldPanel: view,
+      worldPosition: view === 'lcp' ? 'main' : 'pinp',
+    });
+    panel.positionLabel = fakeElement();
     panel.revision = fakeElement();
+    panel.status = fakeElement();
     panel.actors = fakeElement();
     panel.queries = {
+      '[data-world-position-label]': panel.positionLabel,
       '[data-world-revision]': panel.revision,
+      '[data-world-status]': panel.status,
       '[data-world-actors]': panel.actors,
     };
     return panel;
@@ -41,7 +49,6 @@ function fakeDocument() {
   return {
     root,
     status,
-    buttons,
     panels,
     document: {
       querySelector(selector) {
@@ -49,16 +56,20 @@ function fakeDocument() {
         return root;
       },
       getElementById(id) {
-        assert.equal(id, 'worldStatus');
-        return status;
+        return {
+          worldStatus: status,
+          swapWorldViews: swapButton,
+          worldPositionAnnouncement: positionAnnouncement,
+        }[id] || null;
       },
       querySelectorAll(selector) {
-        if (selector === '[data-world-view]') return buttons;
         if (selector === '[data-world-panel]') return panels;
         assert.fail(`unexpected selector: ${selector}`);
       },
       createElement() { return fakeElement(); },
     },
+    swapButton,
+    positionAnnouncement,
   };
 }
 
@@ -183,7 +194,7 @@ test('live World PoC HTTP response reaches the store and both views without view
   };
 
   try {
-    const {document, root, status, buttons, panels} = fakeDocument();
+    const {document, root, status, swapButton, positionAnnouncement, panels} = fakeDocument();
     store = mountWorldPOC(document, fakeWindow());
 
     await waitFor(
@@ -203,6 +214,7 @@ test('live World PoC HTTP response reaches the store and both views without view
     assert.match(status.textContent, /mock stream更新確認待ち/);
 
     for (const panel of panels) {
+      assert.equal(panel.status.textContent, status.textContent);
       assert.equal(panel.revision.textContent, revision);
       assert.equal(panel.actors.children.length, 1);
       assert.equal(panel.actors.children[0].className, 'world-poc__actor');
@@ -223,9 +235,16 @@ test('live World PoC HTTP response reaches the store and both views without view
     const sourceCount = eventSources.length;
     const subscriptionCountBeforeSwitches = subscriptionCount;
     for (let index = 0; index < 20; index += 1) {
-      const button = buttons[index % buttons.length];
-      button.handlers.click();
+      swapButton.handlers.click();
     }
+    assert.equal(panels[0].dataset.worldPosition, 'main');
+    assert.equal(panels[1].dataset.worldPosition, 'pinp');
+    assert.equal(panels[0].positionLabel.textContent, 'Main');
+    assert.equal(panels[1].positionLabel.textContent, 'PinP');
+    assert.equal(positionAnnouncement.textContent, 'Main: LCP。PinP: Workplace。');
+    assert.equal(panels[0].status.textContent, panels[1].status.textContent);
+    assert.equal(panels[0].revision.textContent, panels[1].revision.textContent);
+    assert.equal(panels[0].revision.textContent, revision);
     assert.equal(requests.length, requestCount, 'view switching must not issue network requests');
     assert.equal(eventSources.length, sourceCount, 'view switching must not open another stream');
     assert.equal(subscriptionCount, subscriptionCountBeforeSwitches, 'view switching must not subscribe again');
