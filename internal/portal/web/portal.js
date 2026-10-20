@@ -586,7 +586,7 @@
     events.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
-        if (pendingRequest && event.type === 'agent.thinking' && String(event.trace_id || '') === pendingRequest.traceID) {
+        if (pendingRequest && event.type === 'agent.start' && String(event.trace_id || '') === pendingRequest.traceID) {
           setOperation(`${actorInfo[pendingRequest.recipient].label}が応答を生成中です`);
         }
         handleRequestTerminalEvent(event);

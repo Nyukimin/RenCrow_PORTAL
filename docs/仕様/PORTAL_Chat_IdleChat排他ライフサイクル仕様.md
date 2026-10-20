@@ -111,6 +111,8 @@ SSE eventは受信時点の現在modeでfilterします。mode変更前に受信
 | Chat | `message.received`、利用者向け`agent.response`、既存契約で公開対象の`agent.progress`／`agent.acknowledge` | `idlechat.message`、thinking、routing、非公開worker event |
 | IdleChat | `idlechat.message` | `message.received`、`agent.response`、thinking、routing、worker event |
 
+Chatで処理中の表示は、現在のpending requestと同じ`trace_id`を持つ`agent.start`で「応答生成中」に更新します。会話本文は完成時の利用者向け`agent.response`に表示し、body deltaを含む`agent.thinking`の公開には依存しません。
+
 - ChatではIdleChat由来のTTS audioを取得、再生、ACKしません。
 - IdleChatでは通常Chat由来のTTS audioを取得、再生、ACKしません。
 - mode切替時は旧modeの再生待ちqueueと再生中audioを停止し、旧modeのmessageを新しい会話欄へ移しません。

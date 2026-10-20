@@ -146,7 +146,7 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - Chatは修飾キーを伴わない`Enter`で送信し、`Shift+Enter`で改行する。IME／FEPの変換確定では送信しない。会話・入力・主要状態表示の文字サイズは小／中／大の3段階とし、browser local storageへ保存する
 - `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`root_task_id`をrequest / response相関の正本とする（Canonical ID統一によりlegacyの`job_id`は使用しない）。受付から同じ`task_id`を持つ利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
-- Chat会話欄は`message.received`、利用者向け`agent.response`、公開対象の`agent.progress`／`agent.acknowledge`を表示し、IdleChat会話欄は`idlechat.message`だけを表示してmode間で混在させない。`message_id`をSSE再接続時の重複排除へ使い、`agent.thinking`やrouting／worker eventは会話本文として残さない
+- Chat会話欄は`message.received`、利用者向け`agent.response`、公開対象の`agent.progress`／`agent.acknowledge`を表示し、IdleChat会話欄は`idlechat.message`だけを表示してmode間で混在させない。処理中表示はpending requestと同じ`trace_id`の`agent.start`で更新し、`agent.thinking`やrouting／worker eventを会話本文にも処理開始判定にも使わない。`message_id`をSSE再接続時の重複排除へ使う
 - `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。`user_id=viewer-user`は観測用metadataであり認証主体ではない。`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
 - Chatの固定WAV入力は`POST /stt/chat-input`を使い、PORTALからCORE、RenCrow_STTへ正規経路で中継する。IdleChatとGamesからはこの操作を公開しない
 - PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat | portal-games`を付ける。profileは能力policyであり認証credentialではない

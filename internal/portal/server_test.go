@@ -710,7 +710,6 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 		`if (type === 'agent.progress')`,
 		`if (type === 'agent.acknowledge') return from === 'shiro' && to === 'mio';`,
 		`return ` + "`message:${messageID}`",
-		`type === 'agent.thinking'`,
 	} {
 		if !strings.Contains(body, marker) {
 			t.Fatalf("public conversation marker %q is missing", marker)
@@ -718,6 +717,7 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	}
 	for _, forbidden := range []string{
 		`['message.received', 'agent.response', 'idlechat.message'].includes(type)`,
+		`agent.thinking`,
 		`post('/viewer/idlechat/start')`,
 		`post('/viewer/idlechat/stop')`,
 	} {
@@ -1559,6 +1559,24 @@ func TestPortalChatGuardsRecipientUntilMatchingResponse(t *testing.T) {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL request guard marker %q is missing", marker)
 		}
+	}
+}
+
+func TestPortalPendingChatStatusUsesMatchingAgentStart(t *testing.T) {
+	script, err := webFiles.ReadFile("web/portal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(script)
+	handler := sliceBetween(t, body, "events.onmessage = (message) => {", "events.onerror = () =>")
+	if !strings.Contains(handler, `event.type === 'agent.start'`) {
+		t.Fatal("pending chat status must use agent.start after public body deltas are removed")
+	}
+	if !strings.Contains(handler, `String(event.trace_id || '') === pendingRequest.traceID`) {
+		t.Fatal("pending chat status must require the same trace as the active request")
+	}
+	if strings.Contains(handler, `event.type === 'agent.thinking'`) {
+		t.Fatal("pending chat status must not depend on public body delta events")
 	}
 }
 
