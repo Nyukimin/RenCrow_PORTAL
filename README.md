@@ -41,6 +41,8 @@ R04のmock-only World PoCは通常modeではなく、既定OFFの個別例外で
 この画面はmock値を表示し、実空間の位置や最終アートを表しません。Chat／IdleChat／Gamesの
 mode、在席通知、Task／Event経路は利用しません。
 
+将来の正式なLCP・Workplace二視点は[WORLD / HOUSE表示仕様](docs/仕様/WORLD_HOUSE表示仕様.md)に設計として記載します。R04 Mockの稼働・受入とは分けます。
+
 ASSISTANT連携でも、読み取り画面からwrite actionを許可せず、他利用者のprivate data、secret、device credentialを中継しません。
 
 ## PuruPuruアバター描画
