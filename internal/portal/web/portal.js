@@ -4,6 +4,213 @@
   const body = document.body;
   const requestedMode = String(body.dataset.mode || '').toLowerCase();
   const mode = ['idlechat', 'chat', 'games'].includes(requestedMode) ? requestedMode : 'idlechat';
+  const uiMetrics = (() => {
+    const enabled = mode === 'chat'
+      && new URLSearchParams(window.location.search || '').get('ui_metrics') === '1';
+    if (!enabled) return null;
+
+    const capacity = 2048;
+    const records = new Array(capacity);
+    const capturedMessageIDs = new Set();
+    let count = 0;
+    let droppedCount = 0;
+    let nextSubmissionID = 0;
+    const responseReceiptEvents = [
+      'ui_response_received',
+      'ui_delegation_notice_received',
+      'ui_readback_received',
+      'ui_report_reply_received',
+      'ui_unclassified_response_received',
+    ];
+
+    function boundedID(value) {
+      const text = String(value || '').trim();
+      return text.length <= 128 ? text : '';
+    }
+
+    function append(event, context = null, details = {}) {
+      if (count >= capacity) {
+        droppedCount += 1;
+        return false;
+      }
+      const record = {
+        event,
+        at_ms: performance.now(),
+        submission_id: context && context.id ? context.id : null,
+        trace_id: boundedID(context && context.traceID),
+        turn_id: boundedID(context && context.turnID),
+        message_id: boundedID(context && context.messageID),
+        delegation_id: boundedID(context && context.delegationID),
+        origin_turn_id: boundedID(context && context.originTurnID),
+        origin_input_message_id: boundedID(context && context.originInputMessageID),
+      };
+      if (details.stage) record.stage = String(details.stage).slice(0, 64);
+      if (details.errorName) record.error_name = String(details.errorName).slice(0, 64);
+      if (details.kind) record.kind = String(details.kind).trim().toLowerCase().slice(0, 64);
+      if (details.visibilityState) record.visibility_state = String(details.visibilityState).slice(0, 32);
+      records[count] = record;
+      count += 1;
+      return true;
+    }
+
+    function correlateAcceptedSubmission(context, traceID, turnID, inputMessageID) {
+      if (!context || !context.id) return;
+      const requestEvents = ['ui_submit', 'ui_send_preparation_end', 'ui_post_start', 'ui_ack_received'];
+      const eventRows = [...responseReceiptEvents, 'ui_dom_updated', 'ui_render_opportunity'];
+      for (let index = context.startIndex; index < count; index += 1) {
+        const record = records[index];
+        if (!record) continue;
+        if (record.submission_id === context.id && requestEvents.includes(record.event)) {
+          if (!record.trace_id) record.trace_id = traceID;
+          if (!record.turn_id) record.turn_id = turnID;
+          if (!record.origin_input_message_id) record.origin_input_message_id = inputMessageID;
+          continue;
+        }
+        const isEventRow = eventRows.includes(record.event)
+          || (record.event === 'ui_error' && record.stage === 'sse_terminal');
+        if (traceID && !record.submission_id && record.trace_id === traceID && isEventRow) {
+          record.submission_id = context.id;
+        }
+      }
+    }
+
+    function beginSubmission() {
+      const context = {
+        id: ++nextSubmissionID,
+        startIndex: count,
+        traceID: '',
+        turnID: '',
+        messageID: '',
+        delegationID: '',
+        originTurnID: '',
+        originInputMessageID: '',
+        clientSubmissionID: '',
+      };
+      append('ui_submit', context);
+      return context;
+    }
+
+    function identifySubmission(context, clientSubmissionID) {
+      if (!context || !context.id) return;
+      context.clientSubmissionID = boundedID(clientSubmissionID);
+    }
+
+    function recordError(stage, error, context = null, traceID = '', messageID = '', kind = '') {
+      const errorContext = context || {traceID, messageID};
+      append('ui_error', errorContext, {
+        stage,
+        errorName: error && error.name ? error.name : 'Error',
+        kind,
+      });
+    }
+
+    function responseContext(event, submission) {
+      const traceID = boundedID(event && event.trace_id);
+      const messageID = boundedID(event && event.message_id);
+      const responseToTurnID = boundedID(event && event.response_to_turn_id);
+      const responseToSubmissionID = boundedID(event && event.response_to_client_submission_id);
+      const hasResponseTo = Boolean(responseToTurnID || responseToSubmissionID);
+      const turnID = hasResponseTo ? responseToTurnID : boundedID(event && event.turn_id);
+      const clientSubmissionID = hasResponseTo ? responseToSubmissionID : boundedID(event && event.client_submission_id);
+      const matched = submission && (
+        hasResponseTo
+          ? ((responseToSubmissionID && submission.clientSubmissionID === responseToSubmissionID)
+            || (responseToTurnID && submission.turnID === responseToTurnID))
+          : ((submission.traceID && submission.traceID === traceID)
+            || (submission.clientSubmissionID && submission.clientSubmissionID === clientSubmissionID)
+            || (submission.turnID && submission.turnID === turnID))
+      )
+        ? submission
+        : null;
+      return Object.freeze({
+        id: matched ? matched.id : 0,
+        startIndex: matched ? matched.startIndex : count,
+        traceID,
+        turnID,
+        messageID,
+        delegationID: boundedID(event && event.delegation_id),
+        originTurnID: boundedID(event && (event.origin_turn_id || (responseToTurnID && event.turn_id))),
+        originInputMessageID: boundedID(event && (event.origin_input_message_id
+          || event.origin_user_message_id || event.reply_to_message_id)),
+      });
+    }
+
+    function captureSSE(event, submission) {
+      const type = String(event && event.type || '');
+      const kind = String(event && event.kind || '').trim().toLowerCase();
+      const traceID = boundedID(event && event.trace_id);
+      const messageID = boundedID(event && event.message_id);
+      const userResponse = type === 'agent.response' && String(event && event.to || '').toLowerCase() === 'user';
+      const terminalError = ['turn.error', 'turn_error'].includes(type)
+        || (userResponse && ['turn_error', 'handoff_error'].includes(kind));
+      const errorEvent = ['agent.error', 'mailbox.error', 'worker.classified_failure', 'viewer.error'].includes(type);
+      if (!terminalError && !userResponse && !errorEvent) return null;
+      if (messageID) {
+        if (capturedMessageIDs.has(messageID)) return null;
+        capturedMessageIDs.add(messageID);
+        if (capturedMessageIDs.size > capacity) capturedMessageIDs.delete(capturedMessageIDs.values().next().value);
+      }
+      if (terminalError) {
+        const context = responseContext(event, submission);
+        recordError('sse_terminal', null, context, traceID, messageID, kind || type);
+        return context;
+      }
+      if (userResponse) {
+        const context = responseContext(event, submission);
+        const receiptEvent = {
+          reply: 'ui_response_received',
+          delegation_notice: 'ui_delegation_notice_received',
+          readback: 'ui_readback_received',
+          report_reply: 'ui_report_reply_received',
+        }[kind] || (kind ? 'ui_unclassified_response_received' : 'ui_response_received');
+        append(receiptEvent, context, {kind});
+        return context;
+      }
+      if (errorEvent) {
+        const context = responseContext(event, submission);
+        recordError('sse_terminal', null, context, traceID, messageID, kind);
+      }
+      return null;
+    }
+
+    function acknowledge(context, accepted) {
+      if (!context) return;
+      const traceID = boundedID(accepted && accepted.trace_id);
+      const turnID = boundedID(accepted && accepted.turn_id);
+      const inputMessageID = boundedID(accepted && accepted.input_message_id);
+      if (!context.traceID) context.traceID = traceID;
+      if (!context.turnID) context.turnID = turnID;
+      if (!context.originInputMessageID) context.originInputMessageID = inputMessageID;
+      append('ui_ack_received', context);
+      correlateAcceptedSubmission(context, traceID, turnID, inputMessageID);
+    }
+
+    function recordDOMUpdate(context, kind = '') {
+      const capturedContext = context ? Object.freeze({...context}) : null;
+      append('ui_dom_updated', capturedContext, {kind});
+      requestAnimationFrame(() => append('ui_render_opportunity', capturedContext, {kind}));
+    }
+
+    function snapshot() {
+      const copiedRecords = records.slice(0, count).map((record) => Object.freeze({...record}));
+      return Object.freeze({
+        version: 1,
+        capacity,
+        count,
+        dropped_count: droppedCount,
+        overflowed: droppedCount > 0,
+        records: Object.freeze(copiedRecords),
+      });
+    }
+
+    append('ui_visibility', null, {visibilityState: document.visibilityState});
+    document.addEventListener('visibilitychange', () => {
+      append('ui_visibility', null, {visibilityState: document.visibilityState});
+    });
+    window.RenCrowPortalMetrics = Object.freeze({snapshot});
+
+    return Object.freeze({beginSubmission, identifySubmission, append, captureSSE, acknowledge, recordError, recordDOMUpdate});
+  })();
   const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
   const fixedCanvasSurface = mode === 'chat' || mode === 'idlechat';
   const viewportProfiles = Object.freeze({
@@ -55,11 +262,24 @@
   let surfaceReady = false;
   let surfaceHeartbeat = null;
   let surfaceRequestSequence = Promise.resolve();
-  let pendingRequest = null;
+  const responseFirstEnabled = mode === 'chat'
+    && new URLSearchParams(window.location.search || '').get('protocol_version') === '2';
+  const requestStates = new Map();
+  const requestsBySubmissionID = new Map();
+  const requestsByTurnID = new Map();
+  const requestsByTraceID = new Map();
+  const requestsByInputMessageID = new Map();
+  let conversationEventSource = null;
+  let uncertainV2Submission = null;
+  const earlyRequestSignals = [];
+  const handledRequestEvents = new Set();
+  const delegationBadges = new Map();
+  const clarificationPrompts = new Map();
+  let selectedClarificationPrompt = null;
+  const requestStateLimit = 300;
   let statusRefreshGeneration = 0;
   let chatViewportFrameID = 0;
   let chatOrientationMedia = null;
-  const earlyTerminalTraceIDs = new Set();
   const requestGuardTimeoutMS = 305000;
   const viewerClientID = getViewerClientID();
   const viewerUserID = 'viewer-user';
@@ -354,54 +574,309 @@
     control.dataset.controlState = state;
   }
 
-  function isTerminalResponseEvent(event) {
-    const type = String(event && event.type || '');
-    if (type === 'agent.response' && String(event && event.to || '').toLowerCase() === 'user') return true;
-    return ['agent.error', 'mailbox.error', 'worker.classified_failure', 'viewer.error'].includes(type);
+  function makeClientSubmissionID() {
+    const suffix = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `portal-${String(suffix).replace(/[^A-Za-z0-9._:-]/g, '')}`;
   }
 
-  function finishRequestGuard(message = '', isError = false) {
-    if (!pendingRequest) return;
-    window.clearTimeout(pendingRequest.timeoutID);
-    pendingRequest = null;
+  function v2SubmissionFingerprint(payload) {
+    const fields = {...payload};
+    delete fields.client_submission_id;
+    return JSON.stringify(fields);
+  }
+
+  function isBlockingRequest(request) {
+    return request && ['submitting', 'accepted', 'delegation_pending', 'readback_pending'].includes(request.status);
+  }
+
+  function blockingRequest() {
+    for (const request of requestStates.values()) {
+      if (isBlockingRequest(request)) return request;
+    }
+    return null;
+  }
+
+  function syncRequestControls() {
+    const isBusy = Boolean(blockingRequest());
+    input.disabled = mode !== 'chat' || !surfaceReady || isBusy;
     setModeSwitcherBusy(modeSwitchBusy);
-    input.disabled = mode !== 'chat' || !surfaceReady;
-    if (message) setOperation(message, isError);
-    if (mode === 'chat') input.focus();
+    if (mode === 'chat' && surfaceReady && !isBusy) input.focus();
   }
 
-  function beginRequestGuard(recipient) {
-    if (pendingRequest || !surfaceReady) return false;
-    const guard = {traceID: '', recipient, timeoutID: null};
-    guard.timeoutID = window.setTimeout(() => {
-      if (pendingRequest !== guard) return;
-      finishRequestGuard('応答待ちがタイムアウトしました', true);
+  function setRequestOperation(request, text, isError = false) {
+    const current = blockingRequest();
+    if (current && current !== request) return;
+    setOperation(text, isError);
+  }
+
+  function boundedCorrelationID(value) {
+    const text = String(value || '').trim();
+    return text.length > 0 && text.length <= 128 ? text : '';
+  }
+
+  function requestIdentifiers(event) {
+    const responseToSubmissionID = boundedCorrelationID(event && event.response_to_client_submission_id);
+    const responseToTurnID = boundedCorrelationID(event && event.response_to_turn_id);
+    const hasResponseTo = Boolean(responseToSubmissionID || responseToTurnID);
+    return {
+      submissionID: hasResponseTo ? responseToSubmissionID : boundedCorrelationID(event && event.client_submission_id),
+      turnID: hasResponseTo ? responseToTurnID : boundedCorrelationID(event && event.turn_id),
+      traceID: hasResponseTo ? '' : boundedCorrelationID(event && event.trace_id),
+      inputMessageID: hasResponseTo ? '' : boundedCorrelationID(event && event.reply_to_message_id),
+    };
+  }
+
+  function requestForIdentifiers(identifiers) {
+    const matches = [];
+    const candidates = [
+      [requestsBySubmissionID, identifiers.submissionID],
+      [requestsByTurnID, identifiers.turnID],
+      [requestsByTraceID, identifiers.traceID],
+      [requestsByInputMessageID, identifiers.inputMessageID],
+    ];
+    for (const [index, id] of candidates) {
+      if (!id) continue;
+      const request = index.get(id);
+      if (request && !matches.includes(request)) matches.push(request);
+    }
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function indexRequestIdentifiers(request) {
+    if (request.clientSubmissionID) requestsBySubmissionID.set(request.clientSubmissionID, request);
+    if (request.turnID) requestsByTurnID.set(request.turnID, request);
+    if (request.traceID) requestsByTraceID.set(request.traceID, request);
+    if (request.inputMessageID) requestsByInputMessageID.set(request.inputMessageID, request);
+  }
+
+  function createTurnRequest(recipient, protocolVersion, metricsSubmission, retrySubmissionID = '') {
+    const clientSubmissionID = protocolVersion === 2 ? (retrySubmissionID || makeClientSubmissionID()) : '';
+    const key = clientSubmissionID || `legacy-${makeClientSubmissionID()}`;
+    const request = {
+      key,
+      protocolVersion,
+      clientSubmissionID,
+      recipient,
+      turnID: '',
+      traceID: '',
+      inputMessageID: '',
+      sessionID: '',
+      status: 'submitting',
+      timeoutID: null,
+      metricsSubmission,
+      serverSignalReceived: false,
+      submissionFingerprint: '',
+    };
+    requestStates.set(key, request);
+    indexRequestIdentifiers(request);
+    request.timeoutID = window.setTimeout(() => {
+      if (requestStates.get(key) !== request || !isBlockingRequest(request)) return;
+      uiMetrics?.recordError('request_guard_timeout', null, metricsSubmission);
+      finishTurnRequest(request, 'failed', '応答待ちがタイムアウトしました', true);
     }, requestGuardTimeoutMS);
-    pendingRequest = guard;
-    input.disabled = true;
-    setModeSwitcherBusy(modeSwitchBusy);
-    return true;
+    pruneRequestStates();
+    syncRequestControls();
+    return request;
   }
 
-  function handleRequestTerminalEvent(event) {
-    if (!pendingRequest || !isTerminalResponseEvent(event)) return;
-    const traceID = String(event.trace_id || '').trim();
-    if (!traceID) return;
-    if (!pendingRequest.traceID) {
-      earlyTerminalTraceIDs.add(traceID);
-      if (earlyTerminalTraceIDs.size > 100) earlyTerminalTraceIDs.delete(earlyTerminalTraceIDs.values().next().value);
+  function removeRequestIndexes(request) {
+    for (const index of [requestsBySubmissionID, requestsByTurnID, requestsByTraceID, requestsByInputMessageID]) {
+      for (const [id, indexed] of index) {
+        if (indexed === request) index.delete(id);
+      }
+    }
+  }
+
+  function pruneRequestStates() {
+    while (requestStates.size > requestStateLimit) {
+      let removed = false;
+      for (const [key, request] of requestStates) {
+        if (isBlockingRequest(request) || (request.status === 'free' && request.delegationKey)) continue;
+        requestStates.delete(key);
+        removeRequestIndexes(request);
+        if (request.delegationKey) clearDelegationBadge(request.delegationKey);
+        removed = true;
+        break;
+      }
+      if (!removed) break;
+    }
+  }
+
+  function finishTurnRequest(request, status, message = '', isError = false) {
+    if (!request || requestStates.get(request.key) !== request) return;
+    window.clearTimeout(request.timeoutID);
+    request.status = status;
+    syncRequestControls();
+    if (message) setRequestOperation(request, message, isError);
+  }
+
+  function isLegacyTerminalEvent(event) {
+    const type = String(event && event.type || '');
+    const visibility = String(event && event.visibility || '').trim().toLowerCase();
+    if (visibility && visibility !== 'public') return false;
+    return (type === 'agent.response' && normalizeActor(event && event.to) === 'user')
+      || ['agent.error', 'mailbox.error', 'worker.classified_failure', 'viewer.error'].includes(type);
+  }
+
+  function eventActor(event) {
+    const actor = event && event.actor;
+    if (typeof actor === 'string') return normalizeActor(actor) || normalizeActor(event && event.from);
+    if (actor && typeof actor === 'object') {
+      return normalizeActor(actor.agent_id || actor.id || actor.name) || normalizeActor(event && event.from);
+    }
+    return normalizeActor(event && event.from);
+  }
+
+  function publicResponseKind(event) {
+    const type = String(event && event.type || '');
+    const kind = String(event && event.kind || '').trim().toLowerCase();
+    const visibility = String(event && event.visibility || '').trim().toLowerCase();
+    const actor = eventActor(event);
+    const to = normalizeActor(event && event.to);
+    const allowedKinds = ['reply', 'delegation_notice', 'readback', 'report_reply', 'clarification_prompt', 'handoff_error', 'turn_error'];
+    if (!allowedKinds.includes(kind) || visibility !== 'public') return '';
+    if (!['mio', 'shiro', 'kuro', 'midori'].includes(actor) || to !== 'user') return '';
+    if (!['agent.response', 'turn.error', 'turn_error'].includes(type)) return '';
+    return kind;
+  }
+
+  function rememberEarlyRequestSignal(event, kind, legacyFailure = false) {
+    const identifiers = requestIdentifiers(event);
+    if (!identifiers.submissionID && !identifiers.turnID && !identifiers.traceID && !identifiers.inputMessageID) return;
+    earlyRequestSignals.push({
+      ...identifiers,
+      kind,
+      legacyFailure,
+      availability: String(event && event.availability || '').trim().toLowerCase(),
+      delegationID: boundedCorrelationID(event && event.delegation_id),
+    });
+    if (earlyRequestSignals.length > 100) earlyRequestSignals.shift();
+  }
+
+  function applyRequestSignal(request, signal) {
+    if (!request || !signal) return;
+    request.serverSignalReceived = true;
+    if (uncertainV2Submission && uncertainV2Submission.clientSubmissionID === request.clientSubmissionID) {
+      uncertainV2Submission = null;
+    }
+    if (request.status === 'completed' || request.status === 'failed') return;
+    const {kind, legacyFailure, availability} = signal;
+    if (request.replyToMessageID
+      && ['delegation_notice', 'readback', 'reply', 'report_reply', 'clarification_prompt'].includes(kind)) {
+      consumeClarificationPrompt(request);
+    }
+    if (kind === 'delegation_notice') {
+      if (isBlockingRequest(request)) {
+        if (signal.delegationID) request.delegationKey = `delegation:${signal.delegationID}`;
+        request.status = 'delegation_pending';
+        setRequestOperation(request, '委譲を受付済みです。復唱を確認しています');
+      }
+    } else if (kind === 'readback') {
+      request.delegationKey = signal.delegationID
+        ? `delegation:${signal.delegationID}`
+        : (request.turnID ? `turn:${request.turnID}` : '');
+      if (availability === 'free') {
+        request.status = 'free';
+        setRequestOperation(request, 'Mioは対応可能です');
+      } else if (isBlockingRequest(request)) {
+        request.status = 'readback_pending';
+        setRequestOperation(request, '復唱を受け取りました。対応状態を確認しています');
+      }
+    } else if (kind === 'reply' || kind === 'report_reply') {
+      finishTurnRequest(request, 'completed', kind === 'report_reply' ? '報告への返答を受信しました' : '応答を受信しました');
+    } else if (kind === 'clarification_prompt') {
+      if (!isBlockingRequest(request) && request.status !== 'free') return;
+      request.status = 'needs_clarification';
+      setRequestOperation(request, 'Mioから確認事項があります。回答してください');
+    } else if (kind === 'turn_error' || kind === 'handoff_error' || legacyFailure) {
+      finishTurnRequest(request, 'failed', '応答処理がエラーで終了しました', true);
+    }
+    syncRequestControls();
+  }
+
+  function bindAcceptedRequest(request, accepted) {
+    request.traceID = boundedCorrelationID(accepted && accepted.trace_id);
+    request.turnID = boundedCorrelationID(accepted && accepted.turn_id);
+    request.inputMessageID = boundedCorrelationID(accepted && accepted.input_message_id);
+    request.sessionID = boundedCorrelationID(accepted && accepted.session_id);
+    if (request.protocolVersion === 2) {
+      const acceptedSubmissionID = boundedCorrelationID(accepted && accepted.client_submission_id);
+      if (String(accepted && accepted.status || '').toLowerCase() !== 'accepted') throw new Error('CORE v2受付応答がacceptedではありません');
+      if (acceptedSubmissionID !== request.clientSubmissionID) throw new Error('CORE受付応答のclient_submission_idが一致しません');
+      if (!request.turnID || !request.traceID || !request.sessionID) throw new Error('CORE v2受付応答にTurn相関情報がありません');
+    } else if (!request.traceID) {
+      throw new Error('CORE応答にtrace_idがありません');
+    }
+    indexRequestIdentifiers(request);
+    if (request.status === 'submitting') request.status = 'accepted';
+    uiMetrics?.acknowledge(request.metricsSubmission, accepted);
+
+    for (let index = 0; index < earlyRequestSignals.length;) {
+      const signal = earlyRequestSignals[index];
+      const matches = (signal.submissionID && signal.submissionID === request.clientSubmissionID)
+        || (signal.turnID && signal.turnID === request.turnID)
+        || (signal.traceID && signal.traceID === request.traceID)
+        || (signal.inputMessageID && signal.inputMessageID === request.inputMessageID);
+      if (!matches) {
+        index += 1;
+        continue;
+      }
+      earlyRequestSignals.splice(index, 1);
+      applyRequestSignal(request, signal);
+    }
+    syncRequestControls();
+  }
+
+  function handleRequestEvent(event) {
+    const type = String(event && event.type || '');
+    const kind = publicResponseKind(event);
+    const legacyTerminal = isLegacyTerminalEvent(event);
+    if (!kind && !legacyTerminal) return;
+    const messageID = boundedCorrelationID(event && event.message_id);
+    const stateEventKey = messageID || [type, event && event.turn_id, event && event.trace_id, kind].map((value) => String(value || '')).join('|');
+    if (handledRequestEvents.has(stateEventKey)) return;
+    handledRequestEvents.add(stateEventKey);
+    if (handledRequestEvents.size > 600) handledRequestEvents.delete(handledRequestEvents.values().next().value);
+
+    const identifiers = requestIdentifiers(event);
+    const request = requestForIdentifiers(identifiers);
+    const signal = {
+      ...identifiers,
+      kind: kind || (legacyTerminal && type === 'agent.response' ? 'reply' : ''),
+      legacyFailure: legacyTerminal && type !== 'agent.response',
+      availability: String(event && event.availability || '').trim().toLowerCase(),
+      delegationID: boundedCorrelationID(event && event.delegation_id),
+    };
+    if (request) {
+      if (kind === 'clarification_prompt' && !clarificationPromptMatchesRequest(request, event)) return;
+      if (request.protocolVersion === 2 && !kind) return;
+      applyRequestSignal(request, signal);
       return;
     }
-    if (traceID !== pendingRequest.traceID) return;
-    const failed = event.type !== 'agent.response';
-    finishRequestGuard(failed ? '応答処理がエラーで終了しました' : '応答を受信しました', failed);
+    // A clarification prompt may release a specific original request only
+    // after its accepted input and delegation are both known. Do not keep a
+    // pre-ACK control signal that might later match a different active turn.
+    if (kind === 'clarification_prompt') return;
+    rememberEarlyRequestSignal(event, signal.kind, signal.legacyFailure);
+  }
+
+  function clarificationPromptMatchesRequest(request, event) {
+    const delegationID = boundedCorrelationID(event && event.delegation_id);
+    const replyToMessageID = boundedCorrelationID(event && event.reply_to_message_id);
+    const eventTraceID = boundedCorrelationID(event && event.trace_id);
+    return request.protocolVersion === 2
+      && String(event && event.availability || '').trim().toLowerCase() === 'free'
+      && Boolean(delegationID && replyToMessageID && request.inputMessageID)
+      && request.delegationKey === `delegation:${delegationID}`
+      && request.inputMessageID === replyToMessageID
+      && (!eventTraceID || !request.traceID || eventTraceID === request.traceID);
   }
 
   function eventKey(event) {
     const messageID = String(event && event.message_id || '').trim();
-    if (messageID && ['message.received', 'agent.response', 'idlechat.message'].includes(String(event.type || ''))) {
-      return `message:${messageID}`;
-    }
+    if (messageID) return `message:${messageID}`;
     const eventID = String(event && event.event_id || '').trim();
     if (eventID) return `event:${eventID}`;
     return [event.seq, event.event_id, event.message_id, event.timestamp, event.type, event.from, event.content].map((value) => String(value || '')).join('|');
@@ -410,13 +885,19 @@
   function shouldRenderEvent(event) {
     const content = String(event && event.content || '').trim();
     const type = String(event && event.type || '');
+    const actor = eventActor(event);
+    const kind = String(event && event.kind || '').trim().toLowerCase();
+    const visibility = String(event && event.visibility || '').trim().toLowerCase();
     const allowedTypes = mode === 'chat'
-      ? ['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress']
+      ? ['message.received', 'conversation.user_message', 'agent.response', 'turn.error', 'turn_error', 'agent.acknowledge', 'agent.progress']
       : ['idlechat.message'];
     if (!content || !allowedTypes.includes(type)) return false;
-    const from = normalizeActor(event.from);
+    if (visibility && visibility !== 'public') return false;
+    const from = actor;
     const to = normalizeActor(event.to);
     if (type === 'message.received') return from === 'user';
+    if (type === 'conversation.user_message') return responseFirstEnabled && visibility === 'public' && from === 'user';
+    if (kind) return Boolean(publicResponseKind(event));
     // News fallback roleplay is public only for the Mio <-> Shiro handoff.
     if (type === 'agent.progress') {
       return event.route === 'CHAT' && ((from === 'mio' && to === 'shiro') || (from === 'shiro' && to === 'mio'));
@@ -461,14 +942,131 @@
     return text;
   }
 
-  function renderEvent(event) {
+  function clearDelegationBadge(key) {
+    const badges = delegationBadges.get(key);
+    if (!badges) return;
+    for (const badge of badges) badge.remove();
+    delegationBadges.delete(key);
+  }
+
+  function clearSelectedClarificationPrompt(expectedMessageID = '') {
+    const selected = selectedClarificationPrompt;
+    if (!selected || (expectedMessageID && selected.messageID !== expectedMessageID)) return false;
+    selected.action.setAttribute('aria-pressed', 'false');
+    if (!clarificationPrompts.get(selected.messageID)?.consumed) selected.action.textContent = 'この確認に回答';
+    selected.action.classList.remove('is-active');
+    if (selected.context) selected.context.remove();
+    selected.row.removeAttribute('data-clarification-reply-selected');
+    selectedClarificationPrompt = null;
+    uncertainV2Submission = null;
+    return true;
+  }
+
+  function selectClarificationPrompt(prompt) {
+    if (!responseFirstEnabled || !prompt || prompt.consumed || !prompt.row.isConnected) return;
+    if (selectedClarificationPrompt?.messageID === prompt.messageID) return;
+    clearSelectedClarificationPrompt();
+    uncertainV2Submission = null;
+    const context = document.createElement('div');
+    context.className = 'room-clarification-reply-context';
+    context.dataset.clarificationReplyContext = 'true';
+    context.dataset.clarificationPromptId = prompt.messageID;
+    context.setAttribute('role', 'group');
+    const label = document.createElement('span');
+    label.textContent = `回答対象: ${prompt.content}`;
+    const cancel = document.createElement('button');
+    cancel.className = 'room-clarification-reply-cancel';
+    cancel.type = 'button';
+    cancel.dataset.clarificationReplyCancel = 'true';
+    cancel.textContent = '選択を解除';
+    cancel.addEventListener('click', () => {
+      if (clearSelectedClarificationPrompt(prompt.messageID)) setOperation('確認事項の選択を解除しました');
+    });
+    context.append(label, cancel);
+    prompt.bubble.append(context);
+    prompt.row.dataset.clarificationReplySelected = 'true';
+    prompt.action.setAttribute('aria-pressed', 'true');
+    prompt.action.classList.add('is-active');
+    prompt.action.textContent = '選択中';
+    selectedClarificationPrompt = {...prompt, context};
+    setOperation('選択した確認事項への回答を入力してください');
+  }
+
+  function addClarificationReplyAction(row, bubble, event) {
+    if (!responseFirstEnabled || publicResponseKind(event) !== 'clarification_prompt') return;
+    const messageID = boundedEventAttribute(event && event.message_id);
+    const content = String(event && event.content || '').trim();
+    if (!messageID || !content) return;
+    const action = document.createElement('button');
+    action.className = 'room-clarification-reply-action';
+    action.type = 'button';
+    action.dataset.clarificationReplyAction = 'true';
+    action.dataset.clarificationPromptId = messageID;
+    action.setAttribute('aria-pressed', 'false');
+    action.textContent = 'この確認に回答';
+    const prompt = {messageID, content, row, bubble, action, consumed: false};
+    clarificationPrompts.set(messageID, prompt);
+    action.addEventListener('click', () => selectClarificationPrompt(prompt));
+    bubble.append(action);
+  }
+
+  function consumeClarificationPrompt(request) {
+    const messageID = boundedCorrelationID(request && request.replyToMessageID);
+    const prompt = clarificationPrompts.get(messageID);
+    if (!prompt) return;
+    prompt.consumed = true;
+    prompt.action.disabled = true;
+    prompt.action.setAttribute('aria-pressed', 'false');
+    prompt.action.textContent = '回答を送信しました';
+    if (selectedClarificationPrompt?.messageID === messageID) clearSelectedClarificationPrompt(messageID);
+  }
+
+  function updateDelegationBadge(row, event, kind) {
+    const delegationID = boundedCorrelationID(event && event.delegation_id);
+    const turnID = boundedCorrelationID(event && event.turn_id);
+    const key = delegationID ? `delegation:${delegationID}` : (turnID ? `turn:${turnID}` : '');
+    if (kind === 'report_reply') {
+      if (delegationID) clearDelegationBadge(`delegation:${delegationID}`);
+      if (turnID) clearDelegationBadge(`turn:${turnID}`);
+      return;
+    }
+    if (kind === 'clarification_prompt' && key) {
+      const badges = delegationBadges.get(key) || new Set();
+      for (const badge of badges) {
+        badge.dataset.delegationStatus = 'needs_clarification';
+        badge.textContent = '確認事項あり';
+      }
+      const badge = document.createElement('span');
+      badge.className = 'room-delegation-badge';
+      badge.dataset.delegationId = delegationID;
+      badge.dataset.turnId = turnID;
+      badge.dataset.delegationStatus = 'needs_clarification';
+      badge.textContent = '確認事項あり';
+      row.append(badge);
+      badges.add(badge);
+      delegationBadges.set(key, badges);
+      return;
+    }
+    if (kind !== 'readback' || !key) return;
+    const badge = document.createElement('span');
+    badge.className = 'room-delegation-badge';
+    badge.dataset.delegationId = delegationID;
+    badge.dataset.turnId = turnID;
+    badge.textContent = '委譲作業中';
+    row.append(badge);
+    const badges = delegationBadges.get(key) || new Set();
+    badges.add(badge);
+    delegationBadges.set(key, badges);
+  }
+
+  function renderEvent(event, metricsContext = null) {
     if (!shouldRenderEvent(event)) return;
     const key = eventKey(event);
     if (seenEvents.has(key)) return;
     seenEvents.add(key);
     if (seenEvents.size > 600) seenEvents.delete(seenEvents.values().next().value);
 
-    const actor = normalizeActor(event.from) || normalizeActor(event.to) || 'mio';
+    const actor = eventActor(event) || normalizeActor(event.to) || 'mio';
     const info = actorInfo[actor] || actorInfo.mio;
     if (empty && empty.isConnected) empty.remove();
 
@@ -477,6 +1075,9 @@
     row.dataset.traceId = boundedEventAttribute(event.trace_id);
     row.dataset.taskId = boundedEventAttribute(event.task_id);
     row.dataset.eventType = boundedEventAttribute(event.type);
+    row.dataset.messageId = boundedEventAttribute(event.message_id);
+    row.dataset.messageKind = boundedEventAttribute(event.kind);
+    row.dataset.turnId = boundedEventAttribute(event.turn_id);
     row.dataset.actor = actor;
     const avatar = document.createElement('div');
     avatar.className = 'av';
@@ -498,10 +1099,17 @@
     content.textContent = String(event.content || '').trim();
     meta.append(name, time);
     bubble.append(meta, content);
+    addClarificationReplyAction(row, bubble, event);
     row.append(avatar, bubble);
+    updateDelegationBadge(row, event, String(event.kind || '').trim().toLowerCase());
     chat.append(row);
     while (chat.children.length > 300) chat.firstElementChild.remove();
     maintainChatScroll();
+    const kind = String(event.kind || '').trim().toLowerCase();
+    if (uiMetrics && event.type === 'agent.response' && String(event.to || '').toLowerCase() === 'user'
+      && !['turn_error', 'handoff_error'].includes(kind)) {
+      uiMetrics.recordDOMUpdate(metricsContext, kind);
+    }
     if (['mio', 'shiro', 'kuro', 'midori'].includes(actor)) animateSpeaker(actor);
   }
 
@@ -515,13 +1123,16 @@
 
   function setConversationState(isIdle, recipient = selectedRecipient) {
     if (!roomSurface) return;
+    const previousRecipient = selectedRecipient;
     let normalizedRecipient = normalizeActor(recipient);
-    if (pendingRequest && normalizedRecipient !== pendingRequest.recipient) normalizedRecipient = pendingRequest.recipient;
+    const request = blockingRequest();
+    if (request && normalizedRecipient !== request.recipient) normalizedRecipient = request.recipient;
     if (!isIdle && (normalizedRecipient === 'mio' || isPartnerActor(normalizedRecipient))) {
       selectedRecipient = normalizedRecipient;
       if (isPartnerActor(normalizedRecipient)) selectedPartner = normalizedRecipient;
       storeSelectedRecipient(selectedRecipient);
     }
+    if (selectedRecipient !== previousRecipient) uncertainV2Submission = null;
     body.classList.toggle('room-idlechat-mode', isIdle);
     body.classList.toggle('room-chat-mode', !isIdle);
     ['mio', 'shiro', 'kuro', 'midori'].forEach((actor) => body.classList.remove(`room-partner-${actor}`));
@@ -581,25 +1192,49 @@
   }
 
   function connectEvents() {
-    const events = new EventSource(api('/viewer/events'));
+    const closedState = Number.isFinite(EventSource.CLOSED) ? EventSource.CLOSED : 2;
+    if (conversationEventSource && conversationEventSource.readyState !== closedState) return conversationEventSource;
+    if (conversationEventSource) {
+      conversationEventSource.close();
+      conversationEventSource.onopen = null;
+      conversationEventSource.onmessage = null;
+      conversationEventSource.onerror = null;
+    }
+    const events = new EventSource(api(responseFirstEnabled ? '/viewer/conversation/events' : '/viewer/events'));
+    conversationEventSource = events;
     events.onopen = () => setConnection('ready', 'CORE接続済み');
     events.onmessage = (message) => {
+      let metricsContext = blockingRequest()?.metricsSubmission || null;
       try {
         const event = JSON.parse(message.data);
-        if (pendingRequest && event.type === 'agent.start' && String(event.trace_id || '') === pendingRequest.traceID) {
-          setOperation(`${actorInfo[pendingRequest.recipient].label}が応答を生成中です`);
+        const request = requestForIdentifiers(requestIdentifiers(event));
+        if (request) metricsContext = request.metricsSubmission;
+        metricsContext = uiMetrics?.captureSSE(event, metricsContext) || metricsContext;
+        if (request && request === blockingRequest() && event.type === 'agent.start' && request.traceID === boundedCorrelationID(event.trace_id)) {
+          setRequestOperation(request, `${actorInfo[request.recipient].label}が応答を生成中です`);
         }
-        handleRequestTerminalEvent(event);
+        handleRequestEvent(event);
         handleControlEvent(event);
-        renderEvent(event);
+        renderEvent(event, metricsContext);
       } catch (error) {
+        uiMetrics?.recordError('sse_message', error, metricsContext);
         setConnection('error', 'イベント解析エラー');
       }
     };
-    events.onerror = () => setConnection('waiting', '再接続中');
+    events.onerror = () => {
+      uiMetrics?.recordError('sse_connection', null, blockingRequest()?.metricsSubmission || null);
+      setConnection('waiting', '再接続中');
+    };
+    return events;
   }
 
-  async function post(path, payload) {
+  function reconnectClosedV2StreamAfterAcceptance() {
+    if (!responseFirstEnabled || !conversationEventSource) return;
+    const closedState = Number.isFinite(EventSource.CLOSED) ? EventSource.CLOSED : 2;
+    if (conversationEventSource.readyState === closedState) connectEvents();
+  }
+
+  async function post(path, payload, metricsSubmission = null) {
     if (mode !== 'chat') throw new Error(`${mode}モードは閲覧専用です`);
     if (!surfaceReady) throw new Error('Chat画面の準備が完了していません');
     const options = {method: 'POST'};
@@ -609,10 +1244,43 @@
       options.headers = {'Content-Type': 'application/json'};
       options.body = JSON.stringify(payload);
     }
-    const response = await fetch(api(path), options);
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-    const contentType = String(response.headers.get('content-type') || '');
-    return contentType.includes('application/json') ? response.json() : null;
+    const requestURL = api(path);
+    if (path === '/viewer/send') uiMetrics?.append('ui_post_start', metricsSubmission);
+    let response;
+    try {
+      response = await fetch(requestURL, options);
+    } catch (error) {
+      if (path !== '/viewer/send') throw error;
+      const uncertainError = new Error(error && error.message ? error.message : String(error));
+      uncertainError.name = error && error.name ? error.name : 'Error';
+      uncertainError.postOutcomeUnknown = true;
+      throw uncertainError;
+    }
+    if (!response.ok) {
+      let details;
+      try {
+        details = await response.text();
+      } catch (error) {
+        if (path !== '/viewer/send' || response.status < 500) throw error;
+        const uncertainError = new Error(error && error.message ? error.message : String(error));
+        uncertainError.name = error && error.name ? error.name : 'Error';
+        uncertainError.postOutcomeUnknown = true;
+        throw uncertainError;
+      }
+      const error = new Error(`HTTP ${response.status}: ${details}`);
+      if (path === '/viewer/send') error.postOutcomeUnknown = response.status >= 500;
+      throw error;
+    }
+    try {
+      const contentType = String(response.headers.get('content-type') || '');
+      return contentType.includes('application/json') ? await response.json() : null;
+    } catch (error) {
+      if (path !== '/viewer/send') throw error;
+      const uncertainError = new Error(error && error.message ? error.message : String(error));
+      uncertainError.name = error && error.name ? error.name : 'Error';
+      uncertainError.postOutcomeUnknown = true;
+      throw uncertainError;
+    }
   }
 
   function updateIdlePlaybackControls(forceDisabled = false) {
@@ -677,13 +1345,11 @@
     surfaceReady = Boolean(ready);
 	updateIdlePlaybackControls();
     if (mode !== 'chat') return;
-    input.disabled = !surfaceReady || Boolean(pendingRequest);
-    setModeSwitcherBusy(modeSwitchBusy);
+    syncRequestControls();
     document.querySelectorAll('#roomAudioBtn, #roomMicBtn').forEach((control) => {
       control.disabled = !surfaceReady;
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
-    if (surfaceReady && !pendingRequest) input.focus();
   }
 
   function applySurfacePresenceResponse(response) {
@@ -989,6 +1655,7 @@
       setOperation('TTSをONにしました');
       return true;
     } catch (error) {
+      uiMetrics?.recordError('send_preparation', error, blockingRequest()?.metricsSubmission || null);
       setToggleState(control, 'TTS', false);
       setOperation(`TTSをONにできません: ${error.message}`, true);
       return false;
@@ -1257,7 +1924,7 @@
     updateAttachmentControl();
   }
 
-  function buildViewerSendPayload(message, recipient, inputSource, attachments) {
+  function buildViewerSendPayload(message, recipient, inputSource, attachments, protocolVersion = 1, clientSubmissionID = '') {
     const fields = {
       message,
       to: recipient,
@@ -1267,6 +1934,11 @@
       device_name: viewerDeviceName,
       audio_output: ttsControl.enabled ? 'requested' : 'disabled',
     };
+    if (protocolVersion === 2) {
+      fields.audio_output = 'disabled';
+      fields.protocol_version = 2;
+      fields.client_submission_id = clientSubmissionID;
+    }
     if (!attachments.length) return fields;
     const form = new FormData();
     Object.entries(fields).forEach(([name, value]) => form.append(name, value));
@@ -1346,8 +2018,9 @@
     const control = document.getElementById(id);
     if (!control) return;
     control.addEventListener('click', async () => {
-      if (pendingRequest) {
-        setOperation(`${actorInfo[pendingRequest.recipient].label}の応答を待っています`, true);
+      const request = blockingRequest();
+      if (request) {
+        setOperation(`${actorInfo[request.recipient].label}の応答を待っています`, true);
         return;
       }
       setOperation(`${label}を取得中`);
@@ -1363,52 +2036,105 @@
     const message = input.value.trim();
     const attachments = attachmentControl.files.slice();
     if ((!message && !attachments.length) || mode !== 'chat') return;
-    if (pendingRequest) {
-      setOperation(`${actorInfo[pendingRequest.recipient].label}の応答を待っています`, true);
+    const metricsSubmission = uiMetrics && uiMetrics.beginSubmission();
+    const recipient = selectedRecipient;
+    const selectedPrompt = selectedClarificationPrompt;
+    const canonicalPrompt = selectedPrompt && clarificationPrompts.get(selectedPrompt.messageID);
+    if (selectedPrompt && (!canonicalPrompt || canonicalPrompt.consumed || !canonicalPrompt.row.isConnected
+      || !boundedEventAttribute(selectedPrompt.messageID))) {
+      clearSelectedClarificationPrompt(selectedPrompt.messageID);
+      setOperation('選択した確認事項を表示できないため、もう一度選んでください', true);
       return;
     }
-    const recipient = selectedRecipient;
-    if (!beginRequestGuard(recipient)) return;
-    if (!ttsControl.enabled && !isTTSExplicitlyDisabled()) {
+    const replyToMessageID = selectedPrompt ? selectedPrompt.messageID : '';
+    if (responseFirstEnabled && (recipient !== 'mio' || inputSource !== 'text' || attachments.length > 0)) {
+      uiMetrics?.recordError('unsupported_v2_input', null, metricsSubmission);
+      setOperation('Response-firstはMioへのテキスト送信だけ利用できます。宛先と添付を確認してください', true);
+      return;
+    }
+    const waitingRequest = blockingRequest();
+    if (waitingRequest) {
+      uiMetrics?.recordError('request_guard', null, metricsSubmission);
+      setOperation(`${actorInfo[waitingRequest.recipient].label}の応答を待っています`, true);
+      return;
+    }
+    if (!surfaceReady) {
+      uiMetrics?.recordError('request_guard', null, metricsSubmission);
+      return;
+    }
+    const protocolVersion = responseFirstEnabled ? 2 : 1;
+    let v2BasePayload = null;
+    let submissionFingerprint = '';
+    let retrySubmissionID = '';
+    if (protocolVersion === 2) {
+      v2BasePayload = buildViewerSendPayload(message, recipient, inputSource, attachments, 2, '');
+      if (replyToMessageID) v2BasePayload.reply_to_message_id = replyToMessageID;
+      submissionFingerprint = v2SubmissionFingerprint(v2BasePayload);
+      if (uncertainV2Submission && uncertainV2Submission.fingerprint === submissionFingerprint) {
+        retrySubmissionID = uncertainV2Submission.clientSubmissionID;
+      }
+      uncertainV2Submission = null;
+    }
+    const request = createTurnRequest(recipient, protocolVersion, metricsSubmission, retrySubmissionID);
+    request.replyToMessageID = replyToMessageID;
+    uiMetrics?.identifySubmission(metricsSubmission, request.clientSubmissionID);
+    request.submissionFingerprint = submissionFingerprint;
+    if (request.protocolVersion === 1 && !ttsControl.enabled && !isTTSExplicitlyDisabled()) {
       if (!await enableTTS()) {
-        finishRequestGuard();
+        finishTurnRequest(request, 'failed');
         return;
       }
     }
     setOperation('送信中');
     try {
-      const accepted = await post('/viewer/send', buildViewerSendPayload(message, recipient, inputSource, attachments));
-      pendingRequest.traceID = String(accepted.trace_id || '').trim();
-      if (!pendingRequest.traceID) throw new Error('CORE応答にtrace_idがありません');
-      if (normalizeActor(accepted.recipient) !== recipient) throw new Error('CORE受付先が選択中の相手と一致しません');
-      if (Number(accepted.attachment_count || 0) !== attachments.length) throw new Error('COREで受理された添付数が一致しません');
+      const payload = v2BasePayload
+        ? {...v2BasePayload, client_submission_id: request.clientSubmissionID}
+        : buildViewerSendPayload(message, recipient, inputSource, attachments, request.protocolVersion, request.clientSubmissionID);
+      request.payload = payload;
+      uiMetrics?.append('ui_send_preparation_end', metricsSubmission);
+      const accepted = await post('/viewer/send', payload, metricsSubmission);
+      try {
+        bindAcceptedRequest(request, accepted);
+        reconnectClosedV2StreamAfterAcceptance();
+      } catch (error) {
+        if (request.protocolVersion === 2) error.postOutcomeUnknown = true;
+        throw error;
+      }
+      if (request.protocolVersion === 1) {
+        if (normalizeActor(accepted.recipient) !== recipient) throw new Error('CORE受付先が選択中の相手と一致しません');
+        if (Number(accepted.attachment_count || 0) !== attachments.length) throw new Error('COREで受理された添付数が一致しません');
+      }
       input.value = '';
       clearAttachments();
-      if (earlyTerminalTraceIDs.delete(pendingRequest.traceID)) {
-        finishRequestGuard('応答を受信しました');
-        return;
-      }
-      setOperation(`${actorInfo[recipient].label}の応答を待っています`);
+      if (request.status === 'accepted' && blockingRequest() === request) setOperation(`${actorInfo[recipient].label}の応答を待っています`);
     } catch (error) {
-      finishRequestGuard();
+      uiMetrics?.recordError('send', error, metricsSubmission);
+      if (request.protocolVersion === 2 && error && error.postOutcomeUnknown && !request.serverSignalReceived) {
+        uncertainV2Submission = {
+          clientSubmissionID: request.clientSubmissionID,
+          fingerprint: request.submissionFingerprint,
+        };
+      }
+      finishTurnRequest(request, 'failed');
       setOperation(`送信できません: ${error.message}`, true);
     }
   }
 
   function setModeSwitcherBusy(busy) {
     modeSwitchBusy = Boolean(busy);
+    const requestBusy = Boolean(blockingRequest());
     document.querySelectorAll('[data-room-switch]').forEach((control) => {
-      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat' || !surfaceReady;
+      control.disabled = modeSwitchBusy || requestBusy || mode !== 'chat' || !surfaceReady;
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
     document.querySelectorAll('#roomAttachBtn, #roomScreenBtn, #roomCameraBtn').forEach((control) => {
-      control.disabled = modeSwitchBusy || Boolean(pendingRequest) || mode !== 'chat' || !surfaceReady;
+      control.disabled = modeSwitchBusy || requestBusy || mode !== 'chat' || !surfaceReady;
       control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
     });
   }
 
   async function switchConversation(partner) {
-    if (pendingRequest) return;
+    if (blockingRequest()) return;
     if (mode !== 'chat' || modeSwitchBusy || !surfaceReady) return;
     const nextRecipient = normalizeActor(partner) || selectedPartner;
     const runtime = document.getElementById('chatAvatar');
@@ -1446,6 +2172,9 @@
 
   if (mode === 'chat') {
     setSurfaceReady(false);
+    input.addEventListener('input', () => {
+      if (responseFirstEnabled) uncertainV2Submission = null;
+    });
     input.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter') return;
       if (event.isComposing || event.keyCode === 229) return;

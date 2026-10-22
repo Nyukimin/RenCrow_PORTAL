@@ -465,7 +465,7 @@ func portalEndpointAllowed(mode Mode, method, path string) bool {
 	}
 	if method == http.MethodGet {
 		switch path {
-		case "/viewer/tts/audio", "/stt":
+		case "/viewer/conversation/events", "/viewer/tts/audio", "/stt":
 			return true
 		default:
 			return false

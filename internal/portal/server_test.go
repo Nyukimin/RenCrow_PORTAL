@@ -704,9 +704,12 @@ func TestPortalRendersOnlyPublicAgentConversationEvents(t *testing.T) {
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`? ['message.received', 'agent.response', 'agent.acknowledge', 'agent.progress']`,
+		`? ['message.received', 'conversation.user_message', 'agent.response', 'turn.error', 'turn_error', 'agent.acknowledge', 'agent.progress']`,
 		`: ['idlechat.message'];`,
 		`if (!content || !allowedTypes.includes(type)) return false;`,
+		`if (kind) return Boolean(publicResponseKind(event));`,
+		`const allowedKinds = ['reply', 'delegation_notice', 'readback', 'report_reply', 'clarification_prompt', 'handoff_error', 'turn_error'];`,
+		`if (!allowedKinds.includes(kind) || visibility !== 'public') return '';`,
 		`if (type === 'agent.progress')`,
 		`if (type === 'agent.acknowledge') return from === 'shiro' && to === 'mio';`,
 		`return ` + "`message:${messageID}`",
@@ -1214,6 +1217,33 @@ func TestWorldPOCStoreStateMachine(t *testing.T) {
 	}
 }
 
+func TestPortalResponseFirstWebBehavior(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("node is required in CI to test response-first portal behavior: %v", err)
+		}
+		t.Skipf("node not found; skipping response-first portal behavior tests: %v", err)
+	}
+
+	for _, name := range []string{"portal_metrics.test.js", "response_first.test.js"} {
+		t.Run(name, func(t *testing.T) {
+			script, err := filepath.Abs(filepath.Join("webtest", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, node, script)
+			cmd.Dir = filepath.Dir(script)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("node %s failed: %v\n%s", name, err, out)
+			}
+		})
+	}
+}
+
 func TestPortalIdleChatProxyUsesDedicatedInteractionProfile(t *testing.T) {
 	var gotProfile string
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1395,6 +1425,7 @@ func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.
 		method string
 		path   string
 	}{
+		{http.MethodGet, "/viewer/conversation/events"},
 		{http.MethodPost, "/viewer/recipient-selection"},
 		{http.MethodPost, "/viewer/active-control"},
 		{http.MethodGet, "/viewer/tts/audio"},
@@ -1425,6 +1456,9 @@ func TestPortalChatAllowsOnlyPublicRecipientAndAudioControlContracts(t *testing.
 		if portalEndpointAllowed(ModeIdleChat, test.method, test.path) {
 			t.Errorf("IdleChat must reject %s %s", test.method, test.path)
 		}
+	}
+	if portalEndpointAllowed(ModeIdleChat, http.MethodGet, "/viewer/conversation/events") {
+		t.Fatal("IdleChat must not access the response-first Chat conversation stream")
 	}
 	for _, path := range []string{"/viewer/stt/admin/restart", "/viewer/debug/system", "/viewer/llm-ops/restart"} {
 		if portalEndpointAllowed(Mode("chat"), http.MethodPost, path) || portalEndpointAllowed(Mode("chat"), http.MethodGet, path) {
@@ -1479,7 +1513,7 @@ func TestPortalChatScriptUsesCoreRecipientTTSAndSTTContracts(t *testing.T) {
 		`localStorage.getItem(ttsPreferenceStorageKey) === 'off'`,
 		`await unlockTTSPlayback();`,
 		`await setActiveControl('audio', 'claim', 'portal_tts_on');`,
-		"if (!await enableTTS()) {\n        finishRequestGuard();\n        return;",
+		"if (!await enableTTS()) {\n        finishTurnRequest(request, 'failed');\n        return;",
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL control contract marker %q is missing", marker)
@@ -1545,16 +1579,19 @@ func TestPortalChatGuardsRecipientUntilMatchingResponse(t *testing.T) {
 	}
 	body := string(script)
 	for _, marker := range []string{
-		`let pendingRequest = null;`,
+		`const requestStates = new Map();`,
+		`const requestsBySubmissionID = new Map();`,
 		`viewer_client_id: viewerClientID`,
 		`input_source: inputSource`,
 		`user_id: viewerUserID`,
 		`device_name: viewerDeviceName`,
 		`send('stt')`,
-		`pendingRequest.traceID = String(accepted.trace_id || '').trim();`,
-		`traceID !== pendingRequest.traceID`,
+		`fields.protocol_version = 2;`,
+		`fields.client_submission_id = clientSubmissionID;`,
+		`request.traceID = boundedCorrelationID(accepted && accepted.trace_id);`,
+		`requestsByTraceID.set(request.traceID, request);`,
 		`type === 'agent.response' && String(event && event.to || '').toLowerCase() === 'user'`,
-		`if (pendingRequest) return;`,
+		`if (blockingRequest()) return;`,
 	} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("PORTAL request guard marker %q is missing", marker)
@@ -1572,7 +1609,7 @@ func TestPortalPendingChatStatusUsesMatchingAgentStart(t *testing.T) {
 	if !strings.Contains(handler, `event.type === 'agent.start'`) {
 		t.Fatal("pending chat status must use agent.start after public body deltas are removed")
 	}
-	if !strings.Contains(handler, `String(event.trace_id || '') === pendingRequest.traceID`) {
+	if !strings.Contains(handler, `request === blockingRequest() && event.type === 'agent.start' && request.traceID === boundedCorrelationID(event.trace_id)`) {
 		t.Fatal("pending chat status must require the same trace as the active request")
 	}
 	if strings.Contains(handler, `event.type === 'agent.thinking'`) {
@@ -1738,6 +1775,7 @@ func TestPortalTailscaleServeProtectsSurfacesButNotHealth(t *testing.T) {
 		"/",
 		"/assets/portal.js",
 		"/api/chat/viewer/events",
+		"/api/chat/viewer/conversation/events",
 		"/viewer/games/observer",
 	} {
 		rec := httptest.NewRecorder()
@@ -1867,6 +1905,70 @@ func TestPortalTailscaleServeExposesBoundedActorAndSanitizesProxyHeaders(t *test
 	}
 	if got := gotHeaders.Get("X-RenCrow-Interaction-Profile"); got != "portal-chat" {
 		t.Fatalf("CORE profile = %q, want portal-chat", got)
+	}
+}
+
+func TestPortalTailscaleServeScopesV2ConversationEventsAndRequiresIdentity(t *testing.T) {
+	const login = "ren@example.com"
+	digest := sha256.Sum256([]byte(login))
+	wantActor := tailscaleActorPrefix + hex.EncodeToString(digest[:])
+	var coreCalls atomic.Int32
+	var gotPath string
+	var gotHeaders http.Header
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		coreCalls.Add(1)
+		gotPath = r.URL.Path
+		gotHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, ": connected\n\n")
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.AuthMode = AuthModeTailscaleServe
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unauthenticated := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, "/api/chat/viewer/conversation/events", nil))
+	if unauthenticated.Code != http.StatusUnauthorized || coreCalls.Load() != 0 {
+		t.Fatalf("missing identity status=%d CORE calls=%d, want 401 and no CORE request", unauthenticated.Code, coreCalls.Load())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://portal.example/api/chat/viewer/conversation/events", nil)
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("Tailscale-User-Login", login)
+	req.Header.Set("Tailscale-User-Name", "Ren")
+	req.Header.Set("X-RenCrow-Authenticated-Actor", "client-spoof")
+	req.Header.Set("X-RenCrow-Client", "client-spoof")
+	req.Header.Set("X-RenCrow-Interaction-Profile", "client-spoof")
+	got := httptest.NewRecorder()
+	handler.ServeHTTP(got, req)
+	if got.Code != http.StatusOK || coreCalls.Load() != 1 {
+		t.Fatalf("authenticated status=%d CORE calls=%d body=%s", got.Code, coreCalls.Load(), got.Body.String())
+	}
+	if gotPath != "/viewer/conversation/events" {
+		t.Fatalf("CORE path=%q, want scoped conversation SSE route", gotPath)
+	}
+	if got := gotHeaders.Get("X-RenCrow-Authenticated-Actor"); got != wantActor {
+		t.Fatalf("CORE actor=%q, want derived actor %q", got, wantActor)
+	}
+	if got := gotHeaders.Get("X-RenCrow-Interaction-Profile"); got != "portal-chat" {
+		t.Fatalf("CORE interaction profile=%q, want portal-chat", got)
+	}
+	if got := gotHeaders.Get("X-RenCrow-Client"); got != "RenCrow_PORTAL" {
+		t.Fatalf("CORE client=%q, want RenCrow_PORTAL", got)
+	}
+	for name := range gotHeaders {
+		if strings.HasPrefix(strings.ToLower(name), "tailscale-user-") {
+			t.Fatalf("CORE received raw Tailscale identity header %q", name)
+		}
+	}
+	if strings.Contains(gotHeaders.Get("X-RenCrow-Authenticated-Actor"), login) || strings.Contains(got.Body.String(), login) {
+		t.Fatal("raw login escaped through the scoped event proxy")
 	}
 }
 
