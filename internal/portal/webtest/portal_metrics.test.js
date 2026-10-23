@@ -156,7 +156,19 @@ function makeHarness(search = '?mode=Chat&ui_metrics=1', recipient = 'shiro') {
   class FakeEventSource {
     constructor(url) {
       this.url = url;
+      this.listeners = new Map();
       eventSources.push(this);
+    }
+
+    addEventListener(type, handler) {
+      const handlers = this.listeners.get(type) || [];
+      handlers.push(handler);
+      this.listeners.set(type, handlers);
+    }
+
+    dispatchEvent(event) {
+      for (const handler of this.listeners.get(event.type) || []) handler(event);
+      return true;
     }
   }
 

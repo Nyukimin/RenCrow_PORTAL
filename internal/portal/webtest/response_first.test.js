@@ -156,11 +156,23 @@ function makeHarness({search = '?mode=Chat&protocol_version=2', recipient = 'mio
     constructor(url) {
       this.url = url;
       this.readyState = 0;
+      this.listeners = new Map();
       eventSources.push(this);
+    }
+
+    addEventListener(type, handler) {
+      const handlers = this.listeners.get(type) || [];
+      handlers.push(handler);
+      this.listeners.set(type, handlers);
     }
 
     close() {
       this.readyState = 2;
+    }
+
+    dispatchEvent(event) {
+      for (const handler of this.listeners.get(event.type) || []) handler(event);
+      return true;
     }
 
     emit(event) {

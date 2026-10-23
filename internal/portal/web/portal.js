@@ -1202,6 +1202,14 @@
     }
     const events = new EventSource(api(responseFirstEnabled ? '/viewer/conversation/events' : '/viewer/events'));
     conversationEventSource = events;
+    let resetHandled = false;
+    events.addEventListener('reset', () => {
+      if (resetHandled) return;
+      resetHandled = true;
+      events.close();
+      setSurfaceReady(false);
+      window.location.reload();
+    });
     events.onopen = () => setConnection('ready', 'CORE接続済み');
     events.onmessage = (message) => {
       let metricsContext = blockingRequest()?.metricsSubmission || null;
