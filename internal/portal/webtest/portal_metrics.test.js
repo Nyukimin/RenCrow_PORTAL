@@ -148,7 +148,34 @@ function makeHarness(search = '?mode=Chat&ui_metrics=1', recipient = 'shiro') {
       return new Promise((resolve) => { sendResponseResolve = resolve; });
     }
     if (String(url).includes('/viewer/surface-presence')) {
-      return Promise.resolve(response({effective_mode: 'chat', idlechat_active: false}));
+      const body = JSON.parse(options.body || '{}');
+      if (body.action === 'register') {
+        return Promise.resolve(response({
+          ok: true,
+          protocol_version: 2,
+          runtime_epoch: 'portal-metrics-epoch',
+          registration_receipt: 'portal-metrics-receipt',
+          last_update_seq: 0,
+        }));
+      }
+      return Promise.resolve(response({
+        ok: true,
+        protocol_version: 2,
+        accepted_update_seq: body.update_seq,
+        current_claim_seq: body.action === 'claim' ? body.update_seq : body.claim_seq,
+        runtime_epoch: body.runtime_epoch,
+        registration_receipt: body.registration_receipt,
+        state_revision: 1,
+        playback_generation: 0,
+        playback_state: 'blocked',
+        playback_allowed: false,
+        playback_active: false,
+        cleanup_pending: false,
+        generation_state: 'idle',
+        generation_quiesced: true,
+        backend_resource_state: 'released',
+        foreground_ready: true,
+      }));
     }
     return Promise.resolve(response());
   };
@@ -164,6 +191,11 @@ function makeHarness(search = '?mode=Chat&ui_metrics=1', recipient = 'shiro') {
       const handlers = this.listeners.get(type) || [];
       handlers.push(handler);
       this.listeners.set(type, handlers);
+    }
+
+    emitNamed(type, event) {
+      const message = {type, data: JSON.stringify(event)};
+      for (const handler of this.listeners.get(type) || []) handler(message);
     }
 
     dispatchEvent(event) {

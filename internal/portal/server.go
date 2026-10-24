@@ -163,7 +163,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/assets")
 		h.assets.ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
-		if r.URL.Path == "/api/world-poc" || strings.HasPrefix(r.URL.Path, "/api/world-poc/") {
+		if r.URL.Path == "/api/other" || strings.HasPrefix(r.URL.Path, "/api/other/") {
+			h.serveOtherAPI(w, r)
+		} else if r.URL.Path == "/api/world-poc" || strings.HasPrefix(r.URL.Path, "/api/world-poc/") {
 			h.serveWorldPOCAPI(w, r)
 		} else {
 			h.serveAPI(w, r)
@@ -246,6 +248,30 @@ func (h *handler) serveWorldPOCAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Header.Set(interactionProfileHeader, "portal-world-poc")
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/world-poc")
+	h.proxy.ServeHTTP(w, r)
+}
+
+func (h *handler) serveOtherAPI(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/other/viewer/surface-presence" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.URL.RawQuery != "" {
+		http.Error(w, "unexpected query", http.StatusBadRequest)
+		return
+	}
+	if !sameOriginOrNonBrowser(r) {
+		http.Error(w, "cross-origin controlは許可されていません", http.StatusForbidden)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, controlBodyLimit)
+	r.Header.Set("X-RenCrow-Client", "RenCrow_PORTAL")
+	r.Header.Set(interactionProfileHeader, "portal-other")
+	r.URL.Path = "/viewer/surface-presence"
 	h.proxy.ServeHTTP(w, r)
 }
 
@@ -501,6 +527,9 @@ func portalGamesEndpointAllowed(method, path string) bool {
 	}
 	if method != http.MethodPost {
 		return false
+	}
+	if path == "/viewer/surface-presence" {
+		return true
 	}
 	if path == "/viewer/games/launch" {
 		return true

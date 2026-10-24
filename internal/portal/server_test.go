@@ -46,7 +46,7 @@ func TestPortalServesLuminaDisplay(t *testing.T) {
 		t.Fatalf("/lumina status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, marker := range []string{"<title>Lumina | RenCrow</title>", "id=\"luminaCharacter\"", "/assets/lumina-assets/Lumina.png", "data-expression=\"smile\""} {
+	for _, marker := range []string{"<title>Lumina | RenCrow</title>", "id=\"luminaCharacter\"", "/assets/lumina-assets/Lumina.png", "data-expression=\"smile\"", "/assets/other_presence.js"} {
 		if !strings.Contains(body, marker) {
 			t.Errorf("Lumina page is missing %q", marker)
 		}
@@ -309,7 +309,8 @@ func TestPortalChatUsesSeparateLandscapeAndPortraitProfiles(t *testing.T) {
 		`const scale = Math.min(viewport.width / profile.logicalWidth, viewport.height / profile.logicalHeight);`,
 		`window.addEventListener('resize', scheduleChatViewportSync, {passive: true});`,
 		`document.documentElement.classList.add('portal-chat-fixed-canvas');`,
-		`if (mode !== 'chat') return;`,
+		`return mode === 'chat' || (mode === 'idlechat' && profile.id === 'landscape');`,
+		`document.documentElement.classList.toggle('portal-chat-fixed-canvas', fixedCanvas);`,
 		`html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"]`,
 		`width:1920px;`,
 		`height:1080px;`,
@@ -668,8 +669,12 @@ func TestPortalViewerSendPayloadSnapshotsAudioOutputIntent(t *testing.T) {
 	body := string(script)
 	for _, required := range []string{
 		`audio_output: ttsControl.enabled ? 'requested' : 'disabled',`,
+		`if (presence) fields.presence = presence;`,
+		`fields.audio_output = 'disabled';`,
+		`fields.protocol_version = 2;`,
 		`if (!attachments.length) return fields;`,
-		`Object.entries(fields).forEach(([name, value]) => form.append(name, value));`,
+		`Object.entries(fields).forEach(([name, value]) => form.append(name, name === 'presence' ? JSON.stringify(value) : value));`,
+		`attachments.forEach((file) => form.append('attachments', file, file.name));`,
 	} {
 		if !strings.Contains(body, required) {
 			t.Errorf("Viewer send audio output contract marker %q is missing", required)
@@ -749,12 +754,21 @@ func TestPortalScriptReportsVisibleSurfaceAndFiltersIdleChatTTS(t *testing.T) {
 	body := string(script)
 	for _, marker := range []string{
 		`fetch(api('/viewer/surface-presence')`,
-		`body: JSON.stringify({viewer_client_id: viewerClientID, surface: mode, action})`,
+		`action: 'register',`,
+		`if (action === 'claim' && !await registerSurfacePresence(generation)) return null;`,
+		`protocol_version: 2,`,
+		`runtime_epoch: state.runtimeEpoch,`,
+		`registration_receipt: state.registrationReceipt,`,
+		`surface: mode,`,
+		`update_seq: updateSeq,`,
+		`if (action === 'heartbeat' || action === 'release') request.claim_seq = state.claimSeq;`,
+		`if (action === 'claim') state.claimSeq = updateSeq;`,
+		`const ready = surfaceClaimConfirmed && (mode === 'idlechat'`,
 		`surfaceHeartbeat = window.setInterval(() => {`,
 		`}, 10000);`,
 		`document.addEventListener('visibilitychange'`,
 		`window.addEventListener('pagehide', releaseSurfaceOnPageHide);`,
-		`effectiveMode === 'chat' && !idleChatActive`,
+		`String(response.effective_mode || '').toLowerCase() === 'chat' || response.playback_state === 'blocked'`,
 		`eventChannel === 'idlechat' || eventSession.startsWith('idle-')`,
 		`if ((mode === 'chat' && isIdleChatTTS) || (mode === 'idlechat' && !isIdleChatTTS)) return;`,
 	} {
@@ -1169,12 +1183,12 @@ func TestWorldPOCServesStandalonePageAndAssets(t *testing.T) {
 	if page.Code != http.StatusOK {
 		t.Fatalf("page status = %d", page.Code)
 	}
-	for _, marker := range []string{"LCP", "Workplace", "未測量", "unverified", "/world-poc.js", "/world-poc.css"} {
+	for _, marker := range []string{"LCP", "Workplace", "未測量", "unverified", "/world-poc.js", "/world-poc.css", "/assets/other_presence.js"} {
 		if !strings.Contains(page.Body.String(), marker) {
 			t.Errorf("World PoC page missing %q", marker)
 		}
 	}
-	for _, forbidden := range []string{"portal.js", "surface-presence", "IdleChat", "Task"} {
+	for _, forbidden := range []string{"portal.js", "IdleChat", "Task"} {
 		if strings.Contains(page.Body.String(), forbidden) {
 			t.Errorf("World PoC page must not load or trigger %q", forbidden)
 		}
@@ -1192,6 +1206,88 @@ func TestWorldPOCServesStandalonePageAndAssets(t *testing.T) {
 		if rec.Code != http.StatusNotFound {
 			t.Errorf("PoC asset alias %s status = %d, want 404", target, rec.Code)
 		}
+	}
+}
+
+func TestPortalOtherPresenceProxyIsScopedAndUsesTrustedProfile(t *testing.T) {
+	var calls atomic.Int32
+	var gotPath, gotProfile, gotClient string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		gotPath = r.URL.Path
+		gotProfile = r.Header.Get(interactionProfileHeader)
+		gotClient = r.Header.Get("X-RenCrow-Client")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/other/viewer/surface-presence", strings.NewReader(`{"protocol_version":2,"viewer_client_id":"other-tab","action":"register"}`))
+	req.Header.Set("Origin", "http://portal.example")
+	req.Header.Set("X-RenCrow-Client", "RenCrow_CMD")
+	req.Header.Set(interactionProfileHeader, "cmd-control")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("presence status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if gotPath != "/viewer/surface-presence" || gotClient != "RenCrow_PORTAL" || gotProfile != "portal-other" {
+		t.Fatalf("CORE proxy path=%q client=%q profile=%q", gotPath, gotClient, gotProfile)
+	}
+
+	blocked := []struct {
+		method string
+		path   string
+		origin string
+		want   int
+	}{
+		{method: http.MethodGet, path: "/api/other/viewer/surface-presence", want: http.StatusMethodNotAllowed},
+		{method: http.MethodPost, path: "/api/other/viewer/idlechat/status", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/api/other/viewer/surface-presence/extra", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/api/other/viewer/surface-presence?unused=1", origin: "http://portal.example", want: http.StatusBadRequest},
+		{method: http.MethodPost, path: "/api/other/viewer/surface-presence", origin: "http://attacker.example", want: http.StatusForbidden},
+	}
+	for _, test := range blocked {
+		req := httptest.NewRequest(test.method, "http://portal.example"+test.path, strings.NewReader(`{}`))
+		if test.origin != "" {
+			req.Header.Set("Origin", test.origin)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != test.want {
+			t.Errorf("%s %s status=%d want %d body=%s", test.method, test.path, rec.Code, test.want, rec.Body.String())
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("CORE calls=%d want 1", calls.Load())
+	}
+}
+
+func TestOtherPresenceWebLifecycle(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatalf("node is required in CI to test other presence lifecycle: %v", err)
+		}
+		t.Skipf("node not found; skipping other presence lifecycle tests: %v", err)
+	}
+	script, err := filepath.Abs(filepath.Join("webtest", "other_presence_lifecycle.test.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, node, script)
+	cmd.Dir = filepath.Dir(script)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("node other_presence_lifecycle.test.js failed: %v\n%s", err, out)
 	}
 }
 
@@ -1214,33 +1310,6 @@ func TestWorldPOCStoreStateMachine(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("node world-poc.test.js failed: %v\n%s", err, out)
-	}
-}
-
-func TestPortalResponseFirstWebBehavior(t *testing.T) {
-	node, err := exec.LookPath("node")
-	if err != nil {
-		if os.Getenv("CI") != "" {
-			t.Fatalf("node is required in CI to test response-first portal behavior: %v", err)
-		}
-		t.Skipf("node not found; skipping response-first portal behavior tests: %v", err)
-	}
-
-	for _, name := range []string{"portal_metrics.test.js", "response_first.test.js"} {
-		t.Run(name, func(t *testing.T) {
-			script, err := filepath.Abs(filepath.Join("webtest", name))
-			if err != nil {
-				t.Fatal(err)
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			cmd := exec.CommandContext(ctx, node, script)
-			cmd.Dir = filepath.Dir(script)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf("node %s failed: %v\n%s", name, err, out)
-			}
-		})
 	}
 }
 
@@ -1290,8 +1359,9 @@ func TestPortalSurfacePresenceUsesModeProfile(t *testing.T) {
 	}{
 		{mode: "chat", profile: "portal-chat"},
 		{mode: "idlechat", profile: "portal-idlechat"},
+		{mode: "games", profile: "portal-games"},
 	} {
-		req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/"+test.mode+"/viewer/surface-presence", strings.NewReader(`{"viewer_client_id":"tab-1","surface":"`+test.mode+`","action":"claim"}`))
+		req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/"+test.mode+"/viewer/surface-presence", strings.NewReader(`{"protocol_version":2,"viewer_client_id":"tab-1","action":"register"}`))
 		req.Header.Set("Origin", "http://portal.example")
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -1388,6 +1458,7 @@ func TestPortalGamesEndpointAllowlist(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/health"},
+		{http.MethodPost, "/viewer/surface-presence"},
 		{http.MethodGet, "/viewer/games/status"},
 		{http.MethodGet, "/viewer/games/sessions"},
 		{http.MethodGet, "/viewer/games/events"},

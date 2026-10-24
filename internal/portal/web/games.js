@@ -17,6 +17,7 @@
     selectedSession: null,
     sessions: [],
     launchBusy: false,
+    presenceReady: false,
     frameCount: 0,
   };
 
@@ -78,7 +79,21 @@
       const capability = card.querySelector('[data-game-capability]');
       if (capability) capability.textContent = supported ? 'Agent E2E対応' : 'Agent E2E対応待ち';
     });
-    launchButton.disabled = state.launchBusy || !state.supportedGames.has(state.gameID);
+    launchButton.disabled = state.launchBusy || !state.presenceReady || !state.supportedGames.has(state.gameID);
+    updateSessionActions();
+  }
+
+  function updateSessionActions() {
+    const canAct = state.presenceReady && Boolean(state.selectedSessionID);
+    retryButton.disabled = !canAct;
+    startOverButton.disabled = !canAct;
+  }
+
+  function updatePresenceReady(ready) {
+    state.presenceReady = Boolean(ready);
+    updateCatalog();
+    updateSessionActions();
+    if (!state.presenceReady) setOperation('COREの前景接続を確認しています');
   }
 
   function setOverlayAgent(persona) {
@@ -147,8 +162,7 @@
     stageTitle.textContent = titleNames[session.game_id] || session.title || session.game_id || 'Game';
     stageSession.textContent = `${state.selectedSessionID} · ${actorNames[session.persona] || session.persona || 'Agent'}`;
     screenShell.classList.add('has-session');
-    retryButton.disabled = false;
-    startOverButton.disabled = false;
+    updateSessionActions();
     setOverlayAgent(session.persona || agentSelect.value);
     observerFrame.src = `/viewer/games/observer?session=${encodeURIComponent(state.selectedSessionID)}&game=${encodeURIComponent(session.game_id || '')}`;
     renderSessions();
@@ -208,6 +222,10 @@
 
   async function launchGame(event) {
     event.preventDefault();
+    if (!state.presenceReady) {
+      setOperation('Gamesのforeground_readyを確認してから起動できます', true);
+      return;
+    }
     if (state.launchBusy || !state.supportedGames.has(state.gameID)) return;
     state.launchBusy = true;
     updateCatalog();
@@ -245,6 +263,10 @@
   }
 
   async function runSessionAction(action) {
+    if (!state.presenceReady) {
+      setOperation('Gamesのforeground_readyを確認してから操作できます', true);
+      return;
+    }
     if (!state.selectedSessionID) return;
     retryButton.disabled = true;
     startOverButton.disabled = true;
@@ -270,8 +292,7 @@
       selectSession(session);
     } catch (error) {
       setOperation(`sessionを操作できません: ${error.message}`, true);
-      retryButton.disabled = false;
-      startOverButton.disabled = false;
+      updateSessionActions();
     }
   }
 
@@ -286,6 +307,13 @@
   form.addEventListener('submit', launchGame);
   retryButton.addEventListener('click', () => runSessionAction('retry'));
   startOverButton.addEventListener('click', () => runSessionAction('start_over'));
+
+  const portalPresence = window.RenCrowPortalPresence;
+  if (portalPresence && typeof portalPresence.subscribe === 'function') {
+    portalPresence.subscribe(updatePresenceReady);
+  } else {
+    updatePresenceReady(false);
+  }
 
   setOverlayAgent(agentSelect.value);
   refreshBridgeStatus();

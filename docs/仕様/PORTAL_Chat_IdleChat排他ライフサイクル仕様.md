@@ -5,8 +5,8 @@
 RenCrow_PORTALのChatとIdleChatを、同じ会話欄へ混在するmodeではなく、排他的な2つの
 利用者surfaceとして扱います。
 
-- IdleChat画面を表示したらIdleChatを開始する。
-- Chat画面を表示している間はIdleChatを停止する。
+- 可視IdleChat画面は再生可能な完成成果物だけを明示的な再生操作で再生する。
+- Chat、Games、その他の画面、CMDの前景利用中はIdleChat再生と夜間制作を禁止する。
 - Chat画面へIdleChatのmessageと音声を表示・再生しない。
 - 複数tab、画面再読込、browser異常終了でも誤った再開や孤立実行を残さない。
 
@@ -26,12 +26,16 @@ cross-moduleの正本はRenCrow_COREの次の文書です。
 | --- | --- |
 | `mode=Chat`かつ`visibilityState=visible` | `surface=chat`をclaimする |
 | `mode=IdleChat`かつ`visibilityState=visible` | `surface=idlechat`をclaimする |
-| `visibilityState=hidden`、`pagehide`、別modeへ遷移 | 現在surfaceをreleaseする |
+| `mode=Games`かつ`visibilityState=visible` | `surface=games`をclaimする |
+| 独立した認証済み画面が可視 | `surface=other`をclaimする |
+| `visibilityState=hidden`、`pagehide` | 現在surfaceをreleaseする |
+| 同じdocument内で別modeへ遷移 | 旧Idle表示・音声を直ちに止め、同じreceiptの新しいclaimでsurfaceを原子的に置換する |
 | browser crash、network断などrelease不能 | CORE側の30秒lease失効でreleaseと同等に扱う |
 
-`viewer_client_id`はtab単位の不透明IDです。同じtabの再読込で維持してもよいですが、別tabと
-共有しません。可視中は10秒ごとにheartbeatし、同じclaim、heartbeat、releaseの再送を
-安全に行えるものとします。
+`viewer_client_id`はtab単位の不透明IDです。ローカルの更新番号を失った再読込ではIDを更新し、
+別tabと共有しません。可視中は10秒ごとにheartbeatします。更新にはCOREのV2
+`register → claim → heartbeat → release`、`runtime_epoch`、`registration_receipt`、
+`update_seq`、`claim_seq`を使い、古い応答と重複要求で状態を戻しません。
 
 ## 3. 有効modeの決定
 
@@ -40,22 +44,21 @@ cross-moduleの正本はRenCrow_COREの次の文書です。
 
 | 有効な在席 | COREの結果 | PORTALの表示 |
 | --- | --- | --- |
-| Chatが1件以上 | IdleChat停止、`effective_mode=chat` | Chatをreadyにできる |
-| Chatなし、IdleChatが1件以上 | IdleChat開始、`effective_mode=idlechat` | IdleChatを実行中と表示できる |
-| ChatとIdleChatの両方 | Chat優先、IdleChat停止 | Chatはready、IdleChatは待機中 |
-| どちらもなし | PORTAL起因では開始しない、`effective_mode=none` | 実行中を表示しない |
+| Chat／Games／other／CMDが1件以上、または前景turn実行中 | 再生禁止、現再生世代を失効 | 前景画面は`foreground_ready`確認後に操作可能。IdleChatは待機 |
+| 前景なし、可視IdleChatが1件以上、完成成果物あり | 再生許可。自動再生なし | 再生操作を可能にする |
+| 前景なし、可視IdleChatがあるが完成成果物なし | 再生開始不可 | 不足状態を示す |
+| どちらもなし | 再生開始不可 | 実行中を表示しない |
 
-Chatが複数tabで開かれている場合、最後のChat在席がreleaseまたは失効するまでIdleChatを
-開始しません。最後のChatが閉じた時に可視IdleChatが残っていればCOREが開始し、残って
-いなければ自動再開しません。
+複数の前景tabがあれば最後のleaseがreleaseまたは失効するまで再生を許可しません。
+最後の前景画面が閉じても、古い再生世代は復活しません。
 
 ## 4. 起動とready条件
 
 ### Chat
 
 1. 初期状態では入力欄、送信、recipient切替、STTをdisabledにする。
-2. `surface=chat, action=claim`を送る。
-3. 応答が`effective_mode=chat`かつ`idlechat_active=false`であることを確認する。
+2. V2 register後、`surface=chat, action=claim`を送る。
+3. 現在の通信世代・画面世代の応答で`foreground_ready=true`を確認する。
 4. 確認後にだけChat操作をreadyにする。
 
 停止確認前に利用者入力を受け付けません。claim失敗、timeout、期待状態との不一致では
@@ -64,13 +67,13 @@ Chatが複数tabで開かれている場合、最後のChat在席がreleaseま�
 ### IdleChat
 
 1. 初期状態を「開始確認中」とし、COREの応答を待たずにMioとShiroを表示する。
-2. `surface=idlechat, action=claim`を送る。
-3. 応答が`effective_mode=idlechat`かつ`idlechat_active=true`なら「実行中」と表示する。
-4. `effective_mode=chat`なら「別のChat画面を表示中のため待機中」と表示する。
+2. V2 register後、`surface=idlechat, action=claim`を送る。
+3. 現在の通信世代・画面世代の応答で`playback_allowed`を確認する。
+4. 許可され、完成成果物がある場合だけ明示操作による再生を受け付ける。前景利用中は待機を示す。
 
-claim失敗またはtimeoutでは「IdleChatを開始できません」と表示します。PORTALだけで成功状態を
-推測したり、local timerだけで実行中へ変えたりしません。MioとShiroの描画は実行状態の
-成功表示ではないため、開始確認中、待機中、errorでも維持します。
+claim失敗またはtimeoutでは再生を許可しません。PORTALだけで成功状態を推測したり、
+local timerだけで実行中へ変えたりしません。MioとShiroの描画は実行状態の成功表示では
+ないため、開始確認中、待機中、errorでも維持します。
 
 ### Chatのキャラクター切替
 
@@ -106,6 +109,12 @@ claim失敗またはtimeoutでは「IdleChatを開始できません」と表示
 SSE eventは受信時点の現在modeでfilterします。mode変更前に受信したeventや再接続時の再送も
 同じ規則を適用します。
 
+COREの`idlechat.control`は会話履歴のEventSeqを持たない最新状態通知です。PORTALはHTTPの
+presence応答と同じ`runtime_epoch`、`state_revision`、`playback_generation`を比較して採用し、
+同じepochの古いrevisionではreadyや再生を復活させません。epochが変わったとき、またはSSEが
+切断されたときはreadyを解除し、旧世代の台詞・音声・再生待ちqueueを破棄して再registerから
+やり直します。SSEが再接続してもclaimなしでreadyへ戻しません。
+
 | surface | 会話欄へ表示する | 表示しない |
 | --- | --- | --- |
 | Chat | `message.received`、利用者向け`agent.response`、既存契約で公開対象の`agent.progress`／`agent.acknowledge` | `idlechat.message`、thinking、routing、非公開worker event |
@@ -116,6 +125,8 @@ Chatで処理中の表示は、現在のpending requestと同じ`trace_id`を持
 - ChatではIdleChat由来のTTS audioを取得、再生、ACKしません。
 - IdleChatでは通常Chat由来のTTS audioを取得、再生、ACKしません。
 - mode切替時は旧modeの再生待ちqueueと再生中audioを停止し、旧modeのmessageを新しい会話欄へ移しません。
+- ローカルmode変更ではCORE応答を待たず、旧Idle音声とtimerを先に停止します。
+- 旧`runtime_epoch`・`playback_generation`を持つ遅延event、音声取得結果、`audio.play()`の完了、ACKを現画面へ適用しません。
 - 重複eventは`message_id`で除外しますが、重複除外より先にmode filterを適用しても、後に適用しても表示結果が同じでなければなりません。
 
 ### Chatの音声入力（STT）のerrorとclose
@@ -162,11 +173,11 @@ PORTAL serverはbrowserが送ったclient/profile headerを信頼せず、page m
 
 ## 7. 受入条件
 
-1. IdleChatだけを可視表示すると30秒以内ではなくclaim応答の完了時点でIdleChatが開始され、IdleChat messageだけが表示される。
+1. IdleChatだけを可視表示するとclaim応答で再生可否が分かり、ready成果物だけを明示操作で再生できる。再生由来の会話生成LLMは呼ばれない。
 2. IdleChat実行中にChatを可視表示するとIdleChatと未送信TTS queueが停止し、停止確認後にChat入力が有効になる。
 3. Chat表示中に届いた`idlechat.message`は、live eventでもSSE再送でもChat会話欄へ表示されない。
 4. ChatとIdleChatを別tabで可視表示するとChatが優先され、IdleChat側は待機中を表示する。
-5. 最後のChat tabを閉じた時、可視IdleChat tabが残っていればIdleChatが開始される。
+5. 最後の前景tabを閉じた時、可視IdleChat tabが残っていても旧再生は自動復活しない。
 6. 最後のIdleChat tabを閉じ、ChatもなければPORTAL起因のIdleChat実行は残らない。
 7. tabを強制終了してreleaseできなくても30秒以内にleaseが失効し、集約状態が修復される。
 8. profileとsurfaceの不一致、未知action、空の`viewer_client_id`は拒否され、状態を変更しない。
@@ -181,6 +192,9 @@ PORTAL serverはbrowserが送ったclient/profile headerを信頼せず、page m
 14. STTの`error`が`utterance_id`を持つ場合、マイクとinput権は維持され、状態行へ発話errorが表示される。
 15. STTの`error`が`utterance_id`を持たない場合と、マイクON中の意図しないWebSocket closeでは、マイクがOFFになりinput権が解放され、理由が表示される。
 16. `end_reason`が未知の値（`silence`など）の`final`は、通常の`final`と同じく入力欄へ入り送信される。
+17. Games、Lumina preview、World PoCを含む可視の非Idle画面は前景leaseを持ち、夜間制作とIdle再生を禁止する。
+18. CORE再起動、SSE切断・再接続、遅延heartbeat／control通知で旧readyと旧世代の音声・台詞が復活しない。
+19. `register → claim`と`foreground_ready`が成立してからChat送信する。claim未成立の送信はCOREでも拒否される。
 
 ## 8. 実装と検証境界
 
@@ -188,19 +202,8 @@ CORE endpoint、lease集約、PORTAL allowlist、browser lifecycle、event／TTS
 変更時はCOREを先に検証し、CORE contract test、PORTAL proxy policy test、browser lifecycle test、
 複数tab testの順に確認します。単一tabの表示成功だけで排他制御の完了とは扱いません。
 
-## 9. 現状の実装境界と将来方針（memo）
+## 9. owner境界
 
-ChatとIdleChatは§3の表に示す通り横並びの兄弟surfaceであり、`/viewer/surface-presence`は
-どちらにも属さない共有エンドポイントです。本稿更新時点の実装では、surface-presenceの
-handlerとlease集約controllerは`RenCrow_CORE`に存在し、PORTALはreverse proxyで中継します。
-短期対応としてCORE側で、surface-presenceをIdleChat feature配下から兄弟中立な
-`features/presence`へ分離し、IdleChat無効化時でもChatが正常にreadyへ遷移できる状態を
-担保します。
-
-将来の中長期方針（memo、本リリースでは未実装）として、Chat／IdleChat両surfaceの
-backend logic（handler、session、lease集約など）を`RenCrow_PORTAL`へ移管し、COREには
-Viewer層とcross-cutting runtime（LLM、TTS、STT、Vision、Memory等）のみを残す方向を検討
-します。移管後はPORTALが`/viewer/surface-presence`を自前で終端し、IdleChat runtimeの
-起動／停止など必要な部分のみをCORE APIへ委譲する構造を想定します。詳細な正本は
-`RenCrow_CORE/docs/04_アーキテクチャ概要.md`の「PORTAL Chat／IdleChat排他ライフサイクル」に
-揃えます。
+presence登録、lease、前景turn、再生policy、runtime世代の正本はCOREのRAMです。PORTALは
+画面可視性を通知し、COREの結果で送信・再生・表示を制御します。通信状態のローカルコピーは
+正本ではありません。CORE再起動で登録とleaseは失われ、全画面が再登録します。

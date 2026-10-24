@@ -211,7 +211,7 @@
 
     return Object.freeze({beginSubmission, identifySubmission, append, captureSSE, acknowledge, recordError, recordDOMUpdate});
   })();
-  const roomSurface = ['idlechat', 'chat'].includes(body.dataset.surface);
+  const roomSurface = ['idlechat', 'chat', 'games'].includes(mode);
   const fixedCanvasSurface = mode === 'chat' || mode === 'idlechat';
   const viewportProfiles = Object.freeze({
     landscape: Object.freeze({
@@ -262,6 +262,10 @@
   let surfaceReady = false;
   let surfaceHeartbeat = null;
   let surfaceRequestSequence = Promise.resolve();
+  const surfaceReadyListeners = new Set();
+  let surfaceClaimConfirmed = false;
+  let needsPresenceClaimAfterEventReconnect = false;
+  let pendingRuntimeEpoch = '';
   const responseFirstEnabled = mode === 'chat'
     && new URLSearchParams(window.location.search || '').get('protocol_version') === '2';
   const requestStates = new Map();
@@ -282,6 +286,29 @@
   let chatOrientationMedia = null;
   const requestGuardTimeoutMS = 305000;
   const viewerClientID = getViewerClientID();
+  const surfacePresenceStorageKey = 'rencrow.portal.surfacePresenceV2';
+  let surfacePresence = loadSurfacePresence();
+  let acceptedControlSnapshot = surfacePresence ? {
+    runtimeEpoch: surfacePresence.runtimeEpoch,
+    stateRevision: surfacePresence.stateRevision,
+    playbackGeneration: surfacePresence.playbackGeneration,
+    playbackAllowed: false,
+    playbackState: '',
+    playbackActive: false,
+    cleanupPending: false,
+    foregroundReady: false,
+  } : null;
+  let surfaceLifecycleGeneration = 0;
+  let surfaceReleasePending = false;
+  window.RenCrowPortalPresence = Object.freeze({
+    isReady: () => surfaceReady,
+    subscribe(listener) {
+      if (typeof listener !== 'function') return () => {};
+      surfaceReadyListeners.add(listener);
+      listener(surfaceReady);
+      return () => surfaceReadyListeners.delete(listener);
+    },
+  });
   const viewerUserID = 'viewer-user';
   const viewerDeviceName = getViewerDeviceName();
   const attachmentControl = {
@@ -304,6 +331,10 @@
     seenChunks: new Set(),
     heartbeat: null,
     currentAudio: null,
+    currentItem: null,
+    currentFetchController: null,
+    lifecycleGeneration: 0,
+    audioObjectURL: '',
     audioContext: null,
     mediaSource: null,
     analyser: null,
@@ -512,13 +543,67 @@
   function getViewerClientID() {
     const key = 'rencrow.portal.viewerClientID';
     const existing = String(sessionStorage.getItem(key) || '').trim();
-    if (existing) return existing;
+    if (existing) {
+      let savedSequenceAvailable = false;
+      try {
+        const saved = JSON.parse(sessionStorage.getItem('rencrow.portal.surfacePresenceV2') || 'null');
+        savedSequenceAvailable = Boolean(saved
+          && saved.viewerClientID === existing
+          && saved.protocolVersion === 2
+          && typeof saved.runtimeEpoch === 'string' && saved.runtimeEpoch.trim()
+          && typeof saved.registrationReceipt === 'string' && saved.registrationReceipt.trim()
+          && Number.isSafeInteger(saved.updateSeq) && saved.updateSeq >= 0);
+      } catch (_) {
+        savedSequenceAvailable = false;
+      }
+      if (savedSequenceAvailable) return existing;
+      if (typeof sessionStorage.removeItem === 'function') sessionStorage.removeItem('rencrow.portal.surfacePresenceV2');
+    }
     const suffix = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
       ? globalThis.crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const created = `portal-${suffix}`;
     sessionStorage.setItem(key, created);
     return created;
+  }
+
+  function loadSurfacePresence() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(surfacePresenceStorageKey) || 'null');
+      if (!saved || saved.viewerClientID !== viewerClientID || saved.protocolVersion !== 2) return null;
+      if (!saved.runtimeEpoch || !saved.registrationReceipt || !Number.isSafeInteger(saved.updateSeq) || saved.updateSeq < 0) return null;
+      return {
+        viewerClientID,
+        protocolVersion: 2,
+        runtimeEpoch: String(saved.runtimeEpoch),
+        registrationReceipt: String(saved.registrationReceipt),
+        surface: String(saved.surface || ''),
+        updateSeq: saved.updateSeq,
+        claimSeq: Number.isSafeInteger(saved.claimSeq) && saved.claimSeq > 0 ? saved.claimSeq : 0,
+        stateRevision: Number.isSafeInteger(saved.stateRevision) && saved.stateRevision >= 0 ? saved.stateRevision : 0,
+        playbackGeneration: Number.isSafeInteger(saved.playbackGeneration) && saved.playbackGeneration >= 0 ? saved.playbackGeneration : 0,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveSurfacePresence() {
+    if (!surfacePresence) {
+      if (typeof sessionStorage.removeItem === 'function') sessionStorage.removeItem(surfacePresenceStorageKey);
+      return;
+    }
+    sessionStorage.setItem(surfacePresenceStorageKey, JSON.stringify(surfacePresence));
+  }
+
+  function currentSurfacePresenceRef() {
+    if (!surfacePresence || surfacePresence.protocolVersion !== 2 || surfacePresence.claimSeq <= 0) return null;
+    return {
+      protocol_version: 2,
+      runtime_epoch: surfacePresence.runtimeEpoch,
+      registration_receipt: surfacePresence.registrationReceipt,
+      claim_seq: surfacePresence.claimSeq,
+    };
   }
 
   function getViewerDeviceName() {
@@ -914,6 +999,16 @@
     return new Intl.DateTimeFormat('ja-JP', {hour: '2-digit', minute: '2-digit'}).format(date);
   }
 
+  function isCurrentIdleChatOutput(event) {
+    if (mode !== 'idlechat') return true;
+    if (!surfaceReady || !surfaceClaimConfirmed || !acceptedControlSnapshot) return false;
+    const runtimeEpoch = String(event && event.runtime_epoch || '').trim();
+    const playbackGeneration = Number(event && event.playback_generation);
+    return runtimeEpoch === acceptedControlSnapshot.runtimeEpoch
+      && Number.isSafeInteger(playbackGeneration)
+      && playbackGeneration === acceptedControlSnapshot.playbackGeneration;
+  }
+
   function setAvatarInput(actor, input) {
     const runtime = mode === 'chat'
       ? document.getElementById('chatAvatar')
@@ -1061,6 +1156,7 @@
 
   function renderEvent(event, metricsContext = null) {
     if (!shouldRenderEvent(event)) return;
+    if (mode === 'idlechat' && !isCurrentIdleChatOutput(event)) return;
     const key = eventKey(event);
     if (seenEvents.has(key)) return;
     seenEvents.add(key);
@@ -1203,14 +1299,26 @@
     const events = new EventSource(api(responseFirstEnabled ? '/viewer/conversation/events' : '/viewer/events'));
     conversationEventSource = events;
     let resetHandled = false;
-    events.addEventListener('reset', () => {
-      if (resetHandled) return;
-      resetHandled = true;
-      events.close();
-      setSurfaceReady(false);
-      window.location.reload();
-    });
-    events.onopen = () => setConnection('ready', 'CORE接続済み');
+    if (typeof events.addEventListener === 'function') {
+      events.addEventListener('reset', () => {
+        if (resetHandled) return;
+        resetHandled = true;
+        events.close();
+        setSurfaceReady(false);
+        window.location.reload();
+      });
+      events.addEventListener('idlechat.control', (message) => {
+        try {
+          handleIdleChatControlEvent(JSON.parse(message.data));
+        } catch (error) {
+          uiMetrics?.recordError('sse_control', error, blockingRequest()?.metricsSubmission || null);
+        }
+      });
+    }
+    events.onopen = () => {
+      setConnection('ready', 'CORE接続済み');
+      if (needsPresenceClaimAfterEventReconnect && document.visibilityState === 'visible') claimVisibleSurface();
+    };
     events.onmessage = (message) => {
       let metricsContext = blockingRequest()?.metricsSubmission || null;
       try {
@@ -1232,6 +1340,15 @@
     events.onerror = () => {
       uiMetrics?.recordError('sse_connection', null, blockingRequest()?.metricsSubmission || null);
       setConnection('waiting', '再接続中');
+      if (!needsPresenceClaimAfterEventReconnect) {
+        needsPresenceClaimAfterEventReconnect = true;
+        surfaceLifecycleGeneration += 1;
+        surfaceClaimConfirmed = false;
+        acceptedControlSnapshot = null;
+        stopSurfaceHeartbeat();
+      }
+      invalidateLocalPlaybackState();
+      setSurfaceReady(false);
     };
     return events;
   }
@@ -1302,14 +1419,44 @@
   async function postIdleChatPlayback(action) {
 	if (mode !== 'idlechat') throw new Error('IdleChatモード専用の操作です');
 	if (!surfaceReady) throw new Error('IdleChat画面の準備が完了していません');
+	const presence = currentSurfacePresenceRef();
+	if (!presence) throw new Error('IdleChatのpresence V2 claimを確認できません');
+	const lifecycleGeneration = surfaceLifecycleGeneration;
+	const expectedStateRevision = surfacePresence.stateRevision;
+	const expectedRuntimeEpoch = presence.runtime_epoch;
+	const expectedPlaybackGeneration = acceptedControlSnapshot && acceptedControlSnapshot.playbackGeneration;
 	updateIdlePlaybackControls(true);
 	const response = await fetch(api('/viewer/idlechat/playback'), {
 	  method: 'POST',
 	  headers: {'Content-Type': 'application/json'},
-	  body: JSON.stringify({action}),
+	  body: JSON.stringify({
+	    protocol_version: 2,
+	    viewer_client_id: viewerClientID,
+	    runtime_epoch: presence.runtime_epoch,
+	    registration_receipt: presence.registration_receipt,
+	    claim_seq: presence.claim_seq,
+	    expected_state_revision: expectedStateRevision,
+	    action,
+	  }),
 	});
 	if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
 	const result = await response.json();
+	if (lifecycleGeneration !== surfaceLifecycleGeneration || !surfaceReady || document.visibilityState !== 'visible') return null;
+	const currentControl = acceptedControlSnapshot;
+	if (!currentControl || currentControl.runtimeEpoch !== expectedRuntimeEpoch
+	  || currentControl.playbackGeneration !== expectedPlaybackGeneration
+	  || !currentControl.playbackAllowed || currentControl.cleanupPending
+	  || (result.runtime_epoch && result.runtime_epoch !== expectedRuntimeEpoch)
+	  || (Number.isSafeInteger(result.playback_generation) && result.playback_generation !== expectedPlaybackGeneration)
+	  || (Number.isSafeInteger(result.state_revision) && result.state_revision < Math.max(expectedStateRevision, currentControl.stateRevision))) {
+	  setSurfaceReady(false);
+	  throw new Error('COREのIdleChat再生応答が現在の状態版と一致しません');
+	}
+	if (Number.isSafeInteger(result.state_revision)) {
+	  surfacePresence.stateRevision = Math.max(surfacePresence.stateRevision, result.state_revision);
+	  acceptedControlSnapshot.stateRevision = Math.max(acceptedControlSnapshot.stateRevision, result.state_revision);
+	  saveSurfacePresence();
+	}
 	idleTopicPlayback = result.playback || null;
 	updateIdlePlaybackControls();
 	return result;
@@ -1326,7 +1473,8 @@
 	  control.addEventListener('click', async () => {
 		setOperation(`${label}中`);
 		try {
-		  await postIdleChatPlayback(action);
+		  const result = await postIdleChatPlayback(action);
+		  if (!result) return;
 		  await refreshStatus();
 		  setOperation(action === 'play' ? '再生を開始しました' : `${label}しました`);
 		} catch (error) {
@@ -1338,52 +1486,276 @@
 	updateIdlePlaybackControls();
   }
 
-  async function postSurfacePresence(action, keepalive = false) {
+  async function postSurfacePresence(payload, keepalive = false) {
     const response = await fetch(api('/viewer/surface-presence'), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({viewer_client_id: viewerClientID, surface: mode, action}),
+      body: JSON.stringify(payload),
       keepalive,
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    if (!response.ok) {
+      const details = await response.text();
+      const error = new Error(`HTTP ${response.status}: ${details}`);
+      error.status = response.status;
+      error.details = details;
+      throw error;
+    }
     return response.json();
   }
 
   function setSurfaceReady(ready) {
-    surfaceReady = Boolean(ready);
+    const nextReady = Boolean(ready);
+    const changed = surfaceReady !== nextReady;
+    surfaceReady = nextReady;
+	if (!nextReady) invalidateLocalPlaybackState();
 	updateIdlePlaybackControls();
-    if (mode !== 'chat') return;
-    syncRequestControls();
-    document.querySelectorAll('#roomAudioBtn, #roomMicBtn').forEach((control) => {
-      control.disabled = !surfaceReady;
-      control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
+    if (mode === 'chat') {
+      syncRequestControls();
+      document.querySelectorAll('#roomAudioBtn, #roomMicBtn').forEach((control) => {
+        control.disabled = !surfaceReady;
+        control.setAttribute('aria-disabled', control.disabled ? 'true' : 'false');
+      });
+    }
+    if (changed) surfaceReadyListeners.forEach((listener) => listener(surfaceReady));
+  }
+
+  function validV2Registration(response) {
+    return response && response.ok === true && response.protocol_version === 2
+      && typeof response.runtime_epoch === 'string' && response.runtime_epoch.trim() !== ''
+      && typeof response.registration_receipt === 'string' && response.registration_receipt.trim() !== ''
+      && Number.isSafeInteger(response.last_update_seq) && response.last_update_seq >= 0;
+  }
+
+  function validV2Update(response, state, request) {
+    if (!response || response.protocol_version !== 2
+      || response.runtime_epoch !== state.runtimeEpoch
+      || response.registration_receipt !== state.registrationReceipt
+      || response.accepted_update_seq !== request.update_seq
+      || !Number.isSafeInteger(response.state_revision) || response.state_revision < 0
+      || !Number.isSafeInteger(response.playback_generation) || response.playback_generation < 0) return false;
+    if (request.action === 'claim') return response.current_claim_seq === request.update_seq;
+    if (request.action === 'heartbeat') return response.current_claim_seq === request.claim_seq;
+    return true;
+  }
+
+  function currentSurfaceAttempt(generation) {
+    return generation === surfaceLifecycleGeneration;
+  }
+
+  function invalidateLocalPlaybackState() {
+    if (mode === 'idlechat' && chat) chat.replaceChildren();
+    clearTTSPlayback();
+  }
+
+  function controlSnapshotFrom(value) {
+    const runtimeEpoch = String(value && value.runtime_epoch || '').trim();
+    const stateRevision = Number(value && value.state_revision);
+    const playbackGeneration = Number(value && value.playback_generation);
+    if (!runtimeEpoch || !Number.isSafeInteger(stateRevision) || stateRevision < 0
+      || !Number.isSafeInteger(playbackGeneration) || playbackGeneration < 0) return null;
+    return {
+      runtimeEpoch,
+      stateRevision,
+      playbackGeneration,
+      playbackState: String(value.playback_state || ''),
+      playbackAllowed: value.playback_allowed === true,
+      playbackActive: value.playback_active === true,
+      cleanupPending: value.cleanup_pending === true,
+      generationState: String(value.generation_state || ''),
+      generationQuiesced: value.generation_quiesced === true,
+      backendResourceState: String(value.backend_resource_state || ''),
+      foregroundReady: value.foreground_ready === true,
+    };
+  }
+
+  function currentControlVersion() {
+    if (acceptedControlSnapshot) return acceptedControlSnapshot;
+    if (!surfacePresence) return null;
+    return {
+      runtimeEpoch: surfacePresence.runtimeEpoch,
+      stateRevision: surfacePresence.stateRevision,
+      playbackGeneration: surfacePresence.playbackGeneration,
+    };
+  }
+
+  function beginRuntimeEpochRecovery(runtimeEpoch) {
+    const nextEpoch = String(runtimeEpoch || '').trim();
+    if (!nextEpoch || pendingRuntimeEpoch === nextEpoch) return;
+    pendingRuntimeEpoch = nextEpoch;
+    surfaceClaimConfirmed = false;
+    setSurfaceReady(false);
+    invalidateLocalPlaybackState();
+    if (document.visibilityState === 'visible') claimVisibleSurface();
+  }
+
+  function acceptControlSnapshot(value, source, expectedEpoch = '') {
+    const snapshot = controlSnapshotFrom(value);
+    if (!snapshot) return false;
+    if (expectedEpoch && snapshot.runtimeEpoch !== expectedEpoch) return false;
+    const current = currentControlVersion();
+    if (current && snapshot.runtimeEpoch !== current.runtimeEpoch) {
+      if (source === 'control') beginRuntimeEpochRecovery(snapshot.runtimeEpoch);
+      return false;
+    }
+    if (current && (snapshot.stateRevision < current.stateRevision
+      || snapshot.playbackGeneration < current.playbackGeneration)) return false;
+
+    const previous = acceptedControlSnapshot;
+    acceptedControlSnapshot = snapshot;
+    if (surfacePresence && surfacePresence.runtimeEpoch === snapshot.runtimeEpoch) {
+      surfacePresence.stateRevision = snapshot.stateRevision;
+      surfacePresence.playbackGeneration = snapshot.playbackGeneration;
+      saveSurfacePresence();
+    }
+    const generationChanged = previous
+      && previous.runtimeEpoch === snapshot.runtimeEpoch
+      && previous.playbackGeneration !== snapshot.playbackGeneration;
+    const idlePlaybackBlocked = mode === 'idlechat'
+      && (snapshot.playbackAllowed !== true || snapshot.cleanupPending);
+    if (generationChanged || idlePlaybackBlocked) invalidateLocalPlaybackState();
+
+    if (source === 'control' && mode === 'idlechat') {
+      setSurfaceReady(surfaceClaimConfirmed
+        && !needsPresenceClaimAfterEventReconnect
+        && snapshot.playbackAllowed
+        && !snapshot.cleanupPending);
+      if (!snapshot.playbackAllowed || snapshot.cleanupPending) {
+        setOperation('別の画面またはCMDを使用中のため、再生を停止しています');
+      } else {
+        setOperation('IdleChat再生を利用できます');
+      }
+    }
+    return true;
+  }
+
+  function handleIdleChatControlEvent(value) {
+    const snapshot = controlSnapshotFrom(value);
+    if (!snapshot) return;
+    const current = currentControlVersion();
+    if (current && snapshot.runtimeEpoch !== current.runtimeEpoch) {
+      beginRuntimeEpochRecovery(snapshot.runtimeEpoch);
+      return;
+    }
+    acceptControlSnapshot(value, 'control');
+  }
+
+  async function registerSurfacePresence(generation) {
+    const response = await postSurfacePresence({
+      protocol_version: 2,
+      viewer_client_id: viewerClientID,
+      action: 'register',
     });
+    if (!currentSurfaceAttempt(generation) || document.visibilityState !== 'visible') return false;
+    if (!validV2Registration(response)) throw new Error('COREはsurface-presence V2 registerに対応していません');
+    const previousEpoch = surfacePresence && surfacePresence.runtimeEpoch;
+    if ((previousEpoch && previousEpoch !== response.runtime_epoch)
+      || (acceptedControlSnapshot && acceptedControlSnapshot.runtimeEpoch !== response.runtime_epoch)) {
+      acceptedControlSnapshot = null;
+      surfaceClaimConfirmed = false;
+      invalidateLocalPlaybackState();
+    }
+    if (pendingRuntimeEpoch) {
+      if (pendingRuntimeEpoch !== response.runtime_epoch) {
+        acceptedControlSnapshot = null;
+      }
+      pendingRuntimeEpoch = '';
+    }
+    const sameReceipt = surfacePresence
+      && surfacePresence.runtimeEpoch === response.runtime_epoch
+      && surfacePresence.registrationReceipt === response.registration_receipt;
+    surfacePresence = {
+      viewerClientID,
+      protocolVersion: 2,
+      runtimeEpoch: response.runtime_epoch,
+      registrationReceipt: response.registration_receipt,
+      surface: sameReceipt ? surfacePresence.surface : '',
+      updateSeq: Math.max(sameReceipt ? surfacePresence.updateSeq : 0, response.last_update_seq),
+      claimSeq: sameReceipt ? surfacePresence.claimSeq : 0,
+      stateRevision: sameReceipt ? surfacePresence.stateRevision : 0,
+      playbackGeneration: sameReceipt ? surfacePresence.playbackGeneration : 0,
+    };
+    saveSurfacePresence();
+    return true;
   }
 
   function applySurfacePresenceResponse(response) {
-    const effectiveMode = String(response && response.effective_mode || '').toLowerCase();
-    const idleChatActive = response && response.idlechat_active === true;
+    if (!acceptControlSnapshot(response, 'presence', surfacePresence && surfacePresence.runtimeEpoch)) return false;
+    const ready = surfaceClaimConfirmed && (mode === 'idlechat'
+      ? acceptedControlSnapshot.playbackAllowed && !acceptedControlSnapshot.cleanupPending
+      : acceptedControlSnapshot.foregroundReady);
+    setSurfaceReady(ready);
     if (mode === 'chat') {
-      const ready = effectiveMode === 'chat' && !idleChatActive;
-      setSurfaceReady(ready);
-      if (!ready) throw new Error('COREでIdleChat停止を確認できません');
-      setOperation('Chat準備完了');
-      return;
+      setOperation(ready ? 'Chat準備完了' : '前景利用を確認しています', !ready);
+    } else if (mode === 'idlechat') {
+      if (String(response.effective_mode || '').toLowerCase() === 'chat' || response.playback_state === 'blocked') {
+        setOperation('別の画面またはCMDを使用中のため、再生を停止しています');
+      } else if (ready) {
+        setOperation('IdleChat再生を利用できます');
+      } else {
+        setOperation('接続を確認しています', true);
+      }
     }
-    setSurfaceReady(effectiveMode === 'idlechat' && idleChatActive);
-    if (effectiveMode === 'chat') {
-      setOperation('別のChat画面を表示中のため待機中');
-      return;
-    }
-    if (!surfaceReady) throw new Error('COREでIdleChat開始を確認できません');
-    setOperation('IdleChat実行中');
+    return true;
   }
 
-  function queueSurfacePresence(action, keepalive = false) {
+  function queueSurfacePresence(action, generation = surfaceLifecycleGeneration, keepalive = false) {
     surfaceRequestSequence = surfaceRequestSequence.catch(() => {}).then(async () => {
-      const response = await postSurfacePresence(action, keepalive);
-      if (action !== 'release' && document.visibilityState === 'visible') applySurfacePresenceResponse(response);
-      return response;
+      if (!currentSurfaceAttempt(generation)) return null;
+      if (action !== 'release' && document.visibilityState !== 'visible') return null;
+      if (action === 'claim' && !await registerSurfacePresence(generation)) return null;
+      async function submitUpdate(allowRegistrationRefresh) {
+        const state = surfacePresence;
+        if (!state) return null;
+        const updateSeq = state.updateSeq + 1;
+        const request = {
+          protocol_version: 2,
+          viewer_client_id: viewerClientID,
+          runtime_epoch: state.runtimeEpoch,
+          registration_receipt: state.registrationReceipt,
+          surface: mode,
+          action,
+          update_seq: updateSeq,
+        };
+        if (action === 'heartbeat' || action === 'release') request.claim_seq = state.claimSeq;
+        state.updateSeq = updateSeq;
+        if (action === 'claim') state.claimSeq = updateSeq;
+        state.surface = mode;
+        saveSurfacePresence();
+        let response;
+        try {
+          response = await postSurfacePresence(request, keepalive);
+        } catch (error) {
+          const registrationRequired = error.status === 409 && String(error.details || '').includes('registration_required');
+          if (!allowRegistrationRefresh || action !== 'claim' || !registrationRequired
+            || !currentSurfaceAttempt(generation)) throw error;
+          surfacePresence = null;
+          saveSurfacePresence();
+          if (!await registerSurfacePresence(generation)) return null;
+          return submitUpdate(false);
+        }
+        if (!currentSurfaceAttempt(generation)) return null;
+        if (action !== 'release' && document.visibilityState !== 'visible') return null;
+        if (response && response.runtime_epoch && response.runtime_epoch !== state.runtimeEpoch) {
+          beginRuntimeEpochRecovery(response.runtime_epoch);
+          throw new Error('COREの起動世代が変わりました');
+        }
+        if (!validV2Update(response, state, request)) throw new Error('COREのsurface-presence V2応答が一致しません');
+        if (action === 'release') {
+          surfacePresence = null;
+          saveSurfacePresence();
+          return response;
+        }
+        if (action === 'claim') {
+          surfaceClaimConfirmed = true;
+          needsPresenceClaimAfterEventReconnect = false;
+        }
+        if (!applySurfacePresenceResponse(response)) {
+          if (action === 'claim') surfaceClaimConfirmed = false;
+          throw new Error('COREのsurface-presence応答が古い状態版です');
+        }
+        return response;
+      }
+      return submitUpdate(action === 'claim');
     });
     return surfaceRequestSequence;
   }
@@ -1397,45 +1769,81 @@
     stopSurfaceHeartbeat();
     surfaceHeartbeat = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return;
-      queueSurfacePresence('heartbeat').catch((error) => {
+      if (!surfacePresence || surfacePresence.surface !== mode || surfacePresence.claimSeq <= 0) {
+        claimVisibleSurface();
+        return;
+      }
+      queueSurfacePresence('heartbeat').then((response) => {
+        if (!response || !currentSurfaceAttempt(surfaceLifecycleGeneration)) return;
+      }).catch((error) => {
         setSurfaceReady(false);
         setOperation(`画面状態を維持できません: ${error.message}`, true);
+        claimVisibleSurface();
       });
     }, 10000);
   }
 
   function claimVisibleSurface() {
     if (!roomSurface || document.visibilityState !== 'visible') return;
+    const generation = ++surfaceLifecycleGeneration;
+    surfaceReleasePending = false;
+    surfaceClaimConfirmed = false;
     setSurfaceReady(false);
-    setOperation(mode === 'chat' ? 'IdleChat停止を確認中' : 'IdleChat開始を確認中');
-    queueSurfacePresence('claim')
-      .then(startSurfaceHeartbeat)
+    invalidateLocalPlaybackState();
+    setOperation(mode === 'chat' ? 'Chatの準備中' : mode === 'games' ? 'Gamesの準備中' : 'IdleChatの準備中');
+    queueSurfacePresence('claim', generation)
+      .then((response) => {
+        if (response && currentSurfaceAttempt(generation)) startSurfaceHeartbeat();
+      })
       .catch((error) => {
+        if (!currentSurfaceAttempt(generation)) return;
         setSurfaceReady(false);
-        setOperation(`${mode === 'chat' ? 'IdleChatを停止' : 'IdleChatを開始'}できません: ${error.message}`, true);
+        setOperation(`${mode === 'chat' ? 'Chat' : mode === 'games' ? 'Games' : 'IdleChat'}を準備できません: ${error.message}`, true);
         if (document.visibilityState === 'visible') startSurfaceHeartbeat();
       });
   }
 
   function releaseSurface() {
     if (!roomSurface) return;
+    if (surfaceReleasePending) return;
+    const generation = ++surfaceLifecycleGeneration;
+    surfaceReleasePending = true;
+    surfaceClaimConfirmed = false;
     stopSurfaceHeartbeat();
     setSurfaceReady(false);
     clearTTSPlayback();
-    queueSurfacePresence('release', true).catch(() => {});
+    queueSurfacePresence('release', generation, true).catch(() => {});
   }
 
   function releaseSurfaceOnPageHide() {
     if (!roomSurface) return;
+    if (surfaceReleasePending) return;
+    surfaceLifecycleGeneration += 1;
+    surfaceReleasePending = true;
+    surfaceClaimConfirmed = false;
     stopSurfaceHeartbeat();
     setSurfaceReady(false);
     clearTTSPlayback();
-    const body = JSON.stringify({viewer_client_id: viewerClientID, surface: mode, action: 'release'});
+    if (!surfacePresence) return;
+    const state = surfacePresence;
+    const request = {
+      protocol_version: 2,
+      viewer_client_id: viewerClientID,
+      runtime_epoch: state.runtimeEpoch,
+      registration_receipt: state.registrationReceipt,
+      surface: mode,
+      action: 'release',
+      update_seq: state.updateSeq + 1,
+      claim_seq: state.claimSeq,
+    };
+    state.updateSeq = request.update_seq;
+    saveSurfacePresence();
+    const body = JSON.stringify(request);
     if (navigator.sendBeacon) {
       navigator.sendBeacon(api('/viewer/surface-presence'), new Blob([body], {type: 'application/json'}));
       return;
     }
-    postSurfacePresence('release', true).catch(() => {});
+    postSurfacePresence(request, true).catch(() => {});
   }
 
   function bindSurfacePresenceLifecycle() {
@@ -1498,14 +1906,34 @@
   function normalizeTTSEvent(event) {
     const payload = controlPayload(event);
     const sessionId = String(payload.session_id || event.session_id || '').trim();
+    const payloadRuntimeEpoch = String(payload.runtime_epoch || '').trim();
+    const eventRuntimeEpoch = String(event.runtime_epoch || '').trim();
+    const payloadPlaybackGeneration = payload.playback_generation == null ? null : Number(payload.playback_generation);
+    const eventPlaybackGeneration = event.playback_generation == null ? null : Number(event.playback_generation);
+    const runtimeEpoch = payloadRuntimeEpoch || eventRuntimeEpoch;
+    const playbackGeneration = payloadPlaybackGeneration == null ? eventPlaybackGeneration : payloadPlaybackGeneration;
     return {
       responseId: String(payload.response_id || ttsControl.sessionResponses.get(sessionId) || '').trim(),
       sessionId,
       utteranceId: String(payload.utterance_id || '').trim(),
       chunkIndex: Number.isFinite(Number(payload.chunk_index)) ? Number(payload.chunk_index) : -1,
       url: resolveTTSAudioURL(payload),
+      runtimeEpoch,
+      playbackGeneration,
+      surfaceMode: mode,
+      objectURL: '',
+      fenceValid: (!payloadRuntimeEpoch || !eventRuntimeEpoch || payloadRuntimeEpoch === eventRuntimeEpoch)
+        && (payloadPlaybackGeneration == null || eventPlaybackGeneration == null
+          || payloadPlaybackGeneration === eventPlaybackGeneration),
       actor: normalizeActor(payload.character_id || payload.characterId || payload.actor || payload.speaker || payload.from || event.from) || latestAvatarSpeaker,
     };
+  }
+
+  function isCurrentTTSFence(item) {
+    return Boolean(item && item.fenceValid && acceptedControlSnapshot && surfaceClaimConfirmed && surfaceReady
+      && item.surfaceMode === mode
+      && item.runtimeEpoch === acceptedControlSnapshot.runtimeEpoch
+      && item.playbackGeneration === acceptedControlSnapshot.playbackGeneration);
   }
 
   function stopTTSMeter() {
@@ -1527,8 +1955,9 @@
     await ttsControl.audioContext.resume();
   }
 
-  async function startTTSMeter(audio, actor) {
+  async function startTTSMeter(audio, actor, isCurrent = () => true) {
     await unlockTTSPlayback();
+    if (!isCurrent()) return false;
     stopTTSMeter();
     const source = ttsControl.audioContext.createMediaElementSource(audio);
     const analyser = ttsControl.audioContext.createAnalyser();
@@ -1554,12 +1983,13 @@
       ttsControl.meterFrameID = requestAnimationFrame(measure);
     };
     measure();
+    return true;
   }
 
   function handleTTSEvent(event) {
     if (!ttsControl.enabled) return;
     const item = normalizeTTSEvent(event);
-    if (!item.responseId) return;
+    if (!item.responseId || !Number.isSafeInteger(item.playbackGeneration) || !isCurrentTTSFence(item)) return;
     ttsControl.responseItems.set(item.responseId, item);
     if (event.type === 'tts.session_completed') {
       ttsControl.completedResponses.add(item.responseId);
@@ -1591,6 +2021,7 @@
   }
 
   async function acknowledgeTTS(item, result) {
+    if (!isCurrentTTSFence(item)) return;
     try {
       await post('/viewer/tts/playback-ack', {
         response_id: item.responseId,
@@ -1612,6 +2043,7 @@
     if (ttsControl.acknowledged.has(responseID)) return;
     const item = ttsControl.responseItems.get(responseID);
     if (!item) return;
+    if (!isCurrentTTSFence(item)) return;
     ttsControl.acknowledged.add(responseID);
     if (ttsControl.acknowledged.size > 2000) {
       ttsControl.acknowledged.clear();
@@ -1627,25 +2059,76 @@
   function playNextTTS() {
     if (!ttsControl.enabled || ttsControl.playing || !ttsControl.queue.length) return;
     const item = ttsControl.queue.shift();
-    const audio = new Audio(item.url);
-    ttsControl.currentAudio = audio;
+    if (!isCurrentTTSFence(item)) return;
+    const runGeneration = ttsControl.lifecycleGeneration;
+    const isCurrentRun = () => runGeneration === ttsControl.lifecycleGeneration
+      && ttsControl.currentItem === item
+      && isCurrentTTSFence(item);
+    const Controller = globalThis.AbortController;
+    const controller = typeof Controller === 'function' ? new Controller() : null;
+    ttsControl.currentFetchController = controller;
+    ttsControl.currentItem = item;
     ttsControl.playing = true;
+    let audio = null;
     let settled = false;
+    const releaseAudio = () => {
+      if (!audio) return;
+      audio.pause();
+      audio.removeAttribute('src');
+      if (item.objectURL && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(item.objectURL);
+      if (ttsControl.audioObjectURL === item.objectURL) ttsControl.audioObjectURL = '';
+      item.objectURL = '';
+    };
     const complete = (status, error) => {
       if (settled) return;
       settled = true;
+      if (!isCurrentRun() || ttsControl.currentAudio !== audio) {
+        releaseAudio();
+        return;
+      }
       stopTTSMeter();
       ttsControl.playing = false;
       ttsControl.currentAudio = null;
-      if (!ttsControl.enabled) return;
+      ttsControl.currentItem = null;
+      ttsControl.currentFetchController = null;
+      releaseAudio();
+      if (!ttsControl.enabled || !isCurrentTTSFence(item)) return;
       finishTTSItem(item, status, error);
       playNextTTS();
     };
-    audio.addEventListener('ended', () => complete('ended'), {once: true});
-    audio.addEventListener('error', () => complete('error', audio.error || new Error('audio playback failed')), {once: true});
-    startTTSMeter(audio, item.actor)
-      .then(() => audio.play())
-      .catch((error) => complete('error', error));
+    (async () => {
+      try {
+        const options = controller ? {signal: controller.signal} : undefined;
+        const response = await fetch(item.url, options);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        const audioBlob = await response.blob();
+        if (!isCurrentRun()) return;
+        audio = new Audio();
+        ttsControl.currentAudio = audio;
+        audio.addEventListener('ended', () => complete('ended'), {once: true});
+        audio.addEventListener('error', () => complete('error', audio.error || new Error('audio playback failed')), {once: true});
+        item.objectURL = URL.createObjectURL(audioBlob);
+        ttsControl.audioObjectURL = item.objectURL;
+        audio.src = item.objectURL;
+        const meterReady = await startTTSMeter(audio, item.actor, isCurrentRun);
+        if (!meterReady || !isCurrentRun()) return;
+        await audio.play();
+        if (!isCurrentRun()) releaseAudio();
+      } catch (error) {
+        if (isCurrentRun()) {
+          if (audio) {
+            complete('error', error);
+          } else {
+            settled = true;
+            ttsControl.playing = false;
+            ttsControl.currentItem = null;
+            ttsControl.currentFetchController = null;
+            finishTTSItem(item, 'error', error);
+            playNextTTS();
+          }
+        }
+      }
+    })();
   }
 
   async function enableTTS() {
@@ -1671,13 +2154,19 @@
   }
 
   function clearTTSPlayback() {
+    ttsControl.lifecycleGeneration += 1;
     ttsControl.queue.length = 0;
+    if (ttsControl.currentFetchController) ttsControl.currentFetchController.abort();
+    ttsControl.currentFetchController = null;
     stopTTSMeter();
     if (ttsControl.currentAudio) {
       ttsControl.currentAudio.pause();
       ttsControl.currentAudio.removeAttribute('src');
     }
+    if (ttsControl.audioObjectURL && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(ttsControl.audioObjectURL);
+    ttsControl.audioObjectURL = '';
     ttsControl.currentAudio = null;
+    ttsControl.currentItem = null;
     ttsControl.playing = false;
     ttsControl.responseCounts.clear();
     ttsControl.responseResults.clear();
@@ -1942,6 +2431,8 @@
       device_name: viewerDeviceName,
       audio_output: ttsControl.enabled ? 'requested' : 'disabled',
     };
+    const presence = currentSurfacePresenceRef();
+    if (presence) fields.presence = presence;
     if (protocolVersion === 2) {
       fields.audio_output = 'disabled';
       fields.protocol_version = 2;
@@ -1949,7 +2440,7 @@
     }
     if (!attachments.length) return fields;
     const form = new FormData();
-    Object.entries(fields).forEach(([name, value]) => form.append(name, value));
+    Object.entries(fields).forEach(([name, value]) => form.append(name, name === 'presence' ? JSON.stringify(value) : value));
     attachments.forEach((file) => form.append('attachments', file, file.name));
     return form;
   }
@@ -2202,7 +2693,7 @@
     bindCaptureControl('roomScreenBtn', 'screen', '画面');
     bindCaptureControl('roomCameraBtn', 'camera', 'カメラ画像');
     setConversationState(false, selectedRecipient);
-  } else if (roomSurface) {
+  } else if (mode === 'idlechat') {
     input.disabled = true;
     document.querySelectorAll('.room-footer-controls .room-icon-btn').forEach((control) => { control.disabled = true; });
     document.querySelectorAll('.room-partner-chip').forEach((chip) => chip.disabled = true);
@@ -2232,6 +2723,6 @@
       refreshStatus();
       window.setInterval(refreshStatus, 5000);
     }
-    bindSurfacePresenceLifecycle();
   }
+  bindSurfacePresenceLifecycle();
 })();

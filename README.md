@@ -23,9 +23,9 @@ Config、health、errorを提供します。PORTALはWSLや外部databaseを標�
 
 ## モード
 
-- `IdleChat`: AI VTuberの部屋を閲覧する画面。画面が可視になるとIdleChatを開始し、手動の開始・停止操作は持たない
-- `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、TTS再生、STTマイク入力。画面が可視の間はIdleChatを停止する
-- `Games`: ゲームとAgentの選択、Agent-owned sessionの起動、GAMES Observerの観戦、Retry／Start over
+- `IdleChat`: AI VTuberの部屋を閲覧する画面。可視presenceを登録し、完成成果物を明示操作で再生する
+- `Chat`: AI VTuber画面に加えて、会話送信、会話相手の選択、TTS再生、STTマイク入力。可視の間はIdleChat再生と夜間制作を止める
+- `Games`: ゲームとAgentの選択、Agent-owned sessionの起動、GAMES Observerの観戦、Retry／Start over。可視の間は前景presenceを持つ
 
 公開modeは`Chat`、`IdleChat`、`Games`の3系統です。
 
@@ -39,7 +39,7 @@ R04のmock-only World PoCは通常modeではなく、既定OFFの個別例外で
 `"enable_world_poc": true`を指定した場合だけ`/world-poc`と、GET-onlyの
 `/api/world-poc/viewer/world/snapshot`、`/api/world-poc/viewer/world/stream`を公開します。
 この画面はmock値を表示し、実空間の位置や最終アートを表しません。Chat／IdleChat／Gamesの
-mode、在席通知、Task／Event経路は利用しません。
+mode、Task／Event経路は利用しません。可視中は`other`前景presenceだけをCOREへ通知します。
 
 将来の正式なLCP・Workplace二視点は[WORLD / HOUSE表示仕様](docs/仕様/WORLD_HOUSE表示仕様.md)に設計として記載します。R04 Mockの稼働・受入とは分けます。
 
@@ -119,7 +119,7 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 | capability | PORTALでの表現 | 現在状態 |
 | --- | --- | --- |
 | Chat | `Chat`の会話・添付入力とmessage表示 | 実装済み |
-| IdleChat | `IdleChat`の読み取り表示と、画面在席に連動する自動開始・停止 | 実装済み |
+| IdleChat | `IdleChat`の読み取り表示と、完成成果物の明示再生 | 実装済み |
 | Games | Agent-owned gameの選択・起動・観戦・session lifecycle | 実装済み |
 | recipient | browser tab内の選択と、送信requestの明示宛先 | 実装済み |
 | STT／TTS | browser microphone、audio再生、ACK | 実装済み |
@@ -127,7 +127,7 @@ session、STT／TTS、Task、errorの意味です。PORTALはそれらをWeb画�
 | ASSISTANT Routine／PUSH | 予定、通知、端末、履歴のcard／設定UI | planned |
 
 同じ能力を全modeへ公開しません。`IdleChat`の利用者向け操作は読み取り専用で、期限付きの
-surface在席通知だけをstate-changingな例外とします。`Chat`と`Games`は各modeの明示allowlist
+surface在席通知と完成成果物の再生操作だけをstate-changingな例外とします。`Chat`と`Games`は各modeの明示allowlist
 だけを操作可能とし、認証scopeとserver側認可も必要です。将来ASSISTANTのPUSHを表示する
 場合も第二のmessage形式を独自に作らず、利用者、source、category、相関IDを保った
 Interaction outputをWeb cardまたはmessageとして描画します。
@@ -141,15 +141,15 @@ ASSISTANTの配信経路やschedulerにはならず、ASSISTANT Public APIのVie
 PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知します。
 
 - 会話相手の切替は`POST /viewer/recipient-selection`で観測eventを発行し、実際の送信先は`POST /viewer/send`の`to`で確定する
-- Chat／IdleChat画面は可視状態を`POST /viewer/surface-presence`でCOREへ通知する。Chat在席を最優先としてIdleChatを停止し、ChatがなくIdleChat在席がある場合だけIdleChatを開始する。PORTALから`/viewer/idlechat/start|stop`は使用しない
+- 可視画面はV2 `register → claim → heartbeat → release`を`POST /viewer/surface-presence`でCOREへ通知する。Chat／Games／その他画面は前景としてIdleChat再生と夜間制作を止める。送信は`foreground_ready`を確認し、IdleChat再生はCOREが許可した完成成果物だけを明示操作で始める。PORTALから`/viewer/idlechat/start|stop`は使用しない
 - IdleChatの最下部は`再生`、`スキップ（次の話題）`、`前の話題`だけを公開し、`POST /viewer/idlechat/playback`でCOREのTopic Stock再生履歴を操作する。Stockの消費、順序、再生履歴はCOREを正本とする
 - Chatは修飾キーを伴わない`Enter`で送信し、`Shift+Enter`で改行する。IME／FEPの変換確定では送信しない。会話・入力・主要状態表示の文字サイズは小／中／大の3段階とし、browser local storageへ保存する
-- `POST /viewer/send`には`viewer_client_id`、`input_source`、`user_id`、`device_name`を付け、COREが返す`root_task_id`をrequest / response相関の正本とする（Canonical ID統一によりlegacyの`job_id`は使用しない）。受付から同じ`task_id`を持つ利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
+- `POST /viewer/send`には`viewer_client_id`、現在のV2 presence参照、`input_source`、`user_id`、`device_name`を付け、COREが返す`root_task_id`をrequest / response相関の正本とする（Canonical ID統一によりlegacyの`job_id`は使用しない）。受付から同じ`task_id`を持つ利用者向け応答または終端errorまで、入力欄とMio／Shiro／Kuro／Midoriの切替をロックする
 - ファイル、画面、カメラ画像は`multipart/form-data`の`attachments`として`POST /viewer/send`へ送り、PORTALからVision backendを直接指定しない。COREの公開上限である画像20 MiB、動画100 MiB、その他10 MiB、合計120 MiBをclient側でも先に検査する
 - Chat会話欄は`message.received`、利用者向け`agent.response`、公開対象の`agent.progress`／`agent.acknowledge`を表示し、IdleChat会話欄は`idlechat.message`だけを表示してmode間で混在させない。処理中表示はpending requestと同じ`trace_id`の`agent.start`で更新し、`agent.thinking`やrouting／worker eventを会話本文にも処理開始判定にも使わない。`message_id`をSSE再接続時の重複排除へ使う
 - `input_source`は手入力の`text`と音声確定入力の`stt`を区別する。`user_id=viewer-user`は観測用metadataであり認証主体ではない。`device_name`はbrowserが公開するOS／platform名とし、tab固有識別には`viewer_client_id`を使う
 - Chatの固定WAV入力は`POST /stt/chat-input`を使い、PORTALからCORE、RenCrow_STTへ正規経路で中継する。IdleChatとGamesからはこの操作を公開しない
-- PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat | portal-games`を付ける。profileは能力policyであり認証credentialではない
+- PORTAL serverはCOREへのproxy requestへ`X-RenCrow-Client: RenCrow_PORTAL`と、modeに応じた`X-RenCrow-Interaction-Profile: portal-chat | portal-idlechat | portal-games | portal-other`を付ける。profileは能力policyであり認証credentialではない
 - `auth_mode=tailscale_serve`では、loopbackで待ち受け、Tailscale Serveが付与する固定`Tailscale-User-Login`をPORTAL入口で検証する。page、asset、API、Gamesは未認証を401で拒否し、healthだけを公開する。raw loginとTailscale identity headerはCOREへ渡さず、PORTALが生成した`tailscale-sha256:<digest>`だけを`X-RenCrow-Authenticated-Actor`として上書きする
 - Gamesはstatus、sessions、events、Observer、launch、sessionのRetry／Start overだけを許可する。`/viewer/games/decision`、`/viewer/games/result`、Observerのlaunch／frame／summary ingestは中継しない
 - Games画面は`/viewer/games/observer`を同一origin iframeへ表示する。Observer responseだけを`SAMEORIGIN`とし、PORTAL pageとPuruPuru assetは引き続きframe不可とする
@@ -159,7 +159,7 @@ PORTALは状態の正本を持たず、Chat操作をCOREのPublic APIへ通知�
 - TTSは`POST /viewer/active-control`で再生権を取得し、`GET /viewer/tts/audio`で音声を取得して、再生完了を`POST /viewer/tts/playback-ack`へ返す
 - STTは同じactive-controlのinput権を取得し、`GET /stt`のWebSocketへ16 kHz PCM16を送る
 - STTのerrorは範囲で扱いを分ける（`WS /stt`の`utterance.v1`はRenCrow_COREの`docs/06_Public_API仕様.md`を正とする）。`utterance_id`を持つerror（`stt_busy`など1発話の失敗）は状態行に短く表示するだけで、マイクとinput権を維持する。`utterance_id`を持たないerror（session-level）と、マイクON中の意図しないWebSocket closeは、マイクをOFFにしてinput権を解放し、理由を表示する。`final`／`cancelled`の`end_reason`は判定に使わず、未知の値（`silence`など）も通常の`final`として扱う。話し終わりの判定はRenCrow_STT側が持ち、PORTALはVADを持たない。自動再接続は行わない。この判定は純関数の`internal/portal/web/stt_events.js`が持ち、`internal/portal/webtest/stt_events.test.js`で検証する
-- `IdleChat`はsurface在席通知以外のこれらの操作を許可しない
+- `IdleChat`はsurface在席通知と完成成果物の再生操作以外の更新操作を許可しない
 
 Chat／IdleChatの排他表示、lease、複数tab、event／TTS filter、失敗時表示の詳細は
 [`PORTAL_Chat_IdleChat排他ライフサイクル仕様`](docs/仕様/PORTAL_Chat_IdleChat排他ライフサイクル仕様.md)

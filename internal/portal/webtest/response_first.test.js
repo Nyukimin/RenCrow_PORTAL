@@ -147,7 +147,30 @@ function makeHarness({search = '?mode=Chat&protocol_version=2', recipient = 'mio
       return new Promise((resolve, reject) => pendingSends.push({payload, resolve, reject}));
     }
     if (String(url).includes('/viewer/surface-presence')) {
-      return Promise.resolve(response({effective_mode: 'chat', idlechat_active: false}));
+      const body = JSON.parse(options.body || '{}');
+      if (body.action === 'register') {
+        return Promise.resolve(response({
+          ok: true,
+          protocol_version: 2,
+          runtime_epoch: 'core-test-epoch',
+          registration_receipt: 'portal-test-receipt',
+          last_update_seq: 0,
+        }));
+      }
+      return Promise.resolve(response({
+        ok: true,
+        protocol_version: 2,
+        accepted_update_seq: body.update_seq,
+        current_claim_seq: body.action === 'claim' ? body.update_seq : body.claim_seq,
+        runtime_epoch: body.runtime_epoch,
+        registration_receipt: body.registration_receipt,
+        state_revision: 1,
+        playback_generation: 0,
+        playback_state: 'blocked',
+        playback_allowed: false,
+        foreground_ready: true,
+        cleanup_pending: false,
+      }));
     }
     return Promise.resolve(response());
   };
@@ -931,7 +954,7 @@ async function testClosedFirstConversationStreamReplaysAfterAcceptedAck() {
   const harness = makeHarness({search: '?mode=Chat&protocol_version=2&ui_metrics=1'});
   await flushTasks();
   assert.equal(harness.eventSources.length, 1, 'the first v2 conversation stream is opened');
-  harness.eventSources[0].failClosed();
+  harness.eventSources[0].close();
 
   submit(harness, '再接続後に正本イベントを表示します');
   await flushTasks();

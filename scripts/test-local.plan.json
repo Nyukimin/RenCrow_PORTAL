@@ -6,7 +6,7 @@
       "workingDirectory": ".",
       "filePath": "go",
       "arguments": ["vet", "./..."],
-      "testFiles": ["*_test.go"]
+      "testFiles": ["*_test.go", "internal/portal/webtest/other_presence_lifecycle.test.js"]
     },
     {
       "name": "windows-build",
