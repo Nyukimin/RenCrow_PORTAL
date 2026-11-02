@@ -35,6 +35,25 @@ func TestPortalRejectsUnknownViewerMode(t *testing.T) {
 	}
 }
 
+func TestPortalBoardLocalLinkIsFixedAndHiddenAcrossModes(t *testing.T) {
+	handler, err := NewHandler(DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const boardLink = `<a id="roomBoardLink" class="room-board-link" href="http://127.0.0.1:18792/" target="_blank" rel="noopener noreferrer" hidden>BOARD（この端末）</a>`
+	for _, target := range []string{"/?mode=Chat", "/?mode=IdleChat", "/games"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200", target, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), boardLink) {
+			t.Errorf("%s should render the fixed, hidden BOARD link with safe new-tab attributes", target)
+		}
+	}
+}
+
 func TestPortalServesLuminaDisplay(t *testing.T) {
 	handler, err := NewHandler(DefaultConfig())
 	if err != nil {

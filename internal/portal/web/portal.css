@@ -1501,6 +1501,28 @@ body.room-mode.room-stage .room-stream-shell{
   font-size:clamp(16px,1.25vw,22px);
   line-height:1.1;
 }
+.room-board-link{
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  padding:5px 10px;
+  border:1px solid rgba(92,126,205,.18);
+  border-radius:999px;
+  background:rgba(255,255,255,.66);
+  color:#536a9e;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.2;
+  text-decoration:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 8px 20px rgba(70,109,183,.1);
+  backdrop-filter:blur(12px);
+}
+.room-board-link:hover,
+.room-board-link:focus-visible{
+  background:rgba(255,255,255,.9);
+  color:#243e86;
+}
+.room-board-link[hidden]{display:none}
 body.room-mode.room-stage .room-mio-portrait,
 body.room-mode.room-stage .room-shiro-portrait{
   display:block;
@@ -2770,6 +2792,12 @@ body.room-mode.room-stage .room-datetime-panel{
 
   body.room-mode.room-stage .room-logo-row img{
     width:clamp(44px,11vw,88px) !important;
+  }
+
+  body.room-mode.room-stage .room-board-link{
+    position:absolute;
+    top:calc(var(--room-p-row1-h) + 3px);
+    left:0;
   }
 
   body.room-mode.room-stage .room-topic-bar{
