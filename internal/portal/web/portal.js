@@ -4,6 +4,7 @@
   function initializeBoardLink() {
     const boardLink = document.getElementById('roomBoardLink');
     if (!boardLink) return;
+    if (boardLink.dataset.boardUrlConfigured === 'true') return;
     boardLink.hidden = !['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
   }
 

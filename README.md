@@ -29,11 +29,11 @@ Config、health、errorを提供します。PORTALはWSLや外部databaseを標�
 
 公開modeは`Chat`、`IdleChat`、`Games`の3系統です。
 
-### ローカル RenCrow_BOARD
+### RenCrow_BOARD（ローカル・Tailnet利用）
 
-ローカルBOARD MVPは`rencrowctl board`で起動します。local PORTALを開くと共通ブランド欄に`BOARD（この端末）`が表示され、新しいtabで固定URL `http://127.0.0.1:18792/`を開きます。BOARDの管理認証はPORTALと独立しており、管理キーをPORTALへ渡しません。
+ローカルBOARD MVPは`rencrowctl board`で起動します。`board_url`未設定時は、PORTALを`localhost`、`127.0.0.1`、`[::1]`で開いた場合だけ共通ブランド欄に`BOARD（この端末）`が表示され、新しいtabで固定URL `http://127.0.0.1:18792/`を開きます。
 
-リンクはbrowserのhostnameが`localhost`、`127.0.0.1`、`[::1]`のいずれかに完全一致する場合だけ表示されます。remoteから開いたPORTALでは表示されません。このリンク条件は表示制御であり認証境界ではありません。外部Hosted環境からBOARDを利用する構成は未対応です。
+別PCからTailnet経由でBOARDを使う場合は、BOARDをloopbackで維持したままTailscale ServeのHTTPS URLを`board_url`または`RENCROW_BOARD_URL`へ明示設定します（例: `https://<SelfDNS>:8443/`）。設定済みURLはPORTALを開いた端末にかかわらず表示します。BOARDの管理認証はPORTALと独立しており、管理キーをPORTALへ渡したりBOARD管理APIをproxyしたりしません。認証cookieに`Secure`属性がある場合、browserから送信するにはHTTPSで開く必要があります。リンク表示条件は表示制御であり認証境界ではありません。
 
 Luminaの素材確認は、認証済みPORTALの`/lumina`で行えます。これは表示確認専用の画面で、配置済みのプレビュー素材を使った立ち絵と表情切替を提供します。LuminaをChat／IdleChatのAgentとして公開するには、別途`.purupuru`正規パッケージとCORE側のActor契約を追加し、既存のキャラクター登録・同期経路へ統合します。
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。

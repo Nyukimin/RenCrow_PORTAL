@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"html/template"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -35,13 +36,13 @@ func TestPortalRejectsUnknownViewerMode(t *testing.T) {
 	}
 }
 
-func TestPortalBoardLocalLinkIsFixedAndHiddenAcrossModes(t *testing.T) {
+func TestPortalBoardLocalFallbackIsFixedAndHiddenAcrossModes(t *testing.T) {
 	handler, err := NewHandler(DefaultConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	const boardLink = `<a id="roomBoardLink" class="room-board-link" href="http://127.0.0.1:18792/" target="_blank" rel="noopener noreferrer" hidden>BOARD（この端末）</a>`
+	const boardLink = `<a id="roomBoardLink" class="room-board-link" href="http://127.0.0.1:18792/" data-board-url-configured="false" target="_blank" rel="noopener noreferrer" hidden>BOARD（この端末）</a>`
 	for _, target := range []string{"/?mode=Chat", "/?mode=IdleChat", "/games"} {
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
@@ -49,7 +50,56 @@ func TestPortalBoardLocalLinkIsFixedAndHiddenAcrossModes(t *testing.T) {
 			t.Fatalf("%s status = %d, want 200", target, rec.Code)
 		}
 		if !strings.Contains(rec.Body.String(), boardLink) {
-			t.Errorf("%s should render the fixed, hidden BOARD link with safe new-tab attributes", target)
+			t.Errorf("%s should render the fixed, hidden local BOARD fallback with safe new-tab attributes", target)
+		}
+	}
+}
+
+func TestPortalConfiguredBoardLinkIsVisibleAcrossModes(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.BoardURL = "https://macbook-pro.tailb07d8d.ts.net:8443/"
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const boardLink = `<a id="roomBoardLink" class="room-board-link" href="https://macbook-pro.tailb07d8d.ts.net:8443/" data-board-url-configured="true" target="_blank" rel="noopener noreferrer">BOARD</a>`
+	for _, target := range []string{"/?mode=Chat", "/?mode=IdleChat", "/games"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200", target, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), boardLink) {
+			t.Errorf("%s should render the configured BOARD URL visibly with safe new-tab attributes", target)
+		}
+	}
+}
+
+func TestPortalBoardLinkTemplateEscapesURLAndLabelAcrossModes(t *testing.T) {
+	pageBytes, err := webFiles.ReadFile("web/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := template.New("index").Parse(string(pageBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []Mode{ModeChat, ModeIdleChat, ModeGames} {
+		var rendered strings.Builder
+		data := pageData{
+			Mode: mode, Surface: string(mode), BoardURL: "https://board.example/?value=one&next=two",
+			BoardLabel: `BOARD <unsafe>`, BoardConfigured: true,
+		}
+		if err := page.Execute(&rendered, data); err != nil {
+			t.Fatalf("template Execute(%s) error = %v", mode, err)
+		}
+		body := rendered.String()
+		if !strings.Contains(body, `href="https://board.example/?value=one&amp;next=two"`) || !strings.Contains(body, `>BOARD &lt;unsafe&gt;</a>`) {
+			t.Errorf("%s template did not escape BOARD URL and label: %s", mode, body)
+		}
+		if !strings.Contains(body, `target="_blank" rel="noopener noreferrer"`) {
+			t.Errorf("%s template lost safe BOARD link attributes", mode)
 		}
 	}
 }

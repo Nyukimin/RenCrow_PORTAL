@@ -51,6 +51,9 @@ type pageData struct {
 	Surface               string
 	BodyClass             string
 	HTMLClass             string
+	BoardURL              string
+	BoardLabel            string
+	BoardConfigured       bool
 	ShowCharacterSwitcher bool
 	ShowChatAvatar        bool
 	ShowKuroMidoriAvatars bool
@@ -390,6 +393,13 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	if mode == ModeGames {
 		data.BodyClass = "theme-modern portal-games-mode"
 		data.HTMLClass = ""
+	}
+	data.BoardURL = h.cfg.BoardURL
+	data.BoardConfigured = data.BoardURL != ""
+	data.BoardLabel = "BOARD"
+	if !data.BoardConfigured {
+		data.BoardURL = "http://127.0.0.1:18792/"
+		data.BoardLabel = "BOARD（この端末）"
 	}
 	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)

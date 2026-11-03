@@ -7,6 +7,7 @@ import (
 )
 
 func TestLoadConfigUsesSafeDefaults(t *testing.T) {
+	t.Setenv("RENCROW_BOARD_URL", "")
 	cfg, err := LoadConfig("")
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
@@ -31,6 +32,54 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	}
 	if !cfg.modeEnabled(ModeGames) {
 		t.Fatal("Games mode should be enabled by default")
+	}
+	if cfg.BoardURL != "" {
+		t.Fatalf("BoardURL = %q, want unset", cfg.BoardURL)
+	}
+}
+
+func TestLoadConfigBoardURLEnvOverridesJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "portal.json")
+	data := []byte(`{"board_url":"https://json-board.example/"}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RENCROW_BOARD_URL", "https://env-board.example/")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.BoardURL != "https://env-board.example/" {
+		t.Fatalf("BoardURL = %q, want environment override", cfg.BoardURL)
+	}
+}
+
+func TestConfigAcceptsOptionalHTTPSBoardURL(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.BoardURL = "https://macbook-pro.tailb07d8d.ts.net:8443/"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() rejected BOARD HTTPS URL: %v", err)
+	}
+}
+
+func TestConfigRejectsInvalidBoardURLs(t *testing.T) {
+	for _, boardURL := range []string{
+		"javascript:alert(1)",
+		"http://board.example/",
+		"https://user:secret@board.example/",
+		"https://board.example/?token=value",
+		"https://board.example/#section",
+		"https://board.example/path",
+		"https:///",
+	} {
+		t.Run(boardURL, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.BoardURL = boardURL
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("Validate() accepted invalid BOARD URL %q", boardURL)
+			}
+		})
 	}
 }
 

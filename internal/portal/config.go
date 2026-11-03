@@ -30,6 +30,7 @@ const (
 type Config struct {
 	Listen         string   `json:"listen"`
 	CoreURL        string   `json:"core_url"`
+	BoardURL       string   `json:"board_url"`
 	AuthMode       AuthMode `json:"auth_mode"`
 	DefaultMode    Mode     `json:"default_mode"`
 	EnabledModes   []Mode   `json:"enabled_modes"`
@@ -67,6 +68,9 @@ func LoadConfig(path string) (Config, error) {
 	if value := strings.TrimSpace(os.Getenv("RENCROW_CORE_URL")); value != "" {
 		cfg.CoreURL = value
 	}
+	if value := strings.TrimSpace(os.Getenv("RENCROW_BOARD_URL")); value != "" {
+		cfg.BoardURL = value
+	}
 	if value := strings.TrimSpace(os.Getenv("RENCROW_PORTAL_AUTH_MODE")); value != "" {
 		cfg.AuthMode = AuthMode(value)
 	}
@@ -98,6 +102,12 @@ func (c Config) Validate() error {
 	coreURL, err := url.Parse(strings.TrimSpace(c.CoreURL))
 	if err != nil || (coreURL.Scheme != "http" && coreURL.Scheme != "https") || coreURL.Host == "" || coreURL.User != nil {
 		return fmt.Errorf("core_urlはuserinfoを含まないhttpまたはhttps URLで指定してください")
+	}
+	if boardURL := strings.TrimSpace(c.BoardURL); boardURL != "" {
+		parsed, err := url.Parse(boardURL)
+		if err != nil || !parsed.IsAbs() || !strings.EqualFold(parsed.Scheme, "https") || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil || parsed.Opaque != "" || (parsed.Path != "" && parsed.Path != "/") || strings.ContainsAny(boardURL, "?#") {
+			return fmt.Errorf("board_urlはuserinfo、query、fragmentを含まないroot pathのabsolute HTTPS URLで指定してください")
+		}
 	}
 	if len(c.EnabledModes) == 0 {
 		return fmt.Errorf("enabled_modesは1件以上必要です")
@@ -135,6 +145,7 @@ func (c Config) modeEnabled(mode Mode) bool {
 }
 
 func (c Config) normalized() Config {
+	c.BoardURL = strings.TrimSpace(c.BoardURL)
 	if authMode, ok := canonicalAuthMode(c.AuthMode); ok {
 		c.AuthMode = authMode
 	}
