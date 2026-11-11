@@ -42,6 +42,7 @@ type handler struct {
 	proxy      *httputil.ReverseProxy
 	page       *template.Template
 	luminaPage *template.Template
+	livingPage *template.Template
 	assets     http.Handler
 	readiness  *http.Client
 }
@@ -85,6 +86,10 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Lumina HTMLを解析する: %w", err)
 	}
+	livingPage, err := template.ParseFS(webFiles, "web/living/index.html")
+	if err != nil {
+		return nil, fmt.Errorf("リビング HTMLを解析する: %w", err)
+	}
 	assetFS, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		return nil, fmt.Errorf("PORTAL asset FSを作る: %w", err)
@@ -94,6 +99,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 		coreURL:    coreURL,
 		page:       page,
 		luminaPage: luminaPage,
+		livingPage: livingPage,
 		assets:     http.FileServer(http.FS(assetFS)),
 		readiness:  &http.Client{Timeout: 3 * time.Second},
 	}
@@ -145,6 +151,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.servePage(w, r)
 	case r.URL.Path == "/lumina":
 		h.serveLumina(w, r)
+	case r.URL.Path == "/living":
+		h.serveLiving(w, r)
 	case r.URL.Path == "/world-poc":
 		h.serveWorldPOCAsset(w, r, "web/world-poc.html", "text/html; charset=utf-8")
 	case r.URL.Path == "/world-poc.js":
@@ -159,7 +167,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveReadiness(w, r)
 	case strings.HasPrefix(r.URL.Path, "/assets/"):
 		assetPath := path.Clean(strings.TrimPrefix(r.URL.Path, "/assets"))
-		if isWorldPOCAssetPath(assetPath) {
+		if isWorldPOCAssetPath(assetPath) || assetPath == "/living" || assetPath == "/living/index.html" {
 			http.NotFound(w, r)
 			return
 		}
@@ -197,7 +205,7 @@ func isPortalProxyPath(path string) bool {
 
 func isProtectedPortalPath(path string) bool {
 	switch path {
-	case "/", "/idlechat", "/chat", "/games", "/lumina", "/world-poc", "/world-poc.js", "/world-poc.css":
+	case "/", "/idlechat", "/chat", "/games", "/lumina", "/living", "/world-poc", "/world-poc.js", "/world-poc.css":
 		return true
 	}
 	return strings.HasPrefix(path, "/assets/") ||
@@ -403,6 +411,22 @@ func (h *handler) servePage(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.page.Execute(w, data); err != nil {
 		http.Error(w, "PORTAL HTMLを生成できません", http.StatusInternalServerError)
+	}
+}
+
+func (h *handler) serveLiving(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method == http.MethodHead {
+		return
+	}
+	if err := h.livingPage.Execute(w, h.cfg.BoardURL); err != nil {
+		http.Error(w, "リビングを表示できません", http.StatusInternalServerError)
 	}
 }
 

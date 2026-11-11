@@ -33,7 +33,10 @@
           <span>AI VTuber Portal</span>
         </div>
       </div>
-      <a id="roomBoardLink" class="room-board-link" href="{{.BoardURL}}" data-board-url-configured="{{.BoardConfigured}}" target="_blank" rel="noopener noreferrer"{{if not .BoardConfigured}} hidden{{end}}>{{.BoardLabel}}</a>
+      <div class="room-board-links">
+        <a id="roomBoardLink" class="room-board-link" href="{{.BoardURL}}" data-board-url-configured="{{.BoardConfigured}}" target="_blank" rel="noopener noreferrer"{{if not .BoardConfigured}} hidden{{end}}>{{.BoardLabel}}</a>
+        <a class="room-board-link" href="/living">リビング</a>
+      </div>
       <div class="portal-connection" aria-live="polite">
         <span id="connectionDot" class="portal-connection__dot"></span>
         <span id="connectionText">COREを確認中</span>

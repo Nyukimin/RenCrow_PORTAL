@@ -1501,6 +1501,7 @@ body.room-mode.room-stage .room-stream-shell{
   font-size:clamp(16px,1.25vw,22px);
   line-height:1.1;
 }
+.room-board-links{display:flex;gap:6px}
 .room-board-link{
   display:inline-flex;
   align-items:center;
@@ -2794,7 +2795,7 @@ body.room-mode.room-stage .room-datetime-panel{
     width:clamp(44px,11vw,88px) !important;
   }
 
-  body.room-mode.room-stage .room-board-link{
+  body.room-mode.room-stage .room-board-links{
     position:absolute;
     top:calc(var(--room-p-row1-h) + 3px);
     left:0;

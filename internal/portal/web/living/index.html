@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>リビング | RenCrow PORTAL</title>
+  <link rel="stylesheet" href="/assets/living/living.css">
+  <script src="/assets/living/living.js" defer></script>
+</head>
+<body>
+  <main class="living" data-board-url="{{.}}">
+    <header class="masthead">
+      <div class="brand-mark" aria-hidden="true">R</div>
+      <div><span>RenCrow PORTAL</span><h1>リビング</h1></div>
+      <a href="/">PORTAL ホーム</a>
+    </header>
+    <section class="house" aria-label="リビングの外観と人物">
+      <figure>
+        <img id="house-image" src="/assets/living/lcp.jpg" alt="HOUSEの三層正面断面の参考図">
+        <figcaption id="house-caption">全体（LCP） · 参考図</figcaption>
+        <div class="view-options" role="group" aria-label="リビングの視点">
+          <button type="button" data-view="lcp" aria-pressed="true">全体（LCP）</button>
+          <button type="button" data-view="workplace" aria-pressed="false">1階（Workplace）</button>
+        </div>
+      </figure>
+      <div class="selection">
+        <div class="people" role="group" aria-label="人物を選ぶ">
+          <button type="button" data-person="mio" data-participant="rencrow-comm" aria-pressed="true"><span class="avatar mio" aria-hidden="true">ミ</span><span class="person-name">Mio</span></button>
+          <button type="button" data-person="muse" data-participant="muse-comm" aria-pressed="false"><span class="avatar muse" aria-hidden="true">む</span><span class="person-name">むー</span></button>
+          <button type="button" data-person="kit" data-participant="dots-comm" aria-pressed="false"><span class="avatar kit" aria-hidden="true">K</span><span class="person-name">KIT</span></button>
+          <button type="button" data-person="grok" data-participant="grok-comm" aria-pressed="false"><span class="avatar grok" aria-hidden="true">ご</span><span class="person-name">ごろー</span></button>
+        </div>
+        {{if .}}<a class="open-board" id="open-board" href="{{.}}">Mio の会話をBOARDで開く</a>
+        {{else}}<p class="status">BOARDの接続先が未設定です。</p>{{end}}
+      </div>
+    </section>
+    <p class="status">HOUSEの在室・位置情報は未接続です。</p>
+  </main>
+</body>
+</html>
