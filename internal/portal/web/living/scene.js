@@ -5,6 +5,8 @@
   var DIRECTIONS = ["front", "left", "right", "back"];
   var NAVY = 0x111e36;
   var ASSET_ROOT = "/assets/living/assets/";
+  // Each directional image has a two-pixel transparent strip below the feet.
+  var SPRITE_FOOT_INSET = 2 / 320;
 
   function createHouseScene(canvas, options) {
     options = options || {};
@@ -58,6 +60,8 @@
     scene.background = new THREE.Color(NAVY);
     var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 1000);
     camera.up.set(0, 1, 0);
+    // The mesh pivots at the feet when it tilts toward the camera.
+    var residentGeometry = new THREE.PlaneGeometry(1, 1).translate(0, 0.5 - SPRITE_FOOT_INSET, 0);
     var housePosition = new THREE.Vector3().fromArray(cameraInfo.house.position);
     var houseTarget = new THREE.Vector3().fromArray(cameraInfo.house.target);
     var livingPosition = new THREE.Vector3().fromArray(cameraInfo.living.position);
@@ -411,7 +415,11 @@
       if (!texture || resident.mesh.material.map === texture) return;
       resident.mesh.material.map = texture;
       resident.mesh.material.needsUpdate = true;
-      var image = texture.image;
+      resizeResidentMesh(resident);
+    }
+
+    function resizeResidentMesh(resident) {
+      var image = resident.mesh.material.map.image;
       var aspect = image && image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
       resident.mesh.scale.set(resident.height * aspect, resident.height, 1);
     }
@@ -429,13 +437,13 @@
         side: THREE.DoubleSide,
         toneMapped: false
       });
-      var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      var mesh = new THREE.Mesh(residentGeometry, material);
       mesh.name = "resident-sprite-" + resident.id;
-      mesh.position.y = resident.height * 0.5;
       mesh.renderOrder = 4;
       resident.group.add(mesh);
       resident.mesh = mesh;
       resident.spriteOpacity = material.opacity;
+      resizeResidentMesh(resident);
       updateSpriteTexture(resident, directionFor(resident.lastTangent || new THREE.Vector3(0, 0, 1)));
     }
 
@@ -703,7 +711,8 @@
         var avatarHeight = clamp(modelBounds.getSize(new THREE.Vector3()).y / 8, 0.75, 1.8);
         residents.forEach(function (resident) {
           resident.height = avatarHeight;
-          buildResidentMesh(resident);
+          if (resident.mesh) resizeResidentMesh(resident);
+          else buildResidentMesh(resident);
         });
         configureRoomLighting(modelBounds);
         countModelResources(root);
@@ -857,7 +866,8 @@
         var state = pathState(resident, residentClock);
         var position = state.position;
         var direction = directionFor(state.tangent);
-        var screen = screenPoint(position.clone().add(new THREE.Vector3(0, resident.height * 0.5, 0)));
+        var center = new THREE.Vector3(0, resident.height * (0.5 - SPRITE_FOOT_INSET), 0);
+        var screen = screenPoint(center.applyQuaternion(camera.quaternion).add(position));
         var opacity = floorOpacity(resident.floor);
         var spriteLoaded = Boolean(resident.mesh);
         residentMap[resident.id] = {
