@@ -403,7 +403,7 @@
           chosen = {
             position: position,
             tangent: tangent,
-            footLift: stairFootLift(resident, position, to, next, tangent)
+            footLift: stairFootLift(resident, position, i, tangent)
           };
           break;
         }
@@ -419,20 +419,26 @@
       return chosen;
     }
 
-    function stairFootLift(resident, position, to, next, tangent) {
+    function stairFootLift(resident, position, index, tangent) {
       var stairs = metadata.stairTrip;
-      if (!stairs || resident.landingHeight === Infinity || tangent.z >= 0 || position.x !== stairs.entry[0]) return 0;
-      if (position.z <= TOP_TREAD_EDGE || to.z > stairs.firstEdge) return 0;
+      if (progress === 0 || resident.landingHeight === Infinity || tangent.z === 0 || position.x !== stairs.entry[0]) return 0;
+      if (position.z <= TOP_TREAD_EDGE || position.z >= stairs.firstEdge + STAIR_LIFT_APPROACH) return 0;
 
-      var lift = STAIR_FOOT_CLEARANCE;
-      if (to.y > position.y) {
-        // Keep the visible foot above the nose while the route advances vertically at the riser.
-        lift += to.y - position.y;
-      } else if (next.y > to.y) {
-        var approach = smooth(1 - (position.z - to.z) / STAIR_LIFT_APPROACH);
-        lift += approach * (next.y - to.y);
-        if (position.y === stairs.entry[1]) lift -= (1 - approach) * STAIR_FOOT_CLEARANCE;
-      } else if (position.y >= resident.landingHeight - 0.00001) {
+      var points = resident.points;
+      var from = points[index];
+      var to = points[(index + 1) % points.length];
+      // During a riser crossing, clear the higher of the two treads.
+      var lift = STAIR_FOOT_CLEARANCE + Math.max(from.y, to.y) - position.y;
+      if (from.y === to.y) {
+        var ascending = tangent.z < 0;
+        var edge = ascending ? to : from;
+        var neighbor = ascending ? index + 2 : index + points.length - 1;
+        var higherTread = points[neighbor % points.length];
+        var edgeBlend = smooth(1 - (position.z - edge.z) / STAIR_LIFT_APPROACH);
+        lift += edgeBlend * Math.max(0, higherTread.y - edge.y);
+        if (position.y === stairs.entry[1]) lift -= (1 - edgeBlend) * STAIR_FOOT_CLEARANCE;
+      }
+      if (position.y >= resident.landingHeight - 0.00001) {
         lift *= smooth((position.z - TOP_TREAD_EDGE) / STAIR_LIFT_APPROACH);
       }
       return lift * smooth(progress);
