@@ -108,6 +108,7 @@
         }
         return new THREE.Vector3(Number(point[0]), Number(point[1]), Number(point[2]));
       });
+      if (resident.returnTrip) points = points.concat(points.slice(1, -1).reverse());
       var lengths = [0];
       var totalLength = 0;
       for (var i = 0; i < points.length; i += 1) {
@@ -122,7 +123,7 @@
         lengths: lengths,
         totalLength: Math.max(totalLength, 0.001),
         phase: index / Math.max(1, metadata.residents.length),
-        speed: 0.075 + (index % 4) * 0.012,
+        speed: resident.pace > 0 ? resident.pace / totalLength : 0.075 + (index % 4) * 0.012,
         group: new THREE.Group(),
         mesh: null,
         highlight: null,
@@ -687,6 +688,24 @@
       modelCounts = { roots: 0, meshes: 0, materials: 0, textures: 0 };
     }
 
+    function arrangeGroundFloor(ground) {
+      var nodes = new Map();
+      ground.traverse(function (node) {
+        if (node.userData.name) nodes.set(node.userData.name, node);
+      });
+      (metadata.groundLayout || []).forEach(function (group) {
+        group.objects.forEach(function (name) {
+          var node = nodes.get(name);
+          if (!node || node.parent !== ground) {
+            throw new Error("HOUSE_105の家具を配置できません: " + name);
+          }
+          node.position.x += group.offset[0];
+          node.position.y += group.offset[1];
+          node.position.z += group.offset[2];
+        });
+      });
+    }
+
     function onModelLoaded(gltf) {
       try {
         var loadedRoot = gltf.scene;
@@ -700,6 +719,7 @@
         groundRoot = loadedGround;
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
+        arrangeGroundFloor(groundRoot);
         prepareUpperFade(secondRoot, secondFadeMaterials);
         prepareUpperFade(atticRoot, atticFadeMaterials);
         root.name = root.name || "HOUSE_105";
