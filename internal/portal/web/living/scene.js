@@ -942,7 +942,6 @@
     function buildUpperHallway(layout, floor) {
       var planks = new THREE.MeshStandardMaterial({ color: 0x9b6743, roughness: 0.92 });
       var trim = new THREE.MeshStandardMaterial({ color: 0x613b2a, roughness: 0.85 });
-      var posts = new THREE.MeshStandardMaterial({ color: 0xc19368, roughness: 0.83 });
       function piece(name, x, y, z, w, h, d, material) {
         var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
         mesh.name = name;
@@ -965,11 +964,11 @@
       }
       piece("hallway-edge", (left + right) / 2, y + 0.06, front, width, 0.13, 0.10, trim);
       layout.rooms.forEach(function (room, index) {
-        buildRoomFront(layout, room, floor, index, trim, posts);
+        buildRoomFront(layout, room, floor, index);
       });
     }
 
-    function buildRoomFront(layout, room, floor, index, trim, posts) {
+    function buildRoomFront(layout, room, floor, index) {
       var group = new THREE.Group();
       var facade = new THREE.Group();
       group.name = "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
@@ -983,10 +982,8 @@
       var doorHeight = layout.doorHeight;
       var doorHalfWidth = layout.floor === 2 ? 0.77 : 0.85;
       var wall = new THREE.MeshStandardMaterial({ color: room.color, roughness: 0.94, side: THREE.DoubleSide });
-      var frame = new THREE.MeshStandardMaterial({ color: 0x523321, roughness: 0.88 });
       var leaf = new THREE.MeshStandardMaterial({ color: 0x875a3d, roughness: 0.81 });
       var handle = new THREE.MeshStandardMaterial({ color: 0xc99b51, roughness: 0.48, metalness: 0.34 });
-      var doorWidth = doorHalfWidth * 2;
 
       function top(x) {
         if (layout.floor === 1) return 3.38;
@@ -1013,25 +1010,17 @@
         var mesh = new THREE.Mesh(new THREE.BoxGeometry(width, h, d), material);
         mesh.position.set(x, y + height, z + depth);
         parent.add(mesh);
+        return mesh;
       }
 
-      var edge = left;
-      room.doors.forEach(function (x) {
-        var jamb = x - doorHalfWidth;
-        panel(edge, jamb, 0);
-        edge = x + doorHalfWidth;
-        panel(jamb, edge, doorHeight);
-        box(facade, x, doorHeight / 2, 0, doorWidth, doorHeight, 0.09, frame);
-        box(facade, x, doorHeight / 2, 0.06, doorWidth - 0.27, doorHeight - 0.17, 0.07, leaf);
-        box(facade, x, doorHeight * 0.68, 0.10, doorWidth - 0.59, doorHeight * 0.38, 0.03, frame);
-        box(facade, x, doorHeight * 0.29, 0.10, doorWidth - 0.59, doorHeight * 0.28, 0.03, frame);
-        box(facade, x + 0.53, doorHeight * 0.46, 0.13, 0.13, 0.10, 0.08, handle);
-        box(group, jamb, doorHeight / 2, 0.07, 0.12, doorHeight, 0.22, posts);
-        box(group, edge, doorHeight / 2, 0.07, 0.12, doorHeight, 0.22, posts);
-        box(group, x, doorHeight, 0.07, doorWidth + 0.12, 0.13, 0.22, posts);
-        box(group, x, 0.015, 0, doorWidth, 0.03, 0.30, trim);
-      });
-      panel(edge, right, 0);
+      var doorX = (left + right) / 2;
+      var doorLeft = doorX - doorHalfWidth;
+      var doorRight = doorX + doorHalfWidth;
+      panel(left, doorLeft, 0);
+      panel(doorLeft, doorRight, doorHeight);
+      panel(doorRight, right, 0);
+      box(facade, doorX, doorHeight / 2, 0, doorHalfWidth * 2, doorHeight, 0.10, leaf).name = "room-door";
+      box(facade, doorX + doorHalfWidth - 0.20, doorHeight * 0.46, 0.08, 0.13, 0.10, 0.08, handle);
       if (layout.floor === 2 || index === 0) {
         box(group, left, top(left) / 2, (layout.roomBack - z) / 2,
           0.1, top(left), z - layout.roomBack, wall.clone());
@@ -1041,7 +1030,7 @@
           0.1, top(right), z - layout.roomBack, wall.clone());
       }
 
-      [wall, frame, leaf, handle].forEach(function (material) {
+      [wall, leaf, handle].forEach(function (material) {
         material.transparent = true;
         material.alphaTest = 0.001;
       });
