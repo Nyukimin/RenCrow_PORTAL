@@ -11,6 +11,7 @@
   var STAIR_LIFT_APPROACH = 0.12;
   var TOP_TREAD_EDGE = -2.455;
   var UPPER_LANDING_EDGE = -2.725;
+  var ATTIC_HEIGHT = 7.25;
 
   function createHouseScene(canvas, options) {
     options = options || {};
@@ -100,6 +101,7 @@
     scene.add(markerGroup);
     var markerSprites = [];
     var markerTextureCache = Object.create(null);
+    var routesWithStairs = new Map();
 
     var residents = metadata.residents.map(function (resident, index) {
       var route = resident && (resident.route ? metadata.routes && metadata.routes[resident.route] : resident.points);
@@ -107,7 +109,10 @@
         throw new Error("HOUSE_105の住人経路データが不完全です。");
       }
       if (![0, 1, 2].includes(Number(resident.floor))) throw new Error("HOUSE_105の住人フロアが不正です。");
-      if (resident.stairs && metadata.stairTrip) route = addStairTrip(route, metadata.stairTrip);
+      if (resident.stairs && metadata.stairTrip) {
+        if (!routesWithStairs.has(route)) routesWithStairs.set(route, addStairTrip(route, metadata.stairTrip, metadata.atticTrip));
+        route = routesWithStairs.get(route);
+      }
       var points = route.map(function (point) {
         if (!Array.isArray(point) || point.length < 3 || point.some(function (value) { return !isFinite(Number(value)); })) {
           throw new Error("HOUSE_105の住人経路に不正な座標があります。");
@@ -137,7 +142,7 @@
       };
     });
 
-    function addStairTrip(route, stairs) {
+    function addStairTrip(route, stairs, atticStairs) {
       var entryIndex = route.findIndex(function (point, index) {
         var next = route[index + 1];
         return next && point[2] === stairs.entry[2] && next[2] === stairs.entry[2] &&
@@ -145,16 +150,25 @@
       });
       if (entryIndex < 0) throw new Error("HOUSE_105の階段入口が見つかりません。");
 
-      var ascent = [stairs.entry];
-      var height = stairs.entry[1];
-      for (var step = 0; step < stairs.steps; step += 1) {
-        var z = stairs.firstEdge - stairs.treadDepth * step;
-        ascent.push([stairs.entry[0], height, z]);
-        height = stairs.firstHeight + stairs.riserHeight * step;
-        ascent.push([stairs.entry[0], height, z]);
+      var ascent = [stairs.entry].concat(stairSteps(stairs, stairs.entry, 2, -1), stairs.landing);
+      if (atticStairs) {
+        ascent = ascent.concat(stairSteps(atticStairs, stairs.landing[stairs.landing.length - 1], 0, 1), atticStairs.landing);
       }
-      ascent = ascent.concat(stairs.landing);
       return route.slice(0, entryIndex + 1).concat(ascent, ascent.slice(0, -1).reverse(), route.slice(entryIndex + 1));
+    }
+
+    function stairSteps(stairs, entry, axis, direction) {
+      var points = [];
+      var height = entry[1];
+      for (var step = 0; step < stairs.steps; step += 1) {
+        var point = entry.slice();
+        point[axis] = stairs.firstEdge + direction * stairs.treadDepth * step;
+        point[1] = height;
+        points.push(point);
+        height = stairs.firstHeight + stairs.riserHeight * step;
+        points.push([point[0], height, point[2]]);
+      }
+      return points;
     }
 
     var desks = metadata.desks.map(function (desk) {
@@ -445,11 +459,13 @@
     }
 
     function residentFloor(resident, position) {
+      if (position.y >= ATTIC_HEIGHT - 0.00001) return 2;
       return position.y >= resident.landingHeight - 0.00001 && position.z <= UPPER_LANDING_EDGE ? 1 : resident.floor;
     }
 
     function residentOpacity(resident, position) {
       if (position.y < resident.landingHeight - 0.00001) return floorOpacity(resident.floor);
+      if (position.y > resident.landingHeight + 0.00001) return floorOpacity(position.y < ATTIC_HEIGHT - 0.00001 ? 1 : 2);
       return lerp(1, floorOpacity(1), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
     }
 
@@ -759,15 +775,21 @@
       modelCounts = { roots: 0, meshes: 0, materials: 0, textures: 0 };
     }
 
-    function arrangeGroundFloor(ground) {
+    function arrangeFloor(floor, layout) {
       var nodes = new Map();
-      ground.traverse(function (node) {
+      floor.traverse(function (node) {
         if (node.userData.name) nodes.set(node.userData.name, node);
       });
-      (metadata.groundLayout || []).forEach(function (group) {
-        group.objects.forEach(function (name) {
+      (layout || []).forEach(function (group) {
+        var names = group.objects.slice();
+        (group.series || []).forEach(function (series) {
+          for (var index = series[1]; index <= series[2]; index += 1) {
+            names.push(series[0] + String(index).padStart(3, "0") + "_v4");
+          }
+        });
+        names.forEach(function (name) {
           var node = nodes.get(name);
-          if (!node || node.parent !== ground) {
+          if (!node || node.parent !== floor) {
             throw new Error("HOUSE_105の家具を配置できません: " + name);
           }
           node.position.x += group.offset[0];
@@ -776,7 +798,7 @@
         });
       });
 
-      extendGroundFloor(nodes);
+      return nodes;
     }
 
     function extendGroundFloor(nodes) {
@@ -811,6 +833,19 @@
       ground.add(bridge);
     }
 
+    function connectAtticLanding(second, attic, tread) {
+      var landing = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.13, 1.05), tread.material);
+      landing.name = "attic-landing-step";
+      landing.position.set(9.27, 7.185, -3.45);
+      landing.receiveShadow = true;
+      second.add(landing);
+      var bridge = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.24, 1.18), tread.material);
+      bridge.name = "attic-landing-bridge";
+      bridge.position.set(9.65, 7.13, -3.39);
+      bridge.receiveShadow = true;
+      attic.add(bridge);
+    }
+
     function onModelLoaded(gltf) {
       try {
         var loadedRoot = gltf.scene;
@@ -824,8 +859,11 @@
         groundRoot = loadedGround;
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
-        arrangeGroundFloor(groundRoot);
+        extendGroundFloor(arrangeFloor(groundRoot, metadata.groundLayout));
+        var secondNodes = arrangeFloor(secondRoot, metadata.secondLayout);
+        arrangeFloor(atticRoot, metadata.atticLayout);
         if (metadata.stairTrip) connectStairLanding(groundRoot);
+        if (metadata.atticTrip) connectAtticLanding(secondRoot, atticRoot, secondNodes.get("Attic stair step.016_v4"));
         prepareUpperFade(secondRoot, secondFadeMaterials);
         prepareUpperFade(atticRoot, atticFadeMaterials);
         root.name = root.name || "HOUSE_105";

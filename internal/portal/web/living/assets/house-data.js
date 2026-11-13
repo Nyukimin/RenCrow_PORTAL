@@ -3,14 +3,14 @@ window.housePreviewData = {
   "cameras": {"house":{"position":[0,4.93999,40],"target":[0,4.94,0.5],"span":15.1875},"living":{"position":[-18.56293,32.90005,40.43331],"target":[0,2.14442,0.625],"span":16.81542}},
   "desks": [{"id":"workstation-01","residentId":"mio","position":[-11.07,1.11,1.52]},{"id":"workstation-02","residentId":"shiro","position":[-9.03,1.11,1.52]},{"id":"workstation-03","residentId":"kuro","position":[-7.17,1.11,1.52]},{"id":"workstation-04","residentId":"midori","position":[-5.13,1.11,1.52]},{"id":"workstation-05","residentId":"aka","position":[-11.07,1.11,-2.08]},{"id":"workstation-06","residentId":"ao","position":[-9.03,1.11,-2.08]},{"id":"workstation-07","residentId":"kin","position":[-6.87,1.11,-2.08]},{"id":"workstation-08","residentId":"gin","position":[-4.83,1.11,-2.08]}],
   "residents": [
-    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0},
-    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.5},
-    {"id":"kuro","points":[[-5.08,3.72,1.25],[-4.2,3.72,1.25],[-4.2,3.72,2.1],[-5.08,3.72,2.1]],"floor":1},
-    {"id":"midori","points":[[7.65,3.72,3.28],[9.95,3.72,3.28],[9.95,3.72,3.8],[7.65,3.72,3.8]],"floor":1},
-    {"id":"aka","floor":0,"pace":1.12,"route":"groundLoop"},
-    {"id":"ao","floor":0,"pace":1.12,"route":"groundLoop"},
-    {"id":"kin","points":[[-6.12,7.25,-0.5],[-5.22,7.25,-0.5],[-5.22,7.25,1.35],[-6.12,7.25,1.35]],"floor":2},
-    {"id":"gin","points":[[6.1,7.25,0],[7,7.25,0],[7,7.25,1.35],[6.1,7.25,1.35]],"floor":2}
+    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.06},
+    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.18},
+    {"id":"kuro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.39},
+    {"id":"midori","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.47},
+    {"id":"aka","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.67},
+    {"id":"ao","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.72},
+    {"id":"kin","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.85},
+    {"id":"gin","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.94}
   ],
   "routes": {
     "groundLoop": [
@@ -29,8 +29,80 @@ window.housePreviewData = {
     "treadDepth": 0.305,
     "riserHeight": 0.174,
     "steps": 20,
-    "landing": [[-1.8,3.72,-2.76],[-2.9,3.72,-2.76],[-3.16,3.72,-2.76],[-3.53,3.72,-2.89],[-4.45,3.72,-2.98],[-5.19,3.72,-2.96]]
+    "landing": [
+      [-1.8,3.72,-2.76], [-0.78,3.72,-2.74], [-0.45,3.72,-3.27],
+      [0.75,3.72,-3.29], [1.32,3.72,-3.29], [2.44,3.72,-2.96],
+      [2.88,3.72,-2.95], [3.45,3.72,-2.96], [4.48,3.72,-3.24],
+      [4.88,3.72,-3.38]
+    ]
   },
+  "atticTrip": {
+    "firstEdge": 4.88,
+    "firstHeight": 3.92,
+    "treadDepth": 0.265,
+    "riserHeight": 0.20,
+    "steps": 17,
+    "landing": [
+      [9.28,7.25,-3.38], [9.46,7.25,-2.77], [9.53,7.25,-2.05],
+      [9.64,7.25,-0.42],
+      [9.34,7.25,0.66], [8.4,7.25,1.66], [7.18,7.25,2.32],
+      [3.9,7.25,2.52], [0.52,7.25,2.64], [-3.28,7.25,2.57],
+      [-6.85,7.25,2.48], [-8.95,7.25,2.4]
+    ]
+  },
+  "secondLayout": [
+    { "name": "attic-stair", "offset": [-1.88,0,0], "objects": [
+      "Attic stair handrail_v4", "Attic stair step.001_v4", "Attic stair step.002_v4",
+      "Attic stair step.003_v4", "Attic stair step.004_v4", "Attic stair step.005_v4",
+      "Attic stair step.006_v4", "Attic stair step.007_v4", "Attic stair step.008_v4",
+      "Attic stair step.009_v4", "Attic stair step.010_v4", "Attic stair step.011_v4",
+      "Attic stair step.012_v4", "Attic stair step.013_v4", "Attic stair step.014_v4",
+      "Attic stair step.015_v4", "Attic stair step.016_v4", "Attic stair step_v4"
+    ] },
+    { "name": "middle-bookcase", "offset": [0.72,0,4.78], "objects": [
+      "Shelf back.004_v4", "Shelf board.020_v4", "Shelf board.021_v4",
+      "Shelf board.022_v4", "Shelf board.023_v4", "Shelf board.024_v4",
+      "Shelf upright.008_v4", "Shelf upright.009_v4"
+    ], "series": [
+      ["Book_00.",16,19], ["Book_01.",16,19], ["Book_02.",16,19],
+      ["Book_03.",16,19], ["Book_04.",16,19], ["Book_05.",16,19],
+      ["Book_06.",16,19], ["Book_07.",16,19], ["Book_08.",16,19],
+      ["Book_09.",16,19], ["Book_10.",16,19], ["Book_11.",16,19],
+      ["Spine band.",192,239], ["V2_book_page_block.",192,239]
+    ] },
+    { "name": "east-bookcase", "offset": [2.95,0,7.16], "objects": [
+      "Shelf back.006_v4", "Shelf board.030_v4", "Shelf board.031_v4",
+      "Shelf board.032_v4", "Shelf board.033_v4", "Shelf board.034_v4",
+      "Shelf upright.012_v4", "Shelf upright.013_v4"
+    ], "series": [
+      ["Book_00.",24,27], ["Book_01.",24,27], ["Book_02.",24,27],
+      ["Book_03.",24,27], ["Book_04.",24,27], ["Book_05.",24,27],
+      ["Book_06.",24,27], ["Book_07.",24,27], ["Book_08.",24,27],
+      ["Book_09.",24,27], ["Book_10.",24,27], ["Book_11.",24,27],
+      ["Spine band.",288,335], ["V2_book_page_block.",288,335]
+    ] },
+    { "name": "cloak", "offset": [-2.42,0,-0.43], "objects": [
+      "Cloak hook_v4", "Draped navy cloak_v4", "V2_cloak_gold_edging_v4__render_mesh"
+    ] },
+    { "name": "hanging-plant", "offset": [0.52,0,2.0], "objects": [
+      "Foliage grouped.022_v4", "Plant pot.022_v4", "Soil.022_v4",
+      "Stems.022_v4__render_mesh", "Suspension cord.003_v4__render_mesh", "V2_ceramic_pot_rim.027_v4",
+      "V2_plant_branching_stems.027_v4__render_mesh", "V2_pot_foot.027_v4"
+    ] }
+  ],
+  "atticLayout": [
+    { "name": "attic-window-pad", "offset": [-1.44,0,0.16], "objects": [
+      "Draped woven throw.002_v4", "Fluffy window pad_v4", "Tufted edge.001_v4",
+      "Tufted edge.002_v4", "Tufted edge.003_v4", "Tufted edge.004_v4",
+      "Tufted edge.005_v4", "Tufted edge.006_v4", "Tufted edge.007_v4",
+      "Tufted edge.008_v4", "Tufted edge.009_v4", "Tufted edge_v4"
+    ] },
+    { "name": "attic-pot", "offset": [-0.24,0,-0.8], "objects": [
+      "Foliage grouped.017_v4", "Plant pot.017_v4", "Soil.017_v4",
+      "Stems.017_v4__render_mesh", "V2_ceramic_pot_rim.016_v4", "V2_plant_branching_stems.016_v4__render_mesh",
+      "V2_pot_foot.016_v4"
+    ] }
+  ],
   "bounds": {"min":[-12.6,-0.41,-4.7],"max":[12.6,10.29,5.7]},
   "groundLayout": [
     { "name": "front-workstations", "offset": [-0.3,0,0], "objects": [
