@@ -12,6 +12,8 @@
   var TOP_TREAD_EDGE = -2.455;
   var UPPER_LANDING_EDGE = -2.725;
   var ATTIC_HEIGHT = 7.25;
+  var RESIDENT_CLEARANCE = 1.45;
+  var RESIDENT_VERTICAL_CLEARANCE = 1.55;
 
   function createHouseScene(canvas, options) {
     options = options || {};
@@ -102,6 +104,9 @@
     var markerSprites = [];
     var markerTextureCache = Object.create(null);
     var routesWithStairs = new Map();
+    var stairOccupant = null;
+    var stairQueue = [];
+    var hallwayLabels = new Map();
 
     var residents = metadata.residents.map(function (resident, index) {
       var route = resident && (resident.route ? metadata.routes && metadata.routes[resident.route] : resident.points);
@@ -109,9 +114,12 @@
         throw new Error("HOUSE_105の住人経路データが不完全です。");
       }
       if (![0, 1, 2].includes(Number(resident.floor))) throw new Error("HOUSE_105の住人フロアが不正です。");
+      var stairPasses = null;
       if (resident.stairs && metadata.stairTrip) {
         if (!routesWithStairs.has(route)) routesWithStairs.set(route, addStairTrip(route, metadata.stairTrip, metadata.atticTrip));
-        route = routesWithStairs.get(route);
+        var tour = routesWithStairs.get(route);
+        route = tour.points;
+        stairPasses = tour.stairPasses;
       }
       var points = route.map(function (point) {
         if (!Array.isArray(point) || point.length < 3 || point.some(function (value) { return !isFinite(Number(value)); })) {
@@ -126,20 +134,35 @@
         totalLength += segmentLength;
         lengths.push(totalLength);
       }
-      return {
+      totalLength = Math.max(totalLength, 0.001);
+      var phase = resident.phase === undefined ? index / metadata.residents.length : resident.phase;
+      var distance = phase * totalLength;
+      var passes = (stairPasses || []).map(function (pass) {
+        return { entry: lengths[pass.entry], exit: lengths[pass.exit] };
+      });
+      var walker = {
         id: resident.id,
         floor: Number(resident.floor),
         landingHeight: resident.stairs && metadata.stairTrip ? metadata.stairTrip.landing[0][1] : Infinity,
         points: points,
         lengths: lengths,
-        totalLength: Math.max(totalLength, 0.001),
-        phase: resident.phase === undefined ? index / metadata.residents.length : resident.phase,
-        speed: resident.pace > 0 ? resident.pace / Math.max(totalLength, 0.001) : 0.075 + (index % 4) * 0.012,
+        totalLength: totalLength,
+        distance: distance,
+        pace: resident.pace > 0 ? resident.pace : totalLength * (0.075 + (index % 4) * 0.012),
+        stairPasses: passes,
+        stairPass: passes.find(function (pass) { return distance > pass.entry && distance < pass.exit; }),
         group: new THREE.Group(),
         mesh: null,
         highlight: null,
-        height: 1.35
+        height: 1.35,
+        locationLabel: null
       };
+      if (walker.stairPass) {
+        if (stairOccupant) throw new Error("HOUSE_105の階段に複数の住人が配置されています。");
+        stairOccupant = walker;
+      }
+      walker.position = positionOnPath(walker, distance);
+      return walker;
     });
 
     function addStairTrip(route, stairs, atticStairs) {
@@ -150,11 +173,36 @@
       });
       if (entryIndex < 0) throw new Error("HOUSE_105の階段入口が見つかりません。");
 
-      var ascent = [stairs.entry].concat(stairSteps(stairs, stairs.entry, 2, -1), stairs.landing);
+      var points = route.slice(0, entryIndex);
+      // Stop on the deck before the ground-floor stairs meet the walking loop.
+      var upEntry = points.length - 1;
+      points.push(route[entryIndex]);
+      var firstFlight = [stairs.entry].concat(stairSteps(stairs, stairs.entry, 2, -1));
+      var ascent = firstFlight.concat(stairs.landing);
       if (atticStairs) {
-        ascent = ascent.concat(stairSteps(atticStairs, stairs.landing[stairs.landing.length - 1], 0, 1), atticStairs.landing);
+        var secondFlight = stairSteps(atticStairs, stairs.landing[stairs.landing.length - 1], 0, 1).concat(atticStairs.landing);
+        var landing = stairs.landing;
+        if (stairs.roomVisit) {
+          var split = stairs.roomVisitAfter + 1;
+          landing = landing.slice(0, split).concat(stairs.roomVisit, landing.slice(split));
+        }
+        points = points.concat(firstFlight, landing, secondFlight, atticStairs.arrival);
+        var upExit = points.length - 1;
+        points = points.concat(atticStairs.aisle, atticStairs.departure);
+        var downEntry = points.length - atticStairs.departure.length;
+        var descent = ascent.concat(secondFlight).slice(0, -1).reverse();
+        var groundExit = points.length + descent.length;
+        points = points.concat(descent, route.slice(entryIndex + 1));
+        return {
+          points: points,
+          stairPasses: [{ entry: upEntry, exit: upExit }, { entry: downEntry, exit: groundExit }]
+        };
       }
-      return route.slice(0, entryIndex + 1).concat(ascent, ascent.slice(0, -1).reverse(), route.slice(entryIndex + 1));
+      points = points.concat(ascent, ascent.slice(0, -1).reverse());
+      return {
+        points: points.concat(route.slice(entryIndex + 1)),
+        stairPasses: [{ entry: upEntry, exit: points.length }]
+      };
     }
 
     function stairSteps(stairs, entry, axis, direction) {
@@ -222,7 +270,6 @@
     var frameIntervalMs = 0;
     var measuredFrames = 0;
     var clock = 0;
-    var residentClock = 0;
     var lastFrame = 0;
     var paused = false;
     var markerOn = false;
@@ -396,41 +443,82 @@
       return { target: target, span: span };
     }
 
-    function pathState(resident, time) {
-      var distance = ((time * resident.speed + resident.phase) % 1) * resident.totalLength;
-      var chosen = null;
-      for (var i = 0; i < resident.points.length; i += 1) {
-        var startDistance = resident.lengths[i];
-        var endDistance = resident.lengths[i + 1];
-        if (distance < endDistance || i === resident.points.length - 1) {
-          var span = Math.max(0.0001, endDistance - startDistance);
-          var amount = clamp((distance - startDistance) / span, 0, 1);
-          var from = resident.points[i];
-          var to = resident.points[(i + 1) % resident.points.length];
-          var next = resident.points[(i + 2) % resident.points.length];
-          var tangent = to.clone().sub(from);
-          if (tangent.x === 0 && tangent.z === 0) {
-            // A riser is vertical. Use the next tread to keep facing uphill or downhill even after a pause.
-            tangent = next.clone().sub(to);
-          }
-          var position = from.clone().lerp(to, amount);
-          chosen = {
-            position: position,
-            tangent: tangent,
-            footLift: stairFootLift(resident, position, i, tangent)
-          };
-          break;
+    function pathSegment(resident, distance) {
+      var first = 0;
+      var last = resident.points.length - 1;
+      while (first < last) {
+        var middle = Math.floor((first + last) / 2);
+        if (distance < resident.lengths[middle + 1]) last = middle;
+        else first = middle + 1;
+      }
+      return first;
+    }
+
+    function positionOnPath(resident, distance, index) {
+      if (index === undefined) index = pathSegment(resident, distance);
+      var start = resident.lengths[index];
+      var length = Math.max(0.0001, resident.lengths[index + 1] - start);
+      return resident.points[index].clone().lerp(
+        resident.points[(index + 1) % resident.points.length], clamp((distance - start) / length, 0, 1)
+      );
+    }
+
+    function advanceResidents(dt) {
+      if (!dt) return;
+      residents.forEach(function (resident) {
+        var previous = resident.distance;
+        var distance = previous + resident.pace * dt;
+        var nextPass = !resident.stairPass && resident.stairPasses.find(function (pass) {
+          return previous <= pass.entry && distance >= pass.entry;
+        });
+        if (nextPass) distance = nextPass.entry;
+        distance %= resident.totalLength;
+        var position = positionOnPath(resident, distance);
+        // The lower aisle crosses beneath the stairs. Only test characters whose heights overlap.
+        var obstructed = residents.some(function (other) {
+          if (other === resident || Math.abs(position.y - other.position.y) >= RESIDENT_VERTICAL_CLEARANCE) return false;
+          var dx = position.x - other.position.x;
+          var dz = position.z - other.position.z;
+          return dx * dx + dz * dz < RESIDENT_CLEARANCE * RESIDENT_CLEARANCE;
+        });
+        if (obstructed) return;
+
+        resident.distance = distance;
+        resident.position = position;
+        if (nextPass && !resident.waitingFor) {
+          resident.waitingFor = nextPass;
+          stairQueue.push(resident);
         }
+        if (resident.stairPass && distance >= resident.stairPass.exit) {
+          resident.stairPass = null;
+          stairOccupant = null;
+        }
+      });
+      // Both staircases and the connecting hallway share one queue, including for the way down.
+      if (!stairOccupant && stairQueue.length) {
+        stairOccupant = stairQueue.shift();
+        stairOccupant.stairPass = stairOccupant.waitingFor;
+        stairOccupant.waitingFor = null;
       }
-      if (!chosen) chosen = { position: resident.points[0].clone(), tangent: new THREE.Vector3(), footLift: 0 };
-      chosen.tangent.y = 0;
-      if (chosen.tangent.lengthSq() > 0.000001) {
-        chosen.tangent.normalize();
-      } else {
-        // A pause or a degenerate route segment keeps the last meaningful heading.
-        chosen.tangent.copy(resident.lastTangent || new THREE.Vector3(0, 0, 1));
+    }
+
+    function pathState(resident) {
+      var i = pathSegment(resident, resident.distance);
+      var from = resident.points[i];
+      var to = resident.points[(i + 1) % resident.points.length];
+      var tangent = to.clone().sub(from);
+      if (tangent.x === 0 && tangent.z === 0) {
+        // A riser is vertical. Use the next tread to keep facing uphill or downhill even after a pause.
+        tangent = resident.points[(i + 2) % resident.points.length].clone().sub(to);
       }
-      return chosen;
+      tangent.y = 0;
+      if (tangent.lengthSq() > 0.000001) tangent.normalize();
+      else tangent.copy(resident.lastTangent || new THREE.Vector3(0, 0, 1));
+      return {
+        position: resident.position,
+        tangent: tangent,
+        footLift: stairFootLift(resident, resident.position, i, tangent)
+      };
     }
 
     function stairFootLift(resident, position, index, tangent) {
@@ -846,6 +934,94 @@
       attic.add(bridge);
     }
 
+    function buildUpperHallway(layout, floor) {
+      var planks = new THREE.MeshStandardMaterial({ color: 0x9b6743, roughness: 0.92 });
+      var trim = new THREE.MeshStandardMaterial({ color: 0x613b2a, roughness: 0.85 });
+      var posts = new THREE.MeshStandardMaterial({ color: 0xc19368, roughness: 0.83 });
+      function piece(name, x, y, z, w, h, d, material) {
+        var mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        mesh.name = name;
+        mesh.position.set(x, y, z);
+        floor.add(mesh);
+      }
+
+      var left = layout.x[0];
+      var right = layout.x[1];
+      var back = layout.z[0];
+      var front = layout.z[1];
+      var y = layout.height;
+      var width = right - left;
+      var depth = front - back;
+      var plankCount = Math.ceil(width / 0.48);
+      var plankWidth = width / plankCount;
+      for (var i = 0; i < plankCount; i += 1) {
+        piece("hallway-plank", left + (i + 0.5) * plankWidth, y - 0.105, (back + front) / 2,
+          plankWidth - 0.012, 0.22, depth, planks);
+      }
+      piece("hallway-edge", (left + right) / 2, y + 0.06, front, width, 0.13, 0.10, trim);
+      var edge = left;
+      var doorwayWidth = 1.8;
+      var doorwayHeight = layout.doorHeight || 2.24;
+      layout.doors.forEach(function (x) {
+        var jamb = x - doorwayWidth / 2;
+        piece("room-front", (edge + jamb) / 2, y + 0.18, layout.wall, jamb - edge, 0.36, 0.16, trim);
+        piece("doorway-left", jamb, y + doorwayHeight / 2, layout.wall, 0.12, doorwayHeight, 0.22, posts);
+        edge = x + doorwayWidth / 2;
+        piece("doorway-right", edge, y + doorwayHeight / 2, layout.wall, 0.12, doorwayHeight, 0.22, posts);
+        piece("doorway-header", x, y + doorwayHeight, layout.wall, doorwayWidth + 0.12, 0.16, 0.22, posts);
+        piece("doorway-threshold", x, y + 0.02, layout.wall, doorwayWidth, 0.04, 0.32, posts);
+      });
+      var end = layout.wallEnd || right;
+      piece("room-front", (edge + end) / 2, y + 0.18, layout.wall, end - edge, 0.36, 0.16, trim);
+    }
+
+    function updateHallwayLabel(resident, position, opacity) {
+      var layout = (metadata.upperHallways || []).find(function (hallway) {
+        return Math.abs(hallway.height - position.y) < 0.00001;
+      });
+      if (!layout || opacity < 0.5 || (layout.floor === 1 && position.z < -2.2) ||
+          (layout.floor === 2 && position.x > 8.5 && position.z < layout.wall)) {
+        if (resident.locationLabel) resident.locationLabel.visible = false;
+        return;
+      }
+      var inHall = position.z >= layout.wall;
+      var text = (layout.floor + 1) + "F " + (inHall ? "廊下" : "部屋");
+      if (!hallwayLabels.has(text)) {
+        var badge = global.document.createElement("canvas");
+        badge.width = 192;
+        badge.height = 58;
+        var ctx = badge.getContext("2d");
+        ctx.fillStyle = inHall ? "#234756" : "#693a26";
+        ctx.beginPath();
+        ctx.roundRect(1, 1, 190, 56, 16);
+        ctx.fill();
+        ctx.strokeStyle = "#ffdfa9";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = "#fff1d9";
+        ctx.font = "bold 34px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 96, 31);
+        var texture = new THREE.CanvasTexture(badge);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        hallwayLabels.set(text, texture);
+      }
+      if (!resident.locationLabel) {
+        var label = new THREE.Sprite(new THREE.SpriteMaterial({
+          transparent: true, depthWrite: false, toneMapped: false, map: hallwayLabels.get(text)
+        }));
+        label.name = "resident-location-" + resident.id;
+        label.position.set(0, resident.height + 0.21, 0);
+        label.scale.set(1.38, 0.42, 1);
+        resident.group.add(label);
+        resident.locationLabel = label;
+      }
+      resident.locationLabel.material.map = hallwayLabels.get(text);
+      resident.locationLabel.material.opacity = opacity;
+      resident.locationLabel.visible = true;
+    }
+
     function onModelLoaded(gltf) {
       try {
         var loadedRoot = gltf.scene;
@@ -864,6 +1040,9 @@
         arrangeFloor(atticRoot, metadata.atticLayout);
         if (metadata.stairTrip) connectStairLanding(groundRoot);
         if (metadata.atticTrip) connectAtticLanding(secondRoot, atticRoot, secondNodes.get("Attic stair step.016_v4"));
+        (metadata.upperHallways || []).forEach(function (layout) {
+          buildUpperHallway(layout, layout.floor === 1 ? secondRoot : atticRoot);
+        });
         prepareUpperFade(secondRoot, secondFadeMaterials);
         prepareUpperFade(atticRoot, atticFadeMaterials);
         root.name = root.name || "HOUSE_105";
@@ -926,7 +1105,7 @@
 
     function updateResidentWorldPositions() {
       residents.forEach(function (resident) {
-        var state = pathState(resident, residentClock);
+        var state = pathState(resident);
         var position = state.position;
         resident.lastTangent = state.tangent.clone();
         resident.group.position.copy(position);
@@ -940,6 +1119,7 @@
           resident.mesh.quaternion.copy(camera.quaternion);
           updateSpriteTexture(resident, resident.direction);
         }
+        updateHallwayLabel(resident, position, opacity);
       });
     }
 
@@ -1028,7 +1208,7 @@
     function makeSnapshot() {
       var residentMap = Object.create(null);
       residents.forEach(function (resident) {
-        var state = pathState(resident, residentClock);
+        var state = pathState(resident);
         var position = state.position;
         var direction = directionFor(state.tangent);
         var center = new THREE.Vector3(0, resident.height * (0.5 - SPRITE_FOOT_INSET), 0);
@@ -1143,7 +1323,7 @@
       var dt = clamp((now - lastFrame) / 1000, 0, 0.06);
       lastFrame = now;
       clock += dt;
-      if (!paused) residentClock += dt;
+      if (!paused) advanceResidents(dt);
       advanceProgress(dt);
       draw();
       global.requestAnimationFrame(tick);

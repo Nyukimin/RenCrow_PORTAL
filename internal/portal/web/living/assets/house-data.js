@@ -3,14 +3,14 @@ window.housePreviewData = {
   "cameras": {"house":{"position":[0,4.93999,40],"target":[0,4.94,0.5],"span":15.1875},"living":{"position":[-18.56293,32.90005,40.43331],"target":[0,2.14442,0.625],"span":16.81542}},
   "desks": [{"id":"workstation-01","residentId":"mio","position":[-11.07,1.11,1.52]},{"id":"workstation-02","residentId":"shiro","position":[-9.03,1.11,1.52]},{"id":"workstation-03","residentId":"kuro","position":[-7.17,1.11,1.52]},{"id":"workstation-04","residentId":"midori","position":[-5.13,1.11,1.52]},{"id":"workstation-05","residentId":"aka","position":[-11.07,1.11,-2.08]},{"id":"workstation-06","residentId":"ao","position":[-9.03,1.11,-2.08]},{"id":"workstation-07","residentId":"kin","position":[-6.87,1.11,-2.08]},{"id":"workstation-08","residentId":"gin","position":[-4.83,1.11,-2.08]}],
   "residents": [
-    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.06},
-    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.18},
-    {"id":"kuro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.39},
-    {"id":"midori","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.47},
-    {"id":"aka","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.67},
-    {"id":"ao","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.72},
-    {"id":"kin","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.85},
-    {"id":"gin","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.94}
+    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.017},
+    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.05},
+    {"id":"kuro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.088},
+    {"id":"midori","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.125},
+    {"id":"aka","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.158},
+    {"id":"ao","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.31},
+    {"id":"kin","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.56},
+    {"id":"gin","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.977}
   ],
   "routes": {
     "groundLoop": [
@@ -32,9 +32,16 @@ window.housePreviewData = {
     "landing": [
       [-1.8,3.72,-2.76], [-0.78,3.72,-2.74], [-0.45,3.72,-3.27],
       [0.75,3.72,-3.29], [1.32,3.72,-3.29], [2.44,3.72,-2.96],
-      [2.88,3.72,-2.95], [3.45,3.72,-2.96], [4.48,3.72,-3.24],
+      [3.15,3.72,-2.95], [3.45,3.72,-2.96], [4.48,3.72,-3.24],
       [4.88,3.72,-3.38]
-    ]
+    ],
+    "roomVisit": [
+      [3.15,3.72,0.40], [2.35,3.72,1.40],
+      [2.35,3.72,4.92], [4.78,3.72,4.92], [4.78,3.72,3.28],
+      [2.35,3.72,3.28], [2.35,3.72,1.40], [3.15,3.72,0.40],
+      [3.15,3.72,-2.95]
+    ],
+    "roomVisitAfter": 6
   },
   "atticTrip": {
     "firstEdge": 4.88,
@@ -44,12 +51,22 @@ window.housePreviewData = {
     "steps": 17,
     "landing": [
       [9.28,7.25,-3.38], [9.46,7.25,-2.77], [9.53,7.25,-2.05],
-      [9.64,7.25,-0.42],
-      [9.34,7.25,0.66], [8.4,7.25,1.66], [7.18,7.25,2.32],
-      [3.9,7.25,2.52], [0.52,7.25,2.64], [-3.28,7.25,2.57],
-      [-6.85,7.25,2.48], [-8.95,7.25,2.4]
+      [9.64,7.25,-0.42]
+    ],
+    "arrival": [[10.56,7.25,0.48], [10.88,7.25,1.90], [10.60,7.25,3.38], [8.60,7.25,3.38]],
+    "aisle": [
+      [-8.28,7.25,3.38], [-8.95,7.25,3.12], [-8.95,7.25,2.20], [-8.28,7.25,1.90],
+      [-6.85,7.25,1.90], [-6.85,7.25,0.28], [-5.39,7.25,0.28], [-5.39,7.25,1.90],
+      [6.98,7.25,1.90]
+    ],
+    "departure": [
+      [7.38,7.25,1.90], [8.55,7.25,1.90], [9.42,7.25,0.63], [9.64,7.25,-0.42]
     ]
   },
+  "upperHallways": [
+    {"floor":1,"height":3.72,"x":[-11.85,11.85],"z":[4.12,5.62],"wall":4.12,"doors":[-9.18,-3.45,2.35,4.78,8.80]},
+    {"floor":2,"height":7.25,"x":[-11.66,10.94],"z":[2.65,4.00],"wall":2.65,"doors":[-8.95,-0.65,5.26],"doorHeight":1.62,"wallEnd":7.8}
+  ],
   "secondLayout": [
     { "name": "attic-stair", "offset": [-1.88,0,0], "objects": [
       "Attic stair handrail_v4", "Attic stair step.001_v4", "Attic stair step.002_v4",
