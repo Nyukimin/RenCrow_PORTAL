@@ -57,6 +57,18 @@ foreach ($marker in @(
         throw "THIRD_PARTY_NOTICES.md is missing: $marker"
     }
 }
+foreach ($marker in @(
+    "## Three.js",
+    "Three.js r178",
+    "Copyright © 2010-2025 three.js authors",
+    "https://github.com/mrdoob/three.js/",
+    "internal/portal/web/living/vendor/THREE-LICENSE.txt",
+    "licenses/Three.js-MIT.txt"
+)) {
+    if (-not $notices.Contains($marker)) {
+        throw "THIRD_PARTY_NOTICES.md is missing: $marker"
+    }
+}
 if (Test-Path -LiteralPath (Join-Path $puruPuruRoot "NOTICE") -PathType Leaf) {
     throw "the current vendored PuruPuru snapshot unexpectedly contains NOTICE; review and inherit it before release"
 }
@@ -148,6 +160,7 @@ $expected = @{
     "LICENSE" = "LICENSE"
     "THIRD_PARTY_NOTICES.md" = "THIRD_PARTY_NOTICES.md"
     "licenses/PuruPuruPNGTuber-Apache-2.0.txt" = "internal/portal/web/purupuru/LICENSE"
+    "licenses/Three.js-MIT.txt" = "internal/portal/web/living/vendor/THREE-LICENSE.txt"
 }
 foreach ($relative in $expected.Keys) {
     $staged = Join-Path $destination ($relative.Replace("/", [IO.Path]::DirectorySeparatorChar))
@@ -176,6 +189,13 @@ foreach ($marker in @(
 )) {
     if (-not $apacheText.Contains($marker)) {
         throw "staged Apache license is missing: $marker"
+    }
+}
+
+$threeText = Get-Content -LiteralPath (Join-Path $destination "licenses/Three.js-MIT.txt") -Raw
+foreach ($marker in @("Copyright", "MIT License", "Permission is hereby granted")) {
+    if (-not $threeText.Contains($marker)) {
+        throw "staged Three.js license is missing: $marker"
     }
 }
 

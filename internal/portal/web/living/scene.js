@@ -1,0 +1,931 @@
+(function (global) {
+  "use strict";
+
+  var RESIDENT_IDS = ["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"];
+  var DIRECTIONS = ["front", "left", "right", "back"];
+  var NAVY = 0x111e36;
+  var ASSET_ROOT = "/assets/living/assets/";
+
+  function createHouseScene(canvas, options) {
+    options = options || {};
+    if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
+      throw new TypeError("createHouseScene expects a canvas element");
+    }
+
+    var THREE = global.THREE;
+    var GLTFLoader = global.GLTFLoader;
+    if (!THREE || !GLTFLoader) {
+      throw new Error("ローカルの3Dライブラリを読み込めませんでした。vendor/three-kit.js を確認してください。");
+    }
+    if (!global.housePreviewData) {
+      throw new Error("HOUSE_105の配置データが見つかりません。assets/house-data.js を確認してください。");
+    }
+
+    var metadata = global.housePreviewData;
+    var cameraInfo = metadata.cameras || {};
+    if (!cameraInfo.house || !cameraInfo.living || !Array.isArray(metadata.desks) || !Array.isArray(metadata.residents)) {
+      throw new Error("HOUSE_105のカメラまたは配置データが不完全です。");
+    }
+    function isVector3(value) {
+      return Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(function (part) { return isFinite(Number(part)); });
+    }
+    if (!isVector3(cameraInfo.house.position) || !isVector3(cameraInfo.house.target) || !isVector3(cameraInfo.living.position) || !isVector3(cameraInfo.living.target)) {
+      throw new Error("HOUSE_105のカメラ座標が不正です。");
+    }
+
+    var statusNode = global.document && global.document.getElementById("scene-load-status");
+    function setStatus(message) {
+      if (statusNode) statusNode.textContent = message || "";
+    }
+
+    var renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: false, antialias: true, powerPreference: "high-performance" });
+      if (!renderer.capabilities.isWebGL2) throw new Error("WebGL 2 is unavailable");
+    } catch (error) {
+      throw new Error("WebGLを利用できないため、HOUSE_105を表示できません。");
+    }
+
+    setStatus("HOUSE_105を読み込んでいます…");
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.autoUpdate = false;
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(NAVY);
+    var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 1000);
+    camera.up.set(0, 1, 0);
+    var housePosition = new THREE.Vector3().fromArray(cameraInfo.house.position);
+    var houseTarget = new THREE.Vector3().fromArray(cameraInfo.house.target);
+    var livingPosition = new THREE.Vector3().fromArray(cameraInfo.living.position);
+    var livingTarget = new THREE.Vector3().fromArray(cameraInfo.living.target);
+    var houseBaseSpan = Number(cameraInfo.house.span);
+    var livingBaseSpan = Number(cameraInfo.living.span);
+    if (!isFinite(houseBaseSpan) || houseBaseSpan <= 0 || !isFinite(livingBaseSpan) || livingBaseSpan <= 0) {
+      throw new Error("HOUSE_105のカメラサイズが不正です。");
+    }
+
+    var root = null;
+    var groundRoot = null;
+    var secondRoot = null;
+    var atticRoot = null;
+    var upperFadeMaterials = [];
+    var upperVisible = true;
+    var markerGroup = new THREE.Group();
+    markerGroup.name = "preview-seat-markers";
+    markerGroup.visible = false;
+    scene.add(markerGroup);
+    var markerSprites = [];
+    var markerTextureCache = Object.create(null);
+
+    var residents = metadata.residents.map(function (resident, index) {
+      if (!resident || !resident.id || !Array.isArray(resident.points) || resident.points.length < 2) {
+        throw new Error("HOUSE_105の住人経路データが不完全です。");
+      }
+      if (![0, 1, 2].includes(Number(resident.floor))) throw new Error("HOUSE_105の住人フロアが不正です。");
+      var points = resident.points.map(function (point) {
+        if (!Array.isArray(point) || point.length < 3 || point.some(function (value) { return !isFinite(Number(value)); })) {
+          throw new Error("HOUSE_105の住人経路に不正な座標があります。");
+        }
+        return new THREE.Vector3(Number(point[0]), Number(point[1]), Number(point[2]));
+      });
+      var lengths = [0];
+      var totalLength = 0;
+      for (var i = 0; i < points.length; i += 1) {
+        var segmentLength = points[i].distanceTo(points[(i + 1) % points.length]);
+        totalLength += segmentLength;
+        lengths.push(totalLength);
+      }
+      return {
+        id: resident.id,
+        floor: Number(resident.floor),
+        points: points,
+        lengths: lengths,
+        totalLength: Math.max(totalLength, 0.001),
+        phase: index / Math.max(1, metadata.residents.length),
+        speed: 0.075 + (index % 4) * 0.012,
+        group: new THREE.Group(),
+        mesh: null,
+        highlight: null,
+        height: 1.35
+      };
+    });
+
+    var desks = metadata.desks.map(function (desk) {
+      if (!desk || !desk.id || !desk.residentId || !Array.isArray(desk.position) || desk.position.length < 3) {
+        throw new Error("HOUSE_105の席マーカー座標が不完全です。");
+      }
+      if (desk.position.slice(0, 3).some(function (value) { return !isFinite(Number(value)); })) {
+        throw new Error("HOUSE_105の席マーカー座標が不正です。");
+      }
+      return {
+        id: desk.id,
+        residentId: desk.residentId,
+        position: new THREE.Vector3(Number(desk.position[0]), Number(desk.position[1]), Number(desk.position[2]))
+      };
+    });
+    if (residents.length !== RESIDENT_IDS.length || desks.length !== 8) {
+      throw new Error("HOUSE_105には8人分の住人と席データが必要です。");
+    }
+    residents.forEach(function (resident) {
+      var highlight = new THREE.Mesh(
+        new THREE.RingGeometry(0.34, 0.44, 28),
+        new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.82, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
+      );
+      highlight.name = "resident-position-" + resident.id;
+      highlight.rotation.x = -Math.PI * 0.5;
+      highlight.position.y = 0.035;
+      highlight.renderOrder = 2;
+      highlight.visible = false;
+      resident.group.add(highlight);
+      resident.highlight = highlight;
+      scene.add(resident.group);
+    });
+    var residentIds = new Set(residents.map(function (resident) { return resident.id; }));
+    if (RESIDENT_IDS.some(function (id) { return !residentIds.has(id); })) {
+      throw new Error("HOUSE_105の住人IDが8人分そろっていません。");
+    }
+
+    var imageCount = 0;
+    var failedImageCount = 0;
+    var expectedImages = RESIDENT_IDS.length * DIRECTIONS.length;
+    var imageTextures = Object.create(null);
+    var modelLoaded = false;
+    var loadFailed = false;
+    var modelCounts = { roots: 0, meshes: 0, materials: 0, textures: 0 };
+    var sourceMeshCount = 0;
+    var mergedMeshCount = 0;
+    var triangleCount = 0;
+    var lastFrameMs = 0;
+    var averageFrameMs = 0;
+    var frameIntervalMs = 0;
+    var measuredFrames = 0;
+    var clock = 0;
+    var residentClock = 0;
+    var lastFrame = 0;
+    var paused = false;
+    var markerOn = false;
+    var selectedId = null;
+    var view = options.initialView === "living" ? "living" : "house";
+    var progress = view === "living" ? 1 : 0;
+    var progressFrom = progress;
+    var progressTo = progress;
+    var transitionStart = 0;
+    var transitionDuration = 1;
+    var viewportWidth = 1;
+    var viewportHeight = 1;
+    var pixelRatio = 1;
+    var fitHouseSpan = houseBaseSpan;
+    var fitLivingSpan = livingBaseSpan;
+    var modelBounds = new THREE.Box3();
+    var groundBounds = new THREE.Box3();
+    var temporaryCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 1000);
+    var reusableVector = new THREE.Vector3();
+    var statusSummary = "loading";
+
+    function clamp(value, minimum, maximum) {
+      return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    function smooth(value) {
+      var t = clamp(value, 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function currentTime() {
+      return global.performance && typeof global.performance.now === "function" ? global.performance.now() : Date.now();
+    }
+
+    function fitSpan(baseSpan, position, target, bounds, aspect) {
+      if (!bounds || bounds.isEmpty()) return baseSpan;
+      temporaryCamera.position.copy(position);
+      temporaryCamera.lookAt(target);
+      temporaryCamera.updateMatrixWorld(true);
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (var x = 0; x < 2; x += 1) {
+        for (var y = 0; y < 2; y += 1) {
+          for (var z = 0; z < 2; z += 1) {
+            reusableVector.set(x ? bounds.max.x : bounds.min.x, y ? bounds.max.y : bounds.min.y, z ? bounds.max.z : bounds.min.z);
+            reusableVector.applyMatrix4(temporaryCamera.matrixWorldInverse);
+            minX = Math.min(minX, reusableVector.x);
+            maxX = Math.max(maxX, reusableVector.x);
+            minY = Math.min(minY, reusableVector.y);
+            maxY = Math.max(maxY, reusableVector.y);
+          }
+        }
+      }
+      var innerWidth = Math.max(0.5, aspect * 0.86);
+      var innerHeight = 0.86;
+      return Math.max(baseSpan, (maxY - minY) / innerHeight, (maxX - minX) / innerWidth);
+    }
+
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      var width = Math.max(1, Math.round(rect.width || canvas.clientWidth || 1));
+      var height = Math.max(1, Math.round(rect.height || canvas.clientHeight || 1));
+      var nextPixelRatio = Math.min(1.25, Math.max(1, global.devicePixelRatio || 1));
+      if (width !== viewportWidth || height !== viewportHeight || nextPixelRatio !== pixelRatio) {
+        viewportWidth = width;
+        viewportHeight = height;
+        pixelRatio = nextPixelRatio;
+        renderer.setPixelRatio(pixelRatio);
+        renderer.setSize(width, height, false);
+        var aspect = width / height;
+        camera.left = -camera.top * aspect;
+        camera.right = camera.top * aspect;
+        camera.updateProjectionMatrix();
+        if (modelLoaded) updateFittedSpans(aspect);
+      }
+    }
+
+    function updateFittedSpans(aspect) {
+      fitHouseSpan = fitSpan(houseBaseSpan, housePosition, houseTarget, modelBounds, aspect);
+      fitLivingSpan = fitSpan(livingBaseSpan, livingPosition, livingTarget, groundBounds, aspect);
+    }
+
+    function updateCamera(now) {
+      var t = transitionDuration <= 1 ? 1 : clamp((now - transitionStart) / transitionDuration, 0, 1);
+      progress = lerp(progressFrom, progressTo, smooth(t));
+      camera.position.lerpVectors(housePosition, livingPosition, progress);
+      var target = houseTarget.clone().lerp(livingTarget, progress);
+      camera.lookAt(target);
+      var aspect = Math.max(0.1, viewportWidth / viewportHeight);
+      var span = lerp(fitHouseSpan, fitLivingSpan, progress);
+      camera.top = span * 0.5;
+      camera.bottom = -camera.top;
+      camera.left = -camera.top * aspect;
+      camera.right = camera.top * aspect;
+      camera.near = 0.05;
+      camera.far = Math.max(1000, span * 80);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld(true);
+
+      // The original mesh stays in place. Upper roots disappear only in the
+      // close, settled portion of LIVING so they cannot cover the 1F room.
+      var showUpper = progress < 0.94;
+      var fade = 1 - smooth((progress - 0.70) / 0.23);
+      if (secondRoot) secondRoot.visible = showUpper;
+      if (atticRoot) atticRoot.visible = showUpper;
+      upperFadeMaterials.forEach(function (entry) { entry.material.opacity = entry.opacity * fade; });
+      if (showUpper !== upperVisible && modelLoaded) {
+        upperVisible = showUpper;
+        renderer.shadowMap.needsUpdate = true;
+      }
+      return { target: target, span: span };
+    }
+
+    function pathPosition(resident, time) {
+      var distance = ((time * resident.speed + resident.phase) % 1) * resident.totalLength;
+      for (var i = 0; i < resident.points.length; i += 1) {
+        var startDistance = resident.lengths[i];
+        var endDistance = resident.lengths[i + 1];
+        if (distance <= endDistance || i === resident.points.length - 1) {
+          var span = Math.max(0.0001, endDistance - startDistance);
+          var amount = clamp((distance - startDistance) / span, 0, 1);
+          return resident.points[i].clone().lerp(resident.points[(i + 1) % resident.points.length], amount);
+        }
+      }
+      return resident.points[0].clone();
+    }
+
+    function directionFor(resident, position) {
+      var distance = ((residentClock * resident.speed + resident.phase) % 1) * resident.totalLength;
+      var segment = 0;
+      while (segment < resident.points.length - 1 && distance > resident.lengths[segment + 1]) segment += 1;
+      var from = resident.points[segment];
+      var to = resident.points[(segment + 1) % resident.points.length];
+      var moveX = to.x - from.x;
+      var moveZ = to.z - from.z;
+      var moveLength = Math.max(0.0001, Math.hypot(moveX, moveZ));
+      moveX /= moveLength;
+      moveZ /= moveLength;
+      var viewX = camera.position.x - position.x;
+      var viewZ = camera.position.z - position.z;
+      var viewLength = Math.max(0.0001, Math.hypot(viewX, viewZ));
+      viewX /= viewLength;
+      viewZ /= viewLength;
+      var facing = moveX * viewX + moveZ * viewZ;
+      if (facing > 0.35) return "front";
+      if (facing < -0.35) return "back";
+      return moveX * viewZ - moveZ * viewX > 0 ? "left" : "right";
+    }
+
+    function nearestAvailableTexture(residentId, direction) {
+      var directions = [direction, "front", "left", "right", "back"];
+      var seen = Object.create(null);
+      for (var i = 0; i < directions.length; i += 1) {
+        var candidate = directions[i];
+        if (seen[candidate]) continue;
+        seen[candidate] = true;
+        if (imageTextures[residentId] && imageTextures[residentId][candidate]) return imageTextures[residentId][candidate];
+      }
+      return null;
+    }
+
+    function updateSpriteTexture(resident, position) {
+      if (!resident.mesh) return;
+      var texture = nearestAvailableTexture(resident.id, directionFor(resident, position));
+      if (!texture || resident.mesh.material.map === texture) return;
+      resident.mesh.material.map = texture;
+      resident.mesh.material.needsUpdate = true;
+      var image = texture.image;
+      var aspect = image && image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
+      resident.mesh.scale.set(resident.height * aspect, resident.height, 1);
+    }
+
+    function buildResidentMesh(resident) {
+      if (resident.mesh || !imageTextures[resident.id]) return;
+      var texture = nearestAvailableTexture(resident.id, "front");
+      if (!texture) return;
+      var material = new THREE.MeshBasicMaterial({
+        map: texture,
+        color: 0xffffff,
+        transparent: true,
+        alphaTest: 0.012,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false
+      });
+      var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+      mesh.name = "resident-sprite-" + resident.id;
+      mesh.position.y = resident.height * 0.5;
+      mesh.renderOrder = 4;
+      resident.group.add(mesh);
+      resident.mesh = mesh;
+      updateSpriteTexture(resident, resident.points[0]);
+    }
+
+    function finishImageLoad() {
+      if (imageCount + failedImageCount < expectedImages) return;
+      if (failedImageCount && modelLoaded && !loadFailed) {
+        setStatus("一部の住人画像を読み込めませんでした（" + imageCount + "/" + expectedImages + "）。");
+      }
+    }
+
+    function loadSprites() {
+      if (typeof global.Image !== "function") {
+        failedImageCount = expectedImages;
+        return;
+      }
+      RESIDENT_IDS.forEach(function (id) {
+        imageTextures[id] = Object.create(null);
+        DIRECTIONS.forEach(function (direction) {
+          var key = id + "-" + direction;
+          var image = new global.Image();
+          image.onload = function () {
+            imageCount += 1;
+            var texture = new THREE.Texture(image);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.flipY = true;
+            texture.premultiplyAlpha = false;
+            texture.generateMipmaps = true;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.needsUpdate = true;
+            imageTextures[id][direction] = texture;
+            var resident = residents.find(function (entry) { return entry.id === id; });
+            if (resident) {
+              buildResidentMesh(resident);
+              if (resident.mesh) updateSpriteTexture(resident, resident.points[0]);
+            }
+            finishImageLoad();
+          };
+          image.onerror = function () {
+            failedImageCount += 1;
+            finishImageLoad();
+          };
+          image.src = ASSET_ROOT + key + ".webp";
+        });
+      });
+    }
+
+    function configureRoomLighting(bounds) {
+      var size = bounds.getSize(new THREE.Vector3());
+      var center = bounds.getCenter(new THREE.Vector3());
+      var radius = Math.max(size.length() * 0.62, 4);
+      scene.add(new THREE.HemisphereLight(0xd8e3ff, 0x503728, 1.05));
+      scene.add(new THREE.AmbientLight(0xffdfbd, 0.38));
+      var warmLight = new THREE.DirectionalLight(0xffd4a6, 2.15);
+      warmLight.position.set(center.x - radius * 0.72, center.y + radius * 1.35, center.z + radius * 0.9);
+      warmLight.target.position.copy(center);
+      warmLight.castShadow = true;
+      warmLight.shadow.mapSize.set(1536, 1536);
+      warmLight.shadow.camera.left = -radius * 1.2;
+      warmLight.shadow.camera.right = radius * 1.2;
+      warmLight.shadow.camera.top = radius * 1.2;
+      warmLight.shadow.camera.bottom = -radius * 1.2;
+      warmLight.shadow.camera.near = 0.1;
+      warmLight.shadow.camera.far = radius * 5;
+      warmLight.shadow.camera.updateProjectionMatrix();
+      warmLight.shadow.bias = -0.00018;
+      warmLight.shadow.normalBias = 0.018;
+      warmLight.shadow.radius = 3;
+      scene.add(warmLight, warmLight.target);
+    }
+
+    function prepareUpperFade(object) {
+      var cloned = new Map();
+      object.traverse(function (item) {
+        if (!item.isMesh || !item.material) return;
+        var replace = function (source) {
+          if (cloned.has(source)) return cloned.get(source);
+          var material = source.clone();
+          var opaque = !source.transparent && source.opacity >= 0.999;
+          material.opacity = source.opacity;
+          material.alphaHash = opaque;
+          if (!opaque) {
+            material.transparent = true;
+            material.depthWrite = false;
+          }
+          cloned.set(source, material);
+          upperFadeMaterials.push({ material: material, opacity: source.opacity });
+          return material;
+        };
+        item.material = Array.isArray(item.material) ? item.material.map(replace) : replace(item.material);
+      });
+    }
+
+    function countModelResources(object) {
+      var materialSet = new Set();
+      var textureSet = new Set();
+      var meshes = 0;
+      object.traverse(function (item) {
+        if (!item.isMesh) return;
+        meshes += 1;
+        item.castShadow = true;
+        item.receiveShadow = true;
+        var materials = Array.isArray(item.material) ? item.material : [item.material];
+        materials.forEach(function (material) {
+          if (!material) return;
+          materialSet.add(material);
+          Object.keys(material).forEach(function (key) {
+            var value = material[key];
+            if (value && value.isTexture) textureSet.add(value);
+          });
+        });
+      });
+      modelCounts.meshes = meshes;
+      modelCounts.materials = materialSet.size;
+      modelCounts.textures = textureSet.size;
+      modelCounts.roots = [groundRoot, secondRoot, atticRoot].filter(Boolean).length;
+    }
+
+    function geometrySignature(geometry) {
+      var names = Object.keys(geometry.attributes).sort();
+      return names.map(function (name) {
+        var attribute = geometry.attributes[name];
+        var array = attribute.array || (attribute.data && attribute.data.array);
+        var constructorName = array && array.constructor ? array.constructor.name : "unknown";
+        var stride = attribute.data && attribute.data.stride ? attribute.data.stride : 0;
+        return name + ":" + attribute.itemSize + ":" + Boolean(attribute.normalized) + ":" + constructorName + ":" + stride;
+      }).join("|") + ";index:" + (geometry.index ? geometry.index.array.constructor.name : "none");
+    }
+
+    function fullGeometryGroup(geometry) {
+      if (geometry.groups.length === 0) return true;
+      if (geometry.groups.length !== 1) return false;
+      var group = geometry.groups[0];
+      var count = geometry.index ? geometry.index.count : geometry.attributes.position.count;
+      return group.start === 0 && group.count === count && group.materialIndex === 0;
+    }
+
+    function mergeableMesh(mesh) {
+      if (!mesh.isMesh || mesh.isSkinnedMesh || mesh.isInstancedMesh || mesh.children.length || !mesh.geometry || Array.isArray(mesh.material)) return false;
+      var material = mesh.material;
+      var geometry = mesh.geometry;
+      if (!material || material.transparent || material.opacity < 0.999 || material.visible === false) return false;
+      if (Object.keys(geometry.morphAttributes).length || !fullGeometryGroup(geometry)) return false;
+      if (Object.keys(geometry.attributes).some(function (name) { return geometry.attributes[name].isInterleavedBufferAttribute; })) return false;
+      var range = geometry.drawRange;
+      var elementCount = geometry.index ? geometry.index.count : geometry.attributes.position.count;
+      if (range.start !== 0 || (range.count !== Infinity && range.count !== elementCount)) return false;
+      return true;
+    }
+
+    function optimizeFloorMeshes(floorRoot, geometryReferences) {
+      var buckets = new Map();
+      var inverseRoot = new THREE.Matrix4().copy(floorRoot.matrixWorld).invert();
+      floorRoot.traverse(function (item) {
+        if (!item.isMesh) return;
+        sourceMeshCount += 1;
+        var geometry = item.geometry;
+        if (geometry && geometry.attributes.position) {
+          var elementCount = geometry.index ? geometry.index.count : geometry.attributes.position.count;
+          triangleCount += Math.floor(elementCount / 3);
+        }
+        if (!mergeableMesh(item) || item.renderOrder !== 0) return;
+        item.updateWorldMatrix(true, false);
+        var transform = new THREE.Matrix4().multiplyMatrices(inverseRoot, item.matrixWorld);
+        if (transform.determinant() < 0) return;
+
+        var signature = geometrySignature(geometry);
+        var key = item.material.uuid + "|" + signature;
+        var bucket = buckets.get(key);
+        if (!bucket) {
+          bucket = { material: item.material, signature: signature, meshes: [], geometries: [] };
+          buckets.set(key, bucket);
+        }
+        var baked = geometry.clone();
+        baked.applyMatrix4(transform);
+        bucket.meshes.push(item);
+        bucket.geometries.push(baked);
+      });
+
+      buckets.forEach(function (bucket) {
+        if (bucket.geometries.length < 2) {
+          bucket.geometries.forEach(function (geometry) { geometry.dispose(); });
+          return;
+        }
+        var merged = global.BufferGeometryUtils && global.BufferGeometryUtils.mergeGeometries(bucket.geometries, false);
+        if (!merged) {
+          bucket.geometries.forEach(function (geometry) { geometry.dispose(); });
+          return;
+        }
+        bucket.meshes.forEach(function (mesh) {
+          if (mesh.parent) mesh.parent.remove(mesh);
+          var references = (geometryReferences.get(mesh.geometry) || 1) - 1;
+          if (references <= 0) {
+            mesh.geometry.dispose();
+            geometryReferences.delete(mesh.geometry);
+          } else {
+            geometryReferences.set(mesh.geometry, references);
+          }
+        });
+        bucket.geometries.forEach(function (geometry) { geometry.dispose(); });
+        var batchedMesh = new THREE.Mesh(merged, bucket.material);
+        batchedMesh.name = "batched-" + floorRoot.name + "-" + bucket.material.name;
+        batchedMesh.castShadow = true;
+        batchedMesh.receiveShadow = true;
+        floorRoot.add(batchedMesh);
+        mergedMeshCount += 1;
+      });
+    }
+
+    function optimizeRoomGeometry() {
+      if (!global.BufferGeometryUtils || typeof global.BufferGeometryUtils.mergeGeometries !== "function") return;
+      try {
+        root.updateMatrixWorld(true);
+        var references = new Map();
+        root.traverse(function (item) {
+          if (item.isMesh && item.geometry) references.set(item.geometry, (references.get(item.geometry) || 0) + 1);
+        });
+        [groundRoot, secondRoot, atticRoot].forEach(function (floorRoot) {
+          floorRoot.updateWorldMatrix(true, true);
+          optimizeFloorMeshes(floorRoot, references);
+        });
+      } catch (error) {
+        console.error("HOUSE_105 mesh batching skipped after an error; keeping the room visible", error);
+      }
+      console.info("HOUSE_105 static mesh batches", {
+        sourceMeshes: sourceMeshCount,
+        batchedMeshes: mergedMeshCount,
+        triangles: triangleCount
+      });
+    }
+
+    function showUnavailable(message) {
+      loadFailed = true;
+      statusSummary = "unavailable";
+      setStatus(message);
+      if (root && root.parent) root.parent.remove(root);
+      root = groundRoot = secondRoot = atticRoot = null;
+      modelLoaded = false;
+      modelCounts = { roots: 0, meshes: 0, materials: 0, textures: 0 };
+    }
+
+    function onModelLoaded(gltf) {
+      try {
+        var loadedRoot = gltf.scene;
+        var loadedGround = loadedRoot.getObjectByName("RC_GROUND");
+        var loadedSecond = loadedRoot.getObjectByName("RC_SECOND");
+        var loadedAttic = loadedRoot.getObjectByName("RC_ATTIC");
+        if (!loadedGround || !loadedSecond || !loadedAttic) {
+          throw new Error("HOUSE_105の階層名（RC_GROUND / RC_SECOND / RC_ATTIC）が見つかりません。");
+        }
+        root = loadedRoot;
+        groundRoot = loadedGround;
+        secondRoot = loadedSecond;
+        atticRoot = loadedAttic;
+        prepareUpperFade(secondRoot);
+        prepareUpperFade(atticRoot);
+        root.name = root.name || "HOUSE_105";
+        scene.add(root);
+        optimizeRoomGeometry();
+        modelBounds.setFromObject(root);
+        groundBounds.setFromObject(groundRoot);
+        if (modelBounds.isEmpty() || groundBounds.isEmpty()) throw new Error("HOUSE_105のメッシュが空です。");
+        var avatarHeight = clamp(modelBounds.getSize(new THREE.Vector3()).y / 8, 0.75, 1.8);
+        residents.forEach(function (resident) {
+          resident.height = avatarHeight;
+          buildResidentMesh(resident);
+        });
+        configureRoomLighting(modelBounds);
+        countModelResources(root);
+        updateFittedSpans(viewportWidth / viewportHeight);
+        modelLoaded = true;
+        loadFailed = false;
+        statusSummary = "loaded";
+        if (failedImageCount && imageCount + failedImageCount >= expectedImages) {
+          setStatus("一部の住人画像を読み込めませんでした（" + imageCount + "/" + expectedImages + "）。");
+        } else {
+          setStatus("");
+        }
+        renderer.shadowMap.needsUpdate = true;
+        refreshMarkers();
+      } catch (error) {
+        console.error("HOUSE_105 model setup failed", error);
+        showUnavailable("HOUSE_105を読み込めませんでした。モデルの階層とGLBデータを確認してください。");
+      }
+    }
+
+    function loadModel() {
+      try {
+        if (typeof global.fetch !== "function") throw new Error("fetch is unavailable");
+        var loader = new GLTFLoader();
+        global.fetch(ASSET_ROOT + "house-105.glb", { credentials: "same-origin" })
+          .then(function (response) {
+            if (!response.ok) throw new Error("HOUSE_105 GLB request failed: " + response.status);
+            return response.arrayBuffer();
+          })
+          .then(function (data) {
+            loader.parse(data, ASSET_ROOT, onModelLoaded, function (error) {
+              console.error("HOUSE_105 GLB parse failed", error);
+              showUnavailable("HOUSE_105を読み込めませんでした。GLBデータを確認してください。");
+            });
+          })
+          .catch(function (error) {
+            console.error("HOUSE_105 GLB fetch failed", error);
+            showUnavailable("HOUSE_105を読み込めませんでした。GLBファイルを確認してください。");
+        });
+      } catch (error) {
+        console.error("HOUSE_105 load failed", error);
+        showUnavailable("HOUSE_105を読み込めませんでした。GLBファイルを確認してください。");
+      }
+    }
+
+    function updateResidentWorldPositions() {
+      residents.forEach(function (resident) {
+        var position = pathPosition(resident, residentClock);
+        resident.group.position.copy(position);
+        resident.group.visible = resident.floor === 0 || progress < 0.88;
+        if (resident.mesh) {
+          resident.mesh.quaternion.copy(camera.quaternion);
+          updateSpriteTexture(resident, position);
+        }
+      });
+    }
+
+    function createMarker(desk, index) {
+      var selected = desk.residentId === selectedId || (!selectedId && desk.residentId === "mio");
+      var sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: markerTexture(index, selected),
+        color: 0xffffff,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false
+      }));
+      sprite.name = "seat-marker-" + desk.id;
+      sprite.position.copy(desk.position);
+      sprite.position.y += 0.46;
+      sprite.scale.set(selected ? 0.62 : 0.5, selected ? 0.62 : 0.5, 1);
+      sprite.renderOrder = 8;
+      sprite.userData = { id: desk.id, residentId: desk.residentId, index: index + 1, anchor: [desk.position.x, desk.position.y, desk.position.z] };
+      return sprite;
+    }
+
+    function markerTexture(index, selected) {
+      var key = index + ":" + (selected ? "selected" : "normal");
+      if (markerTextureCache[key]) return markerTextureCache[key];
+      var canvas = global.document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 128;
+      var context = canvas.getContext("2d");
+      if (context) {
+        context.clearRect(0, 0, 128, 128);
+        context.shadowColor = selected ? "rgba(255,225,145,.9)" : "rgba(255,184,78,.65)";
+        context.shadowBlur = selected ? 12 : 7;
+        context.beginPath();
+        context.arc(64, 64, selected ? 53 : 49, 0, Math.PI * 2);
+        context.fillStyle = selected ? "#fff0b4" : "#d89a48";
+        context.fill();
+        context.shadowBlur = 0;
+        context.lineWidth = selected ? 7 : 5;
+        context.strokeStyle = selected ? "#fffdf0" : "#ffe3aa";
+        context.stroke();
+        context.fillStyle = selected ? "#25304b" : "#fff8e8";
+        context.font = "900 60px Arial, sans-serif";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(String(index + 1), 64, 66);
+      }
+      var texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.premultiplyAlpha = false;
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+      markerTextureCache[key] = texture;
+      return texture;
+    }
+
+    function refreshMarkers() {
+      if (!markerSprites.length) {
+        desks.forEach(function (desk, index) {
+          var sprite = createMarker(desk, index);
+          markerSprites.push(sprite);
+          markerGroup.add(sprite);
+        });
+      }
+      markerSprites.forEach(function (sprite, index) {
+        var selected = sprite.userData.residentId === selectedId || (!selectedId && sprite.userData.residentId === "mio");
+        sprite.material.map = markerTexture(index, selected);
+        sprite.material.needsUpdate = true;
+        sprite.scale.set(selected ? 0.62 : 0.5, selected ? 0.62 : 0.5, 1);
+        sprite.visible = markerOn && modelLoaded;
+      });
+      markerGroup.visible = markerOn && modelLoaded;
+    }
+
+    function screenPoint(point) {
+      var projected = point.clone().project(camera);
+      return {
+        x: (projected.x * 0.5 + 0.5) * viewportWidth,
+        y: (-projected.y * 0.5 + 0.5) * viewportHeight,
+        depth: projected.z
+      };
+    }
+
+    function makeSnapshot(now) {
+      var residentMap = Object.create(null);
+      residents.forEach(function (resident) {
+        var position = pathPosition(resident, residentClock);
+        var screen = screenPoint(position.clone().add(new THREE.Vector3(0, resident.height * 0.5, 0)));
+        var floorVisible = resident.floor === 0 || progress < 0.94;
+        var spriteLoaded = Boolean(resident.mesh);
+        residentMap[resident.id] = {
+          id: resident.id,
+          x: position.x,
+          y: position.y,
+          z: position.z,
+          floor: resident.floor,
+          visible: Boolean(modelLoaded && !loadFailed && floorVisible && spriteLoaded && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
+          spriteLoaded: spriteLoaded,
+          screen: { x: screen.x, y: screen.y }
+        };
+      });
+
+      var anchors = desks.map(function (desk, index) {
+        var point = desk.position.clone();
+        var screen = screenPoint(point);
+        var resident = residents.find(function (entry) { return entry.id === desk.residentId; });
+        return {
+          id: desk.id,
+          residentId: desk.residentId,
+          x: point.x,
+          y: point.y,
+          z: point.z,
+          floor: resident ? resident.floor : null,
+          index: index + 1,
+          screen: { x: screen.x, y: screen.y }
+        };
+      });
+      var primary = desks.find(function (desk) { return desk.residentId === selectedId; }) || desks.find(function (desk) { return desk.residentId === "mio"; }) || desks[0];
+      var primaryScreen = primary ? screenPoint(primary.position) : { x: 0, y: 0 };
+      var target = houseTarget.clone().lerp(livingTarget, progress);
+      var offset = camera.position.clone().sub(target);
+      return {
+        view: view,
+        progress: progress,
+        elapsed: clock,
+        residents: residentMap,
+        desks: anchors,
+        marker: {
+          on: markerOn,
+          primaryId: primary ? primary.id : null,
+          primary: primary ? { id: primary.id, residentId: primary.residentId, x: primary.position.x, y: primary.position.y, z: primary.position.z, screen: { x: primaryScreen.x, y: primaryScreen.y } } : null,
+          anchors: anchors
+        },
+        selectedResident: selectedId,
+        paused: paused,
+        assetsReady: imageCount,
+        assetsTotal: expectedImages,
+        sceneSource: metadata.source || "HOUSE_105",
+        assetCounts: {
+          modelLoaded: modelLoaded,
+          loadState: statusSummary,
+          rootNames: root ? [groundRoot.name, secondRoot.name, atticRoot.name] : [],
+          sourceMeshes: sourceMeshCount,
+          batchedMeshes: mergedMeshCount,
+          triangles: triangleCount,
+          drawCalls: renderer.info.render.calls,
+          trianglesRendered: renderer.info.render.triangles,
+          seatMarkers: desks.length,
+          roots: modelCounts.roots,
+          meshes: modelCounts.meshes,
+          materials: modelCounts.materials,
+          textures: modelCounts.textures,
+          spriteImagesReady: imageCount,
+          spriteImagesFailed: failedImageCount,
+          spriteImagesTotal: expectedImages
+        },
+        camera: {
+          position: [camera.position.x, camera.position.y, camera.position.z],
+          target: [target.x, target.y, target.z],
+          yaw: Math.atan2(offset.x, offset.z),
+          pitch: Math.atan2(offset.y, Math.hypot(offset.x, offset.z)),
+          scale: camera.top > 0 ? 1 / camera.top : 0,
+          span: camera.top * 2,
+          focus: { x: target.x, y: target.y, z: target.z }
+        },
+        frame: {
+          intervalMs: frameIntervalMs,
+          renderMs: lastFrameMs,
+          averageRenderMs: averageFrameMs,
+          fpsEstimate: frameIntervalMs > 0 ? 1000 / frameIntervalMs : 0
+        }
+      };
+    }
+
+    function draw(now) {
+      resize();
+      updateCamera(now);
+      updateResidentWorldPositions();
+      var renderStart = currentTime();
+      renderer.render(scene, camera);
+      lastFrameMs = currentTime() - renderStart;
+      measuredFrames += 1;
+      averageFrameMs += (lastFrameMs - averageFrameMs) / measuredFrames;
+    }
+
+    function tick(now) {
+      if (!lastFrame) lastFrame = now;
+      else frameIntervalMs = now - lastFrame;
+      var dt = clamp((now - lastFrame) / 1000, 0, 0.06);
+      lastFrame = now;
+      clock += dt;
+      if (!paused) residentClock += dt;
+      draw(now);
+      global.requestAnimationFrame(tick);
+    }
+
+    function setView(next) {
+      next = next === "living" ? "living" : "house";
+      var now = currentTime();
+      updateCamera(now);
+      if (next === view && progressTo === (next === "living" ? 1 : 0)) return;
+      progressFrom = progress;
+      progressTo = next === "living" ? 1 : 0;
+      view = next;
+      transitionStart = now;
+      transitionDuration = options.reducedMotion ? 1 : Math.max(180, 1120 * Math.abs(progressTo - progressFrom));
+      if (options.reducedMotion) progress = progressTo;
+    }
+
+    function selectResident(id) {
+      if (id == null || id === "") selectedId = null;
+      else selectedId = residents.some(function (resident) { return resident.id === id; }) ? id : null;
+      residents.forEach(function (resident) { resident.highlight.visible = resident.id === selectedId; });
+      refreshMarkers();
+    }
+
+    function setPaused(value) {
+      paused = Boolean(value);
+    }
+
+    function setMarker(value) {
+      markerOn = Boolean(value);
+      refreshMarkers();
+    }
+
+    function snapshot() {
+      var now = currentTime();
+      updateCamera(now);
+      return makeSnapshot(now);
+    }
+
+    resize();
+    transitionStart = currentTime();
+    if (typeof global.requestAnimationFrame === "function") global.requestAnimationFrame(tick);
+    loadSprites();
+    loadModel();
+
+    return {
+      setView: setView,
+      setPaused: setPaused,
+      selectResident: selectResident,
+      setMarker: setMarker,
+      snapshot: snapshot
+    };
+  }
+
+  global.createHouseScene = createHouseScene;
+})(typeof window !== "undefined" ? window : globalThis);

@@ -33,3 +33,24 @@ are not included in RenCrow_PORTAL.
 The upstream PuruPuru source snapshot currently has no `NOTICE` file, so there
 is no upstream NOTICE content to inherit. A future PuruPuru update must check
 for a newly added `NOTICE` before it is distributed.
+
+## Three.js
+
+RenCrow_PORTAL includes a local browser bundle derived from Three.js r178 for
+the `/living` preview. The bundle contains Three.js core, `GLTFLoader`, and
+`BufferGeometryUtils`.
+
+Copyright © 2010-2025 three.js authors
+
+Licensed under the MIT License.
+
+Source:
+https://github.com/mrdoob/three.js/
+
+License:
+internal/portal/web/living/vendor/THREE-LICENSE.txt
+
+Modifications:
+Curated into `internal/portal/web/living/vendor/three-kit.js` for local browser
+use by RenCrow_PORTAL. The release layout copies the bundled license to
+`licenses/Three.js-MIT.txt`.

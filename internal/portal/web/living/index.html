@@ -3,38 +3,202 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101720">
   <title>リビング | RenCrow PORTAL</title>
   <link rel="stylesheet" href="/assets/living/living.css">
-  <script src="/assets/living/living.js" defer></script>
+  <script defer src="/assets/living/vendor/three-kit.js"></script>
+  <script defer src="/assets/living/assets/house-data.js"></script>
+  <script defer src="/assets/living/scene.js"></script>
+  <script defer src="/assets/living/living.js"></script>
 </head>
 <body>
-  <main class="living" data-board-url="{{.}}">
-    <header class="masthead">
-      <div class="brand-mark" aria-hidden="true">R</div>
-      <div><span>RenCrow PORTAL</span><h1>リビング</h1></div>
-      <a href="/">PORTAL ホーム</a>
-    </header>
-    <section class="house" aria-label="リビングの外観と人物">
-      <figure>
-        <img id="house-image" src="/assets/living/lcp.jpg" alt="HOUSEの三層正面断面の参考図">
-        <figcaption id="house-caption">全体（LCP） · 参考図</figcaption>
-        <div class="view-options" role="group" aria-label="リビングの視点">
-          <button type="button" data-view="lcp" aria-pressed="true">全体（LCP）</button>
-          <button type="button" data-view="workplace" aria-pressed="false">1階（Workplace）</button>
-        </div>
-      </figure>
-      <div class="selection">
-        <div class="people" role="group" aria-label="人物を選ぶ">
-          <button type="button" data-person="mio" data-participant="rencrow-comm" aria-pressed="true"><span class="avatar mio" aria-hidden="true">ミ</span><span class="person-name">Mio</span></button>
-          <button type="button" data-person="muse" data-participant="muse-comm" aria-pressed="false"><span class="avatar muse" aria-hidden="true">む</span><span class="person-name">むー</span></button>
-          <button type="button" data-person="kit" data-participant="dots-comm" aria-pressed="false"><span class="avatar kit" aria-hidden="true">K</span><span class="person-name">KIT</span></button>
-          <button type="button" data-person="grok" data-participant="grok-comm" aria-pressed="false"><span class="avatar grok" aria-hidden="true">ご</span><span class="person-name">ごろー</span></button>
-        </div>
-        {{if .}}<a class="open-board" id="open-board" href="{{.}}">Mio の会話をBOARDで開く</a>
-        {{else}}<p class="status">BOARDの接続先が未設定です。</p>{{end}}
+  <div class="page-shell living" data-board-url="{{.}}">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="RenCrow PORTAL ホーム">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <span class="brand-copy">
+          <span class="brand-name">RenCrow PORTAL</span>
+          <span class="brand-note">PORTAL ホーム</span>
+        </span>
+      </a>
+
+      <nav class="view-switch" aria-label="表示するビュー">
+        <button id="house-tab" class="view-tab" type="button" aria-pressed="true" data-view="lcp">
+          <span>HOUSE</span>
+        </button>
+        <button id="living-tab" class="view-tab" type="button" aria-pressed="false" data-view="workplace">
+          <span>LIVING</span>
+        </button>
+      </nav>
+
+      <div class="preview-status" aria-label="PORTALの外観プレビュー、状況データ未接続">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>外観プレビュー</span>
+        <span class="status-divider" aria-hidden="true"></span>
+        <span class="status-sub">状況データ未接続</span>
       </div>
-    </section>
-    <p class="status">HOUSEの在室・位置情報は未接続です。</p>
-  </main>
+    </header>
+
+    <main id="top">
+      <section class="scene-section" aria-label="RenCrow House のシーン">
+        <div class="scene-frame" id="scene-frame" data-view="lcp">
+          <canvas id="scene" aria-label="RenCrow House のHOUSE_105 3Dシーン" role="img"></canvas>
+          <div class="scene-grain" aria-hidden="true"></div>
+          <div class="scene-topline">
+            <div class="scene-label">
+              <span class="scene-kicker">PORTAL · 外観プレビュー</span>
+              <span class="scene-view-name" id="scene-view-name">HOUSE / 全景</span>
+            </div>
+            <div class="scene-controls" aria-label="シーン操作">
+              <button id="motion-toggle" class="quiet-control" type="button" aria-pressed="false" aria-label="住人の動きを一時停止">
+                <span class="control-icon pause-icon" aria-hidden="true"><i></i><i></i></span>
+                <span id="motion-label">動きを止める</span>
+              </button>
+              <button id="marker-toggle" class="quiet-control marker-control" type="button" aria-pressed="false" aria-label="8人の作業位置を表示">
+                <span class="marker-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span>作業位置</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="scene-bottomline">
+            <div class="scene-context" aria-live="polite">
+              <span class="context-label" id="scene-context-label">外から眺める</span>
+              <span class="selected-resident" id="selected-resident" hidden></span>
+            </div>
+            <div class="scene-actions">
+              <span class="marker-note" id="marker-note" hidden>8人の仮配置を表示中</span>
+              <button id="living-jump" class="scene-link" type="button" aria-label="LIVING ビューへ移動">
+                <span>みんなを見る</span><span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </div>
+          <p class="scene-load-status" id="scene-load-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="stage-caption">
+          <span><span class="caption-rule" aria-hidden="true"></span>HOUSE_105</span>
+          <span id="stage-caption-view">全景</span>
+        </div>
+      </section>
+
+      <section class="living-section" id="living-board" aria-labelledby="living-title" hidden>
+        <div class="board-heading">
+          <div>
+            <p class="eyebrow">THE PEOPLE AROUND THE HOUSE</p>
+            <h2 id="living-title">みんなの今</h2>
+          </div>
+          <p class="board-note">活動・作業・所在地・来訪情報は未取得です。<br>外観プレビューは実際の状態を示しません。</p>
+        </div>
+
+        <div class="board-toolbar">
+          <div class="filters" role="group" aria-label="住人のグループで絞り込む">
+            <button class="filter-button is-active" type="button" data-filter="all" aria-pressed="true">全員</button>
+            <button class="filter-button" type="button" data-filter="human" aria-pressed="false">人型</button>
+            <button class="filter-button" type="button" data-filter="beast" aria-pressed="false">四獣</button>
+            <button class="filter-button" type="button" data-filter="external" aria-pressed="false">外部</button>
+          </div>
+          <p class="selection-hint"><span class="hint-dot" aria-hidden="true"></span>カードを選ぶとシーン内の位置を確認できます</p>
+        </div>
+
+        <div class="resident-groups" id="resident-groups">
+          <section class="resident-group" data-group="human" aria-labelledby="group-human-title">
+            <div class="group-heading"><h3 id="group-human-title">人型</h3><span>HUMANOID</span></div>
+            <div class="resident-grid">
+              <button class="resident-card" type="button" data-card="mio" data-group="human" data-selectable="true" aria-pressed="false" aria-label="Mioをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/mio-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">M</span></span>
+                <span class="resident-copy"><span class="resident-name">Mio</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="resident-card" type="button" data-card="shiro" data-group="human" data-selectable="true" aria-pressed="false" aria-label="Shiroをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/shiro-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">S</span></span>
+                <span class="resident-copy"><span class="resident-name">Shiro</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="resident-card" type="button" data-card="kuro" data-group="human" data-selectable="true" aria-pressed="false" aria-label="Kuroをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/kuro-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">K</span></span>
+                <span class="resident-copy"><span class="resident-name">Kuro</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="resident-card" type="button" data-card="midori" data-group="human" data-selectable="true" aria-pressed="false" aria-label="Midoriをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/midori-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">M</span></span>
+                <span class="resident-copy"><span class="resident-name">Midori</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="resident-group" data-group="beast" aria-labelledby="group-beast-title">
+            <div class="group-heading"><h3 id="group-beast-title">四獣</h3><span>FOUR BEASTS</span></div>
+            <div class="resident-grid">
+              <button class="resident-card" type="button" data-card="aka" data-group="beast" data-selectable="true" aria-pressed="false" aria-label="Akaをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/aka-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">A</span></span>
+                <span class="resident-copy"><span class="resident-name">Aka</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="resident-card" type="button" data-card="ao" data-group="beast" data-selectable="true" aria-pressed="false" aria-label="Aoをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/ao-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">A</span></span>
+                <span class="resident-copy"><span class="resident-name">Ao</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="resident-card" type="button" data-card="kin" data-group="beast" data-selectable="true" aria-pressed="false" aria-label="Kinをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/kin-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">K</span></span>
+                <span class="resident-copy"><span class="resident-name">Kin</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="resident-card" type="button" data-card="gin" data-group="beast" data-selectable="true" aria-pressed="false" aria-label="Ginをシーン内で選択">
+                <span class="portrait"><img src="/assets/living/assets/gin-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">G</span></span>
+                <span class="resident-copy"><span class="resident-name">Gin</span><span class="resident-role">REN CROW</span><span class="resident-status"><i></i>未取得</span></span>
+                <span class="card-arrow" aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="resident-group" data-group="external" aria-labelledby="group-external-title">
+            <div class="group-heading"><h3 id="group-external-title">外部</h3><span>AROUND US</span></div>
+            <div class="resident-grid">
+              <article class="resident-card resident-card--external" data-card="lumina" data-group="external" data-selectable="false">
+                <span class="portrait"><img src="/assets/living/assets/lumina-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">L</span></span>
+                <span class="resident-copy"><span class="resident-name">Lumina</span><span class="resident-role">EXTERNAL</span><span class="resident-status"><i></i>未取得</span></span>
+              </article>
+              <article class="resident-card resident-card--external" data-card="muusan" data-group="external" data-selectable="false">
+                <span class="portrait portrait--type"><span class="portrait-monogram" aria-hidden="true">む</span></span>
+                <span class="resident-copy"><span class="resident-name">むーさん</span><span class="resident-role">EXTERNAL</span><span class="resident-status"><i></i>未取得</span></span>
+              </article>
+              <article class="resident-card resident-card--external" data-card="kit" data-group="external" data-selectable="false">
+                <span class="portrait portrait--type"><span class="portrait-monogram" aria-hidden="true">K</span></span>
+                <span class="resident-copy"><span class="resident-name">KIT</span><span class="resident-role">EXTERNAL</span><span class="resident-status"><i></i>未取得</span></span>
+              </article>
+              <article class="resident-card resident-card--external" data-card="goro" data-group="external" data-selectable="false">
+                <span class="portrait portrait--type"><span class="portrait-monogram" aria-hidden="true">ご</span></span>
+                <span class="resident-copy"><span class="resident-name">ごろー</span><span class="resident-role">EXTERNAL</span><span class="resident-status"><i></i>未取得</span></span>
+              </article>
+            </div>
+          </section>
+        </div>
+
+      </section>
+
+      <section class="board-link-panel" aria-labelledby="board-link-title">
+        <div class="board-link-heading">
+          <h2 id="board-link-title">BOARDで会話を開く</h2>
+        </div>
+        <div class="board-link-controls">
+          <div class="people" role="group" aria-label="BOARDで開く参加者を選ぶ">
+            <button type="button" data-person="mio" data-participant="rencrow-comm" aria-pressed="true"><span class="avatar mio" aria-hidden="true">ミ</span><span class="person-name">Mio</span></button>
+            <button type="button" data-person="muse" data-participant="muse-comm" aria-pressed="false"><span class="avatar muse" aria-hidden="true">む</span><span class="person-name">むー</span></button>
+            <button type="button" data-person="kit" data-participant="dots-comm" aria-pressed="false"><span class="avatar kit" aria-hidden="true">K</span><span class="person-name">KIT</span></button>
+            <button type="button" data-person="grok" data-participant="grok-comm" aria-pressed="false"><span class="avatar grok" aria-hidden="true">ご</span><span class="person-name">ごろー</span></button>
+          </div>
+          {{if .}}<a class="open-board" id="open-board" href="{{.}}">Mio の会話をBOARDで開く</a>
+          {{else}}<p class="board-unavailable">BOARDの接続先が未設定です。</p>{{end}}
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>REN CROW HOUSE</span>
+      <span>PORTALの外観プレビュー <span class="footer-dot">·</span> 状況データ未接続</span>
+    </footer>
+  </div>
 </body>
 </html>

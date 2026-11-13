@@ -36,6 +36,11 @@ Config、health、errorを提供します。PORTALはWSLや外部databaseを標�
 別PCからTailnet経由でBOARDを使う場合は、BOARDをloopbackで維持したままTailscale ServeのHTTPS URLを`board_url`または`RENCROW_BOARD_URL`へ明示設定します（例: `https://<SelfDNS>:8443/`）。設定済みURLはPORTALを開いた端末にかかわらず表示します。BOARDの管理認証はPORTALと独立しており、管理キーをPORTALへ渡したりBOARD管理APIをproxyしたりしません。認証cookieに`Secure`属性がある場合、browserから送信するにはHTTPSで開く必要があります。リンク表示条件は表示制御であり認証境界ではありません。
 
 Luminaの素材確認は、認証済みPORTALの`/lumina`で行えます。これは表示確認専用の画面で、配置済みのプレビュー素材を使った立ち絵と表情切替を提供します。LuminaをChat／IdleChatのAgentとして公開するには、別途`.purupuru`正規パッケージとCORE側のActor契約を追加し、既存のキャラクター登録・同期経路へ統合します。
+
+HOUSE_105の室内プレビューは、認証済みPORTALの`/living`で開きます。既定は家全体のLCP viewで、`?view=lcp`と`?view=workplace`で切り替えます。どちらも同じcanvasとHOUSE_105のgeometry／boundsを保ったままカメラ視点だけを切り替えます。HOUSE／Living2Dの表示確認用であり、PORTALのChat／IdleChat／Games mode、CORE proxy、WORLDの正式表示経路には追加しません。WORLD表示仕様やR04 mock-only World PoCの受入を示すものでもありません。
+
+既存のBOARD参加者リンクとqueryは維持し、`agent`、`from=living`、`person`、`view`を引き継ぎます。BOARDから戻ると、室内の選択中personとviewを復元します。モデルは`internal/portal/web/living/assets/house-105.glb`に固定し、`HOUSE_105_review.blend`由来のprototypeをPORTAL向けに変換したものです（SHA-256: `602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e`）。PORTAL用GLBではLIVING正面の支柱2本と、正面・階段脇のivy cluster／vineを削除し、4つのワークデスクに既存椅子部品を再配置・複製して各2席（計8席）を設けています。階段、手すり、その他の植物は保持しています。人物表示には既存のLiving2D spritesを使います。
+
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
 GamesではCOREの`supported_games`に含まれるタイトルだけを起動できます。現在のAgent E2E対象はNetHackです。盤面とturn結果はGAMES Observer、Agent identityと判断はCOREを正本とし、PORTALは利用者向けの選択・session・観戦UIだけを持ちます。
 
@@ -93,7 +98,7 @@ PORTALは`//go:embed web/*`でassetをbinaryへ埋め込むため、ファイル
 
 ### ライセンスと配布範囲
 
-RenCrow_PORTAL本体と`runtime-host.js`／`runtime-host.css`はルートのMIT License、PuruPuru由来の`app.js`／`index.html`／`styles.css`／生成`runtime-app.js`はApache License 2.0です。著作権・入手元・改変内容・現在の上流`NOTICE`の有無は`THIRD_PARTY_NOTICES.md`、Apache License全文は`internal/portal/web/purupuru/LICENSE`を正本とします。
+RenCrow_PORTAL本体と`runtime-host.js`／`runtime-host.css`はルートのMIT License、Living previewの`vendor/three-kit.js`（Three.js r178、Three.js core／GLTFLoader／BufferGeometryUtilsを含む）はMIT License、PuruPuru由来の`app.js`／`index.html`／`styles.css`／生成`runtime-app.js`はApache License 2.0です。著作権・入手元・改変内容・現在の上流`NOTICE`の有無は`THIRD_PARTY_NOTICES.md`、各ライセンス全文は`internal/portal/web/living/vendor/THREE-LICENSE.txt`および`internal/portal/web/purupuru/LICENSE`を正本とします。
 
 PuruPuru付属のdemo画像、スクリーンショット、アイコン、フォント、vendored MediaPipeは同梱しません。`internal/portal/web/purupuru/assets/<character>/`のPNGは、明示的に設定したRenCrowキャラクターpackageから展開したRenCrow素材であり、PuruPuru由来コードのライセンス範囲には含めません。
 
@@ -185,7 +190,7 @@ Windowsの配布用buildは次の入口を使います。
 .\build\rencrow-portal.exe
 ```
 
-どちらのbuild入口も、binaryと同じ配布directoryへ`LICENSE`、`THIRD_PARTY_NOTICES.md`、`licenses/PuruPuruPNGTuber-Apache-2.0.txt`を配置します。EXEやZIPを配布するときは、このlayout全体を対象にします。
+どちらのbuild入口も、binaryと同じ配布directoryへ`LICENSE`、`THIRD_PARTY_NOTICES.md`、`licenses/PuruPuruPNGTuber-Apache-2.0.txt`、`licenses/Three.js-MIT.txt`を配置します。EXEやZIPを配布するときは、このlayout全体を対象にします。
 
 常駐運用ではuser serviceを使います。
 

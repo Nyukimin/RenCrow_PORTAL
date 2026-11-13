@@ -25,6 +25,10 @@ func main() {
 			source:      filepath.Join("internal", "portal", "web", "purupuru", "LICENSE"),
 			destination: filepath.Join("licenses", "PuruPuruPNGTuber-Apache-2.0.txt"),
 		},
+		{
+			source:      filepath.Join("internal", "portal", "web", "living", "vendor", "THREE-LICENSE.txt"),
+			destination: filepath.Join("licenses", "Three.js-MIT.txt"),
+		},
 	}
 	for _, file := range files {
 		if err := copyFile(
