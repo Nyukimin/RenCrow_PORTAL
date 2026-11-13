@@ -8,11 +8,12 @@
   <link rel="stylesheet" href="/assets/living/living.css?v={{.AssetVersion}}">
   <script defer src="/assets/living/vendor/three-kit.js"></script>
   <script defer src="/assets/living/assets/house-data.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/living/sd-motion.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/scene.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/living.js?v={{.AssetVersion}}"></script>
 </head>
 <body>
-  <div class="page-shell living" data-board-url="{{.BoardURL}}">
+  <div class="page-shell living" data-board-url="{{.BoardURL}}" data-asset-version="{{.AssetVersion}}">
     <header class="site-header">
       <a class="brand" href="/" aria-label="RenCrow PORTAL ホーム">
         <span class="brand-mark" aria-hidden="true">R</span>
@@ -79,6 +80,24 @@
           </div>
         </div>
       </section>
+
+      <details class="motion-preview" id="motion-preview" hidden>
+        <summary>キャラクターの動作サンプル</summary>
+        <form id="motion-preview-form">
+          <label>キャラクター <select name="character">
+            <option value="mio">Mio</option><option value="shiro">Shiro</option><option value="kuro">Kuro</option>
+            <option value="midori">Midori</option><option value="aka">Aka</option><option value="ao">Ao</option>
+            <option value="kin">Kin</option><option value="gin">Gin</option><option value="lumina">Lumina（訪問）</option>
+          </select></label>
+          <label>場所 <select name="seat"><option value="walk">通路（8方向）</option><option value="dining">ダイニング</option><option value="sofa">ソファ</option><option value="desk">作業机</option></select></label>
+          <label>動作 <select name="activity"></select></label>
+          <label><input type="checkbox" name="close" checked> 近くで見る</label>
+          <button type="submit" class="quiet-control">再生</button>
+          <button type="button" class="quiet-control" id="motion-preview-seek">着席中を見る</button>
+          <button type="button" class="quiet-control" id="motion-preview-stop">終了</button>
+        </form>
+        <p id="motion-preview-status" role="status">姿勢と家具の位置を確認するサンプルです。</p>
+      </details>
 
       <section class="living-section" id="living-board" aria-labelledby="living-title" hidden>
         <div class="board-heading">

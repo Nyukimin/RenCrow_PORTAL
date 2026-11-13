@@ -146,7 +146,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 // Fingerprint the small assets that must update together on /living.
 func livingAssetVersion() (string, error) {
 	digest := sha256.New()
-	for _, name := range []string{"living.css", "assets/house-data.js", "scene.js", "living.js"} {
+	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "scene.js", "living.js"} {
 		file, err := webFiles.ReadFile("web/living/" + name)
 		if err != nil {
 			return "", fmt.Errorf("リビングのアセット %s を読む: %w", name, err)

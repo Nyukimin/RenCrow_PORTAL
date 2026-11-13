@@ -289,3 +289,9 @@ button.resident-card[aria-pressed="true"] { border-color: var(--gold); backgroun
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.motion-preview { margin: 16px 0; padding: 12px 16px; border: 1px solid #65709a60; border-radius: 12px; }
+.motion-preview summary { cursor: pointer; }
+.motion-preview form { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 15px; margin: 12px 0 8px; }
+.motion-preview label { display: flex; gap: 6px; align-items: center; }
+.motion-preview select { color: inherit; background: #222c49; border: 1px solid #65709a; border-radius: 5px; padding: 5px 8px; font: inherit; }
+.motion-preview p { margin: 0; }

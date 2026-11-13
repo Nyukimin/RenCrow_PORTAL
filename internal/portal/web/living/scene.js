@@ -2,7 +2,7 @@
   "use strict";
 
   var RESIDENT_IDS = ["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"];
-  var DIRECTIONS = ["front", "left", "right", "back"];
+  var CARDINAL = ["front", "left", "right", "back"];
   var NAVY = 0x111e36;
   var ASSET_ROOT = "/assets/living/assets/";
   // Each directional image has a two-pixel transparent strip below the feet.
@@ -22,6 +22,9 @@
     }
 
     var THREE = global.THREE;
+    var motion = global.houseSDMotion;
+    var motionEnabled = Boolean(motion && options.motionPreview);
+    var directions = motionEnabled ? motion.directions : CARDINAL;
     var GLTFLoader = global.GLTFLoader;
     if (!THREE || !GLTFLoader) {
       throw new Error("ローカルの3Dライブラリを読み込めませんでした。vendor/three-kit.js を確認してください。");
@@ -258,8 +261,17 @@
 
     var imageCount = 0;
     var failedImageCount = 0;
-    var expectedImages = RESIDENT_IDS.length * DIRECTIONS.length;
+    var expectedImages = RESIDENT_IDS.length * CARDINAL.length;
     var imageTextures = Object.create(null);
+    var imageCache = new Map();
+    var seats = new Map();
+    var worktops = new Map();
+    var demonstration = null;
+    var demonstrationRequest = 0;
+    var demonstrationArt = new Map();
+    var demonstrationGroup = new THREE.Group();
+    var upAxis = new THREE.Vector3(0, 1, 0);
+    if (motionEnabled) scene.add(demonstrationGroup);
     var modelLoaded = false;
     var loadFailed = false;
     var modelCounts = { roots: 0, meshes: 0, materials: 0, textures: 0 };
@@ -406,6 +418,9 @@
       var target = houseTarget.clone().lerp(livingTarget, progress);
       var yaw = lerp(houseYaw, livingYaw, progress);
       var pitch = lerp(housePitch, livingPitch, progress);
+      var closeView = demonstration && demonstration.closeView && progress > .995;
+      if (closeView && demonstration.clip.kind === "desk") { yaw = Math.PI - .87; pitch = .43; }
+      if (closeView && demonstration.clip.kind === "dining") { yaw = -2.05; pitch = .52; }
       var distance = lerp(houseDistance, livingDistance, progress);
       var horizontalDistance = Math.cos(pitch) * distance;
       camera.position.set(
@@ -418,6 +433,14 @@
       var span = lerp(houseFraming.span, livingFraming.span, progress);
       var centerX = lerp(houseFraming.x, livingFraming.x, progress);
       var centerY = lerp(houseFraming.y, livingFraming.y, progress);
+      if (closeView) {
+        camera.updateMatrixWorld(true);
+        var anchor = demonstration.clip.seat || { x:-.75, y:.21, z:3.85 };
+        var close = new THREE.Vector3(anchor.x, anchor.y + .46, anchor.z).applyMatrix4(camera.matrixWorldInverse);
+        span = 5.4;
+        centerX = close.x;
+        centerY = close.y;
+      }
       camera.top = centerY + span * 0.5;
       camera.bottom = centerY - span * 0.5;
       camera.left = centerX - span * 0.5 * aspect;
@@ -467,6 +490,8 @@
     function advanceResidents(dt) {
       if (!dt) return;
       residents.forEach(function (resident) {
+        resident.walking = false;
+        if (resident.waitingFor) return;
         var previous = resident.distance;
         var distance = previous + resident.pace * dt;
         var nextPass = !resident.stairPass && resident.stairPasses.find(function (pass) {
@@ -485,6 +510,9 @@
         if (obstructed) return;
 
         resident.distance = distance;
+        var covered = (distance - previous + resident.totalLength) % resident.totalLength;
+        resident.walkDistance = (resident.walkDistance || 0) + covered;
+        resident.walking = covered > 0.0001;
         resident.position = position;
         if (nextPass && !resident.waitingFor) {
           resident.waitingFor = nextPass;
@@ -558,7 +586,7 @@
       return lerp(1, floorOpacity(1), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
     }
 
-    function directionFor(tangent) {
+    function directionFor(tangent, previous) {
       var right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
       right.y = 0;
       if (right.lengthSq() < 0.000001) right.set(1, 0, 0);
@@ -570,15 +598,16 @@
       else towardObserver.normalize();
       var rightDot = tangent.x * right.x + tangent.z * right.z;
       var observerDot = tangent.x * towardObserver.x + tangent.z * towardObserver.z;
+      if (motionEnabled) return motion.facing(rightDot, observerDot, previous);
       if (Math.abs(rightDot) > Math.abs(observerDot)) return rightDot >= 0 ? "right" : "left";
       return observerDot >= 0 ? "front" : "back";
     }
 
     function nearestAvailableTexture(residentId, direction) {
-      var directions = [direction, "front", "left", "right", "back"];
+      var candidates = [direction, motion ? motion.fallback(direction) : direction].concat(CARDINAL);
       var seen = Object.create(null);
-      for (var i = 0; i < directions.length; i += 1) {
-        var candidate = directions[i];
+      for (var i = 0; i < candidates.length; i += 1) {
+        var candidate = candidates[i];
         if (seen[candidate]) continue;
         seen[candidate] = true;
         if (imageTextures[residentId] && imageTextures[residentId][candidate]) return imageTextures[residentId][candidate];
@@ -586,9 +615,8 @@
       return null;
     }
 
-    function updateSpriteTexture(resident, direction) {
+    function setSpriteTexture(resident, texture) {
       if (!resident.mesh) return;
-      var texture = nearestAvailableTexture(resident.id, direction);
       if (!texture || resident.mesh.material.map === texture) return;
       resident.mesh.material.map = texture;
       resident.mesh.material.needsUpdate = true;
@@ -597,8 +625,68 @@
 
     function resizeResidentMesh(resident) {
       var image = resident.mesh.material.map.image;
-      var aspect = image && image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
+      var aspect = image && image.width && image.height ? image.width / image.height : 1;
       resident.mesh.scale.set(resident.height * aspect, resident.height, 1);
+    }
+
+    function textureFrom(image) {
+      var texture = new THREE.Texture(image);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    function imageFor(key) {
+      if (!imageCache.has(key)) {
+        var image = new global.Image();
+        var version = options.assetVersion ? "?v=" + encodeURIComponent(options.assetVersion) : "";
+        image.src = ASSET_ROOT + key + ".webp" + version;
+        imageCache.set(key, image.decode().then(function () { return image; }).catch(function (error) {
+          imageCache.delete(key);
+          throw error;
+        }));
+      }
+      return imageCache.get(key);
+    }
+
+    function motionCanvas(resident, width, height) {
+      if (!resident.motionCanvas) {
+        var surface = global.document.createElement("canvas");
+        resident.motionCanvas = surface.getContext("2d");
+        resident.motionTexture = textureFrom(surface);
+        resident.motionTexture.generateMipmaps = false;
+        resident.motionTexture.minFilter = THREE.LinearFilter;
+      }
+      var canvas = resident.motionCanvas.canvas;
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+      return resident.motionCanvas;
+    }
+
+    function updateSpriteTexture(resident, direction, walkDistance) {
+      var texture = nearestAvailableTexture(resident.id, direction);
+      if (!motionEnabled || walkDistance == null || !texture || !resident.mesh) {
+        setSpriteTexture(resident, texture);
+        return;
+      }
+      var frames = resident.walkRigs || (resident.walkRigs = new Map());
+      if (!frames.has(texture)) frames.set(texture, motion.prepare(texture.image, resident.id, texture.userData.direction));
+      var rig = frames.get(texture);
+      var phase = walkDistance / motion.strideLength(resident.id, resident.height);
+      var frame = Math.floor(phase * 16) % 16;
+      var context = motionCanvas(resident, rig.width, rig.height);
+      if (resident.walkFrame !== frame || resident.walkFacing !== direction || resident.walkSource !== texture) {
+        motion.paintWalk(context, rig, resident.id, direction, frame / 16);
+        resident.walkFrame = frame;
+        resident.walkFacing = direction;
+        resident.walkSource = texture;
+        resident.motionTexture.needsUpdate = true;
+      }
+      setSpriteTexture(resident, resident.motionTexture);
+      resizeResidentMesh(resident);
     }
 
     function buildResidentMesh(resident) {
@@ -638,34 +726,290 @@
       }
       RESIDENT_IDS.forEach(function (id) {
         imageTextures[id] = Object.create(null);
-        DIRECTIONS.forEach(function (direction) {
+        directions.forEach(function (direction) {
           var key = id + "-" + direction;
-          var image = new global.Image();
-          image.onload = function () {
-            imageCount += 1;
-            var texture = new THREE.Texture(image);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.flipY = true;
-            texture.premultiplyAlpha = false;
-            texture.generateMipmaps = true;
-            texture.minFilter = THREE.LinearMipmapLinearFilter;
-            texture.magFilter = THREE.LinearFilter;
-            texture.needsUpdate = true;
+          var required = CARDINAL.includes(direction);
+          imageFor(key).then(function (image) {
+            if (required) imageCount += 1;
+            var texture = textureFrom(image);
+            texture.userData.direction = direction;
             imageTextures[id][direction] = texture;
             var resident = residents.find(function (entry) { return entry.id === id; });
             if (resident) {
               buildResidentMesh(resident);
               if (resident.mesh) updateSpriteTexture(resident, resident.direction || "front");
             }
-            finishImageLoad();
-          };
-          image.onerror = function () {
-            failedImageCount += 1;
-            finishImageLoad();
-          };
-          image.src = ASSET_ROOT + key + ".webp";
+            if (required) finishImageLoad();
+          }).catch(function () {
+            if (required) {
+              failedImageCount += 1;
+              finishImageLoad();
+            }
+          });
         });
       });
+    }
+
+    function registerSeats(nodes) {
+      var office = ["Seat_v4", "Seat_v4__PORTAL_EXTRA_SEAT", "Seat.002_v4", "Seat.002_v4__PORTAL_EXTRA_SEAT",
+        "Seat.003_v4", "Seat.003_v4__PORTAL_EXTRA_SEAT", "Seat.005_v4", "Seat.005_v4__PORTAL_EXTRA_SEAT"];
+      function bounds(name) {
+        var object = nodes.get(name);
+        if (!object) throw new Error("HOUSE_105の座面が見つかりません: " + name);
+        return new THREE.Box3().setFromObject(object);
+      }
+      function register(key, name, heading) {
+        var box = bounds(name);
+        var center = box.getCenter(new THREE.Vector3());
+        seats.set(key, { x: center.x, y: box.max.y, z: center.z, heading: heading });
+      }
+      register("dining", "Seat.010_v4", -Math.PI / 2);
+      register("dining-guest", "Seat.007_v4", Math.PI / 2);
+      register("sofa", "Main seat cushion.001_v4", 0);
+      register("sofa-guest", "Main seat cushion.002_v4", 0);
+      desks.forEach(function (desk, index) { register("desk-" + desk.residentId, office[index], Math.PI); });
+      register("desk-lumina", office[3], Math.PI);
+      worktops.set("dining", bounds("Wood tabletop.006_v4").max.y);
+      ["Wood tabletop_v4", "Wood tabletop.002_v4", "Wood tabletop.003_v4", "Wood tabletop.005_v4"].forEach(function (name, index) {
+        var height = bounds(name).max.y;
+        worktops.set("desk-" + desks[index * 2].residentId, height);
+        worktops.set("desk-" + desks[index * 2 + 1].residentId, height);
+      });
+      worktops.set("desk-lumina", worktops.get("desk-midori"));
+    }
+
+    function demoPath(kind, seat) {
+      if (kind === "dining") return [[11.17, 3.36], [11.17, seat.z], [seat.x + .64, seat.z]];
+      if (kind === "sofa") return [[-.32, 3.76], [1.13, 3.34], [seat.x, 3.27], [seat.x, seat.z + .77]];
+      var back = seat.z < 0;
+      return [[-3.55, back ? .36 : 4.65], [seat.x, back ? .36 : 4.16], [seat.x, seat.z + .71]];
+    }
+
+    function demoActor(id) {
+      var resident = residents.find(function (entry) { return entry.id === id; });
+      var actor = { id: id, height: resident ? resident.height : residents[0].height, group: new THREE.Group() };
+      demonstrationGroup.add(actor.group);
+      buildResidentMesh(actor);
+      return actor;
+    }
+
+    function disposeActor(actor) {
+      if (!actor) return;
+      if (actor.mesh) actor.mesh.material.dispose();
+      if (actor.motionTexture) actor.motionTexture.dispose();
+      actor.group.removeFromParent();
+    }
+
+    function stopMotionPreview() {
+      demonstrationRequest += 1;
+      if (!demonstration) return;
+      disposeActor(demonstration.actor);
+      disposeActor(demonstration.guest);
+      demonstration.props.traverse(function (item) {
+        if (item.geometry) item.geometry.dispose();
+        if (item.material) item.material.dispose();
+      });
+      demonstration.props.removeFromParent();
+      demonstration = null;
+    }
+
+    function boxProp(group, color, w, h, d, x, y, z) {
+      var item = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: color, roughness: .71 }));
+      item.position.set(x, y, z);
+      group.add(item);
+      return item;
+    }
+
+    function buildProps(clip) {
+      var group = new THREE.Group();
+      var item;
+      if (clip.action === "tea") {
+        item = new THREE.Group();
+        item.add(new THREE.Mesh(new THREE.CylinderGeometry(.065, .052, .105, 14), new THREE.MeshStandardMaterial({ color: 0xe78a52 })));
+        var handle = new THREE.Mesh(new THREE.TorusGeometry(.030, .008, 6, 14), new THREE.MeshStandardMaterial({ color: 0xe78a52 }));
+        handle.position.x = .065;
+        item.add(handle);
+        group.add(item);
+      } else if (clip.action === "read" || clip.action === "notes") {
+        item = new THREE.Group();
+        boxProp(item, 0x39538a, .32, .027, .22, 0, 0, 0);
+        boxProp(item, 0xf4ebcf, .29, .013, .20, 0, .017, 0);
+        var page = new THREE.Group();
+        boxProp(page, 0xfff4db, .142, .003, .199, .072, .025, 0);
+        item.add(page);
+        item.userData.page = page;
+        group.add(item);
+        if (clip.action === "notes") item.userData.pen = boxProp(item, 0x98613a, .11, .012, .012, .083, .044, .047);
+      } else if (clip.action === "type" || clip.action === "review" || clip.action === "draw") {
+        item = new THREE.Group();
+        boxProp(item, 0x1c2b48, .34, .025, .17, 0, 0, 0);
+        var accents = clip.action === "type" ? 8 : clip.action === "review" ? 2 : 3;
+        item.userData.keys = [];
+        for (var index = 0; index < accents; index += 1) {
+          item.userData.keys.push(boxProp(item, 0x5b85b5, clip.action === "review" ? .105 : .029, .013, .073,
+            (index - (accents - 1) / 2) * (accents > 3 ? .035 : .12), .018, 0));
+        }
+        if (clip.action === "draw") item.userData.pen = boxProp(item, 0xead5a9, .13, .012, .012, 0, .045, -.02);
+        group.add(item);
+      }
+      group.userData.item = item;
+      demonstrationGroup.add(group);
+      return group;
+    }
+
+    function updateProps(preview, state) {
+      var item = preview.props.userData.item;
+      if (!item) return;
+      var clip = preview.clip;
+      var time = state.time;
+      var sofa = clip.kind === "sofa";
+      var ahead = clip.kind === "desk" ? .79 : sofa ? .34 : .61;
+      var height = sofa ? clip.seat.y + preview.actor.height * .32 : clip.table + (clip.action === "tea" ? .052 : .013);
+      var sip = clip.action === "tea" ? Math.pow(Math.max(0, Math.sin(Math.PI * time / clip.active)), 3) : 0;
+      ahead -= sip * .41;
+      height += sip * Math.max(.08, clip.seat.y + preview.actor.height * .58 - height);
+      item.position.set(clip.seat.x + Math.sin(clip.seat.heading) * ahead, height, clip.seat.z + Math.cos(clip.seat.heading) * ahead);
+      item.rotation.y = clip.seat.heading;
+      item.rotation.x = sip * -.26;
+      if (item.userData.page) {
+        var flip = clamp((time / clip.active - .40) / .23, 0, 1);
+        item.userData.page.rotation.z = Math.PI * Math.sin(Math.PI * flip);
+      }
+      if (item.userData.pen) item.userData.pen.position.z = Math.sin(time * 6) * .045;
+      if (item.userData.keys) item.userData.keys.forEach(function (key, index) {
+        var active = index === Math.floor(time * 12) % item.userData.keys.length;
+        key.position.y = active ? .011 : .018;
+        key.material.emissive.setHex(active ? 0x14283e : 0);
+      });
+      item.visible = (!sofa || state.stage === "activity") && !preview.actor.activityOwnsProp;
+    }
+
+    function seatedActor(actor, images, state, activity) {
+      actor.group.position.set.apply(actor.group.position, state.position);
+      var tangent = new THREE.Vector3(Math.sin(state.heading), 0, Math.cos(state.heading));
+      actor.direction = directionFor(tangent, actor.direction);
+      if (!actor.mesh) return;
+      actor.mesh.quaternion.copy(camera.quaternion);
+      actor.mesh.position.set(0, 0, 0);
+      actor.activityOwnsProp = false;
+      if (state.mix < .5) {
+        var moving = state.stage === "approach" || state.stage === "leave";
+        updateSpriteTexture(actor, actor.direction, moving ? state.distance : null);
+        return;
+      }
+      var action = state.stage === "activity" ? activity : "sit";
+      var cameraYaw = Math.atan2(camera.position.x - actor.group.position.x, camera.position.z - actor.group.position.z);
+      actor.mesh.quaternion.setFromAxisAngle(upAxis, cameraYaw);
+      var image = action === "sleep" ? images.sleep : images[motion.seatedView(actor.direction)];
+      var pose = images["activity-" + action] || (action === "review" ? images["activity-read"] :
+        ["draw", "notes"].includes(action) ? images["activity-type"] : null);
+      var allowedPose = pose && ["front", "front-right", "right"].includes(actor.direction);
+      if (allowedPose) {
+        image = pose;
+        actor.activityOwnsProp = actor.id === "mio" && ["read", "tea", "notes"].includes(action);
+      }
+      var time = state.time;
+      var frame = Math.floor(time * 16);
+      var context = motionCanvas(actor, image.naturalWidth, image.naturalHeight);
+      if (actor.activityFrame !== frame || actor.activityImage !== image || actor.activity !== action) {
+        motion.paintActivity(context, image, action, frame / 16, image.naturalWidth);
+        actor.activityFrame = frame;
+        actor.activityImage = image;
+        actor.activity = action;
+        actor.motionTexture.needsUpdate = true;
+        actor.walkSource = null;
+      }
+      setSpriteTexture(actor, actor.motionTexture);
+      resizeResidentMesh(actor);
+      var feetToHip = action === "sleep" || ["aka", "gin", "kin", "ao"].includes(actor.id) ? .015 : .145 * actor.height;
+      actor.mesh.position.y = state.seatY - state.position[1] - feetToHip;
+      var forward = state.seatKind === "sofa" ? .22 : .13;
+      actor.mesh.position.x = Math.sin(state.heading) * forward;
+      actor.mesh.position.z = Math.cos(state.heading) * forward;
+      if (state.seatKind === "sofa") {
+        if (action === "sleep") actor.mesh.position.y += .035;
+      }
+    }
+
+    function updateMotionPreview(dt) {
+      if (!demonstration) return;
+      var preview = demonstration;
+      preview.time += dt;
+      var state = motion.sampleClip(preview.clip, preview.time);
+      preview.stage = state.stage;
+      state.seatY = preview.clip.seat?.y;
+      state.seatKind = preview.clip.kind;
+      if (state.stage === "done" && preview.doneAt === undefined) preview.doneAt = preview.time;
+      if (preview.doneAt !== undefined && preview.time > preview.doneAt + .6) {
+        stopMotionPreview();
+        return;
+      }
+      var guestTalking = preview.guest && state.stage === "activity" && Math.floor(state.time / .95) % 2 === 1;
+      seatedActor(preview.actor, preview.images, state, guestTalking ? "sit" : preview.clip.action);
+      if (preview.guest) {
+        var seat = seats.get(preview.clip.kind + "-guest");
+        var heading = Math.atan2(preview.clip.seat.x - seat.x, preview.clip.seat.z - seat.z);
+        seatedActor(preview.guest, preview.guestImages, { position:[seat.x, .21, seat.z], heading:heading, stage:"activity", time:state.time, mix:1, seatY:seat.y, seatKind:preview.clip.kind }, guestTalking ? "talk" : "sit");
+      }
+      updateProps(preview, state);
+    }
+
+    async function loadDemoArt(id) {
+      var views = ["sit-right", "sit-front-right", "sit-left", "sit-front-left", "sleep"];
+      views.push.apply(views, ["type", "tea", "read", "talk"].map(function (action) { return "activity-" + action; }));
+      if (id === "mio") views.push("activity-relax", "activity-draw", "activity-notes");
+      if (!demonstrationArt.has(id)) demonstrationArt.set(id, Promise.all([
+        Promise.all(views.map(async function (view) { return [view, await imageFor(id + "-" + view)]; })),
+        id === "lumina" && !imageTextures[id] ? Promise.all(directions.map(async function (direction) {
+          var texture = textureFrom(await imageFor(id + "-" + direction));
+          texture.userData.direction = direction;
+          return [direction, texture];
+        })) : null
+      ]).then(function (results) {
+        if (results[1]) imageTextures[id] = Object.fromEntries(results[1]);
+        return Object.fromEntries(results[0]);
+      }).catch(function (error) {
+        demonstrationArt.delete(id);
+        throw error;
+      }));
+      return demonstrationArt.get(id);
+    }
+
+    async function startMotionPreview(id, kind, action) {
+      if (!motionEnabled || !modelLoaded || !Object.hasOwn(motion.actions, kind) || !Object.hasOwn(motion.actions[kind], action)) return false;
+      if (!RESIDENT_IDS.includes(id) && id !== "lumina") return false;
+      stopMotionPreview();
+      var request = demonstrationRequest;
+      var guestId = action === "talk" ? (id === "mio" ? "shiro" : "mio") : null;
+      var results = await Promise.all([loadDemoArt(id), guestId ? loadDemoArt(guestId) : null]);
+      if (request !== demonstrationRequest) return false;
+      var seatId = kind === "desk" ? kind + "-" + id : kind;
+      var seat = seats.get(seatId);
+      var previewHeading = Math.atan2(livingPosition.x - livingTarget.x, livingPosition.z - livingTarget.z);
+      var clip = kind === "walk" ? motion.walkClip(action, .21, previewHeading) : motion.clipFor(kind, action, seat, .21, demoPath(kind, seat));
+      clip.table = worktops.get(seatId);
+      demonstration = { id:id, clip:clip, time:0, stage:"approach", actor:demoActor(id), images:results[0], closeView:false,
+        guest:guestId ? demoActor(guestId) : null, guestImages:results[1], props:buildProps(clip) };
+      updateMotionPreview(0);
+      return true;
+    }
+
+    function seekMotionPreview() {
+      if (!demonstration || demonstration.clip.kind === "walk") return false;
+      demonstration.time = demonstration.clip.approachSeconds + .91;
+      demonstration.doneAt = undefined;
+      updateMotionPreview(0);
+      return true;
+    }
+
+    function setMotionCloseView(enabled) {
+      if (demonstration) demonstration.closeView = Boolean(enabled);
+    }
+
+    function motionPreviewState() {
+      return demonstration ? { id: demonstration.id, stage: demonstration.stage, action: demonstration.clip.action,
+        position: demonstration.actor.group.position.toArray(), direction: demonstration.actor.direction,
+        walkFrame: demonstration.actor.walkFrame, elapsed: demonstration.time } : null;
     }
 
     function configureRoomLighting(bounds) {
@@ -1132,7 +1476,12 @@
         groundRoot = loadedGround;
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
-        extendGroundFloor(arrangeFloor(groundRoot, metadata.groundLayout));
+        var groundNodes = arrangeFloor(groundRoot, metadata.groundLayout);
+        extendGroundFloor(groundNodes);
+        if (motionEnabled) {
+          root.updateMatrixWorld(true);
+          registerSeats(groundNodes);
+        }
         var secondNodes = arrangeFloor(secondRoot, metadata.secondLayout);
         arrangeFloor(atticRoot, metadata.atticLayout);
         if (metadata.stairTrip) connectStairLanding(groundRoot);
@@ -1207,14 +1556,15 @@
         resident.lastTangent = state.tangent.clone();
         resident.group.position.copy(position);
         resident.group.position.y += state.footLift;
-        resident.direction = directionFor(state.tangent);
+        resident.direction = directionFor(state.tangent, resident.direction);
         var opacity = residentOpacity(resident, position);
-        resident.group.visible = opacity > 0.001;
+        resident.group.visible = opacity > 0.001 && (!demonstration || (resident.id !== demonstration.id && resident.id !== demonstration.guest?.id));
         if (resident.mesh) resident.mesh.material.opacity = resident.spriteOpacity * opacity;
         if (resident.highlight) resident.highlight.material.opacity = resident.highlightOpacity * opacity;
         if (resident.mesh) {
           resident.mesh.quaternion.copy(camera.quaternion);
-          updateSpriteTexture(resident, resident.direction);
+          var walkDistance = resident.walking ? resident.walkDistance : null;
+          updateSpriteTexture(resident, resident.direction, walkDistance);
         }
         updateHallwayLabel(resident, position, opacity);
       });
@@ -1307,7 +1657,7 @@
       residents.forEach(function (resident) {
         var state = pathState(resident);
         var position = state.position;
-        var direction = directionFor(state.tangent);
+        var direction = directionFor(state.tangent, resident.direction);
         var center = new THREE.Vector3(0, resident.height * (0.5 - SPRITE_FOOT_INSET), 0);
         center.applyQuaternion(camera.quaternion).add(position);
         center.y += state.footLift;
@@ -1326,6 +1676,7 @@
           opacity: opacity,
           direction: direction,
           heading: Math.atan2(state.tangent.x, state.tangent.z),
+          walkFrame: resident.walking ? resident.walkFrame : null,
           screen: { x: screen.x, y: screen.y }
         };
       });
@@ -1362,6 +1713,7 @@
           anchors: anchors
         },
         selectedResident: selectedId,
+        motionPreview: motionPreviewState(),
         paused: paused,
         assetsReady: imageCount,
         assetsTotal: expectedImages,
@@ -1407,6 +1759,7 @@
       resize();
       applyCamera();
       updateRoomFronts(dt);
+      updateMotionPreview(paused ? 0 : dt);
       updateResidentWorldPositions();
       var renderStart = currentTime();
       renderer.render(scene, camera);
@@ -1483,6 +1836,11 @@
       setPaused: setPaused,
       selectResident: selectResident,
       setMarker: setMarker,
+      startMotionPreview: startMotionPreview,
+      stopMotionPreview: stopMotionPreview,
+      seekMotionPreview: seekMotionPreview,
+      setMotionCloseView: setMotionCloseView,
+      motionPreviewState: motionPreviewState,
       snapshot: snapshot
     };
   }

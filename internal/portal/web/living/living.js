@@ -23,6 +23,9 @@
   const groups = Array.from(document.querySelectorAll(".resident-group"));
   const filters = Array.from(document.querySelectorAll("[data-filter]"));
   const openBoard = document.getElementById("open-board");
+  const motionPreview = document.getElementById("motion-preview");
+  const motionPreviewForm = document.getElementById("motion-preview-form");
+  const motionPreviewStatus = document.getElementById("motion-preview-status");
   const names = new Map(cards.map((card) => [
     card.dataset.card,
     card.querySelector(".resident-name")?.textContent.trim() || card.dataset.card,
@@ -31,6 +34,7 @@
   const viewMotionPreferenceKey = "rencrow-living-view-motion-v1";
   const scrollKey = "rencrow-living-scroll";
   const validViews = new Set(["lcp", "workplace"]);
+  const motionPreviewEnabled = new URLSearchParams(window.location.search).get("motion") === "preview";
 
   let activeView = "lcp";
   let selectedResidentId = null;
@@ -236,7 +240,7 @@
 
   if (canvas && typeof window.createHouseScene === "function") {
     try {
-      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView) });
+      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled });
       window.housePreview = scene;
       callScene("setView", internalView(activeView));
       callScene("setPaused", isPaused);
@@ -250,6 +254,51 @@
   } else {
     if (sceneStatus) sceneStatus.textContent = "WebGLシーンを読み込めません。BOARDの参加者選択は利用できます。";
     window.housePreview = null;
+  }
+
+  if (scene && motionPreviewForm && window.houseSDMotion && motionPreviewEnabled) {
+    const character = motionPreviewForm.elements.namedItem("character");
+    const seat = motionPreviewForm.elements.namedItem("seat");
+    const activity = motionPreviewForm.elements.namedItem("activity");
+    const close = motionPreviewForm.elements.namedItem("close");
+    const seek = document.getElementById("motion-preview-seek");
+    const button = motionPreviewForm.querySelector('button[type="submit"]');
+    function refreshActivities() {
+      activity.replaceChildren(...Object.entries(window.houseSDMotion.actions[seat.value]).map(([value, label]) => new Option(label, value)));
+      seek.disabled = seat.value === "walk";
+    }
+    close.addEventListener("change", () => scene.setMotionCloseView(close.checked));
+    seat.addEventListener("change", refreshActivities);
+    motionPreviewForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      motionPreviewStatus.textContent = "動作サンプルの素材を読み込み中";
+      try {
+        setView("workplace");
+        if (await scene.startMotionPreview(character.value, seat.value, activity.value)) {
+          scene.setMotionCloseView(close.checked);
+          setPaused(false);
+          motionPreviewStatus.textContent = "動作サンプルを表示中";
+        } else {
+          motionPreviewStatus.textContent = "部屋の準備後に再生できます";
+        }
+      } catch (error) {
+        console.error("House motion preview could not start", error);
+        motionPreviewStatus.textContent = "動作素材を読み込めませんでした";
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById("motion-preview-stop").addEventListener("click", () => {
+      scene.stopMotionPreview();
+      motionPreviewStatus.textContent = "動作サンプルを終了しました";
+    });
+    seek.addEventListener("click", () => {
+      if (!scene.seekMotionPreview()) motionPreviewStatus.textContent = "再生後に着席中の動作へ進めます";
+    });
+    refreshActivities();
+    motionPreview.hidden = false;
+    motionPreview.open = true;
   }
 
   window.housePreviewUI = Object.freeze({ setView, selectResident, setPaused, setMarker });
