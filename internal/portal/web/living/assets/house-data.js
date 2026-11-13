@@ -3,8 +3,8 @@ window.housePreviewData = {
   "cameras": {"house":{"position":[0,4.93999,40],"target":[0,4.94,0.5],"span":15.1875},"living":{"position":[-18.56293,32.90005,40.43331],"target":[0,2.14442,0.625],"span":16.81542}},
   "desks": [{"id":"workstation-01","residentId":"mio","position":[-11.07,1.11,1.52]},{"id":"workstation-02","residentId":"shiro","position":[-9.03,1.11,1.52]},{"id":"workstation-03","residentId":"kuro","position":[-7.17,1.11,1.52]},{"id":"workstation-04","residentId":"midori","position":[-5.13,1.11,1.52]},{"id":"workstation-05","residentId":"aka","position":[-11.07,1.11,-2.08]},{"id":"workstation-06","residentId":"ao","position":[-9.03,1.11,-2.08]},{"id":"workstation-07","residentId":"kin","position":[-6.87,1.11,-2.08]},{"id":"workstation-08","residentId":"gin","position":[-4.83,1.11,-2.08]}],
   "residents": [
-    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop"},
-    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop"},
+    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0},
+    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop","stairs":true,"phase":0.5},
     {"id":"kuro","points":[[-5.08,3.72,1.25],[-4.2,3.72,1.25],[-4.2,3.72,2.1],[-5.08,3.72,2.1]],"floor":1},
     {"id":"midori","points":[[7.65,3.72,3.28],[9.95,3.72,3.28],[9.95,3.72,3.8],[7.65,3.72,3.8]],"floor":1},
     {"id":"aka","floor":0,"pace":1.12,"route":"groundLoop"},
@@ -21,6 +21,15 @@ window.housePreviewData = {
       [0.24,0.21,4.33], [0.16,0.21,4.62], [-0.45,0.21,4.83], [-3.26,0.21,4.83],
       [-3.57,0.21,4.59], [-3.65,0.21,4.33], [-3.65,0.21,1.1]
     ]
+  },
+  "stairTrip": {
+    "entry": [-1.8,0.21,4.83],
+    "firstEdge": 3.66,
+    "firstHeight": 0.414,
+    "treadDepth": 0.305,
+    "riserHeight": 0.174,
+    "steps": 20,
+    "landing": [[-1.8,3.72,-2.76],[-2.9,3.72,-2.76],[-3.16,3.72,-2.76],[-3.53,3.72,-2.89],[-4.45,3.72,-2.98],[-5.19,3.72,-2.96]]
   },
   "bounds": {"min":[-12.6,-0.41,-4.7],"max":[12.6,10.29,5.7]},
   "groundLayout": [

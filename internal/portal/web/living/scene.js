@@ -7,6 +7,8 @@
   var ASSET_ROOT = "/assets/living/assets/";
   // Each directional image has a two-pixel transparent strip below the feet.
   var SPRITE_FOOT_INSET = 2 / 320;
+  var TOP_TREAD_EDGE = -2.455;
+  var UPPER_LANDING_EDGE = -2.725;
 
   function createHouseScene(canvas, options) {
     options = options || {};
@@ -103,6 +105,7 @@
         throw new Error("HOUSE_105の住人経路データが不完全です。");
       }
       if (![0, 1, 2].includes(Number(resident.floor))) throw new Error("HOUSE_105の住人フロアが不正です。");
+      if (resident.stairs && metadata.stairTrip) route = addStairTrip(route, metadata.stairTrip);
       var points = route.map(function (point) {
         if (!Array.isArray(point) || point.length < 3 || point.some(function (value) { return !isFinite(Number(value)); })) {
           throw new Error("HOUSE_105の住人経路に不正な座標があります。");
@@ -119,10 +122,11 @@
       return {
         id: resident.id,
         floor: Number(resident.floor),
+        landingHeight: resident.stairs && metadata.stairTrip ? metadata.stairTrip.landing[0][1] : Infinity,
         points: points,
         lengths: lengths,
         totalLength: Math.max(totalLength, 0.001),
-        phase: index / Math.max(1, metadata.residents.length),
+        phase: resident.phase === undefined ? index / metadata.residents.length : resident.phase,
         speed: resident.pace > 0 ? resident.pace / Math.max(totalLength, 0.001) : 0.075 + (index % 4) * 0.012,
         group: new THREE.Group(),
         mesh: null,
@@ -130,6 +134,26 @@
         height: 1.35
       };
     });
+
+    function addStairTrip(route, stairs) {
+      var entryIndex = route.findIndex(function (point, index) {
+        var next = route[index + 1];
+        return next && point[2] === stairs.entry[2] && next[2] === stairs.entry[2] &&
+          point[0] > stairs.entry[0] && next[0] < stairs.entry[0];
+      });
+      if (entryIndex < 0) throw new Error("HOUSE_105の階段入口が見つかりません。");
+
+      var ascent = [stairs.entry];
+      var height = stairs.entry[1];
+      for (var step = 0; step < stairs.steps; step += 1) {
+        var z = stairs.firstEdge - stairs.treadDepth * step;
+        ascent.push([stairs.entry[0], height, z]);
+        height = stairs.firstHeight + stairs.riserHeight * step;
+        ascent.push([stairs.entry[0], height, z]);
+      }
+      ascent = ascent.concat(stairs.landing);
+      return route.slice(0, entryIndex + 1).concat(ascent, ascent.slice(0, -1).reverse(), route.slice(entryIndex + 1));
+    }
 
     var desks = metadata.desks.map(function (desk) {
       if (!desk || !desk.id || !desk.residentId || !Array.isArray(desk.position) || desk.position.length < 3) {
@@ -367,7 +391,12 @@
           var amount = clamp((distance - startDistance) / span, 0, 1);
           var from = resident.points[i];
           var to = resident.points[(i + 1) % resident.points.length];
-          chosen = { position: from.clone().lerp(to, amount), tangent: to.clone().sub(from) };
+          var tangent = to.clone().sub(from);
+          if (tangent.x === 0 && tangent.z === 0) {
+            // A riser is vertical. Use the next tread to keep facing uphill or downhill even after a pause.
+            tangent = resident.points[(i + 2) % resident.points.length].clone().sub(to);
+          }
+          chosen = { position: from.clone().lerp(to, amount), tangent: tangent };
           break;
         }
       }
@@ -380,6 +409,15 @@
         chosen.tangent.copy(resident.lastTangent || new THREE.Vector3(0, 0, 1));
       }
       return chosen;
+    }
+
+    function residentFloor(resident, position) {
+      return position.y >= resident.landingHeight - 0.00001 && position.z <= UPPER_LANDING_EDGE ? 1 : resident.floor;
+    }
+
+    function residentOpacity(resident, position) {
+      if (position.y < resident.landingHeight - 0.00001) return floorOpacity(resident.floor);
+      return lerp(1, floorOpacity(1), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
     }
 
     function directionFor(tangent) {
@@ -711,14 +749,33 @@
     function extendGroundFloor(nodes) {
       // Keep the rear edge at -4.2 and continue the same planks through to the old deck's front edge.
       var extension = 5.7 - 4.2;
+      var floor = nodes.get("1F_subfloor_v4");
+      var frontJoints = [];
       nodes.forEach(function (node, name) {
         if (/^(?:1F_Plank_\d+|1F_subfloor)_v4$/.test(name)) {
           node.scale.z *= (8.4 + extension) / 8.4;
           node.position.z += extension / 2;
         } else if (/^(?:Front_deck|Deck_plank(?:\.\d+)?)_v4$/.test(name)) {
           node.removeFromParent();
+        } else if (name.indexOf("V2_staggered_plank_joint") === 0 && Math.abs(node.position.z - 0.9) < 0.001) {
+          var joint = node.clone();
+          joint.name = "extended-floor-joint";
+          joint.position.z = 4.5;
+          frontJoints.push(joint);
         }
       });
+      floor.parent.add.apply(floor.parent, frontJoints);
+    }
+
+    function connectStairLanding(ground) {
+      var topTread = ground.getObjectByName("Step_20_v4");
+      // Connect the top tread to the landing, with the bridge visible in the cutaway.
+      var gap = TOP_TREAD_EDGE - UPPER_LANDING_EDGE;
+      var bridge = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.174, gap), topTread.material);
+      bridge.name = "stair-landing-bridge";
+      bridge.position.set(topTread.position.x, topTread.position.y, (TOP_TREAD_EDGE + UPPER_LANDING_EDGE) * 0.5);
+      bridge.receiveShadow = true;
+      ground.add(bridge);
     }
 
     function onModelLoaded(gltf) {
@@ -735,6 +792,7 @@
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
         arrangeGroundFloor(groundRoot);
+        if (metadata.stairTrip) connectStairLanding(groundRoot);
         prepareUpperFade(secondRoot, secondFadeMaterials);
         prepareUpperFade(atticRoot, atticFadeMaterials);
         root.name = root.name || "HOUSE_105";
@@ -802,7 +860,7 @@
         resident.lastTangent = state.tangent.clone();
         resident.group.position.copy(position);
         resident.direction = directionFor(state.tangent);
-        var opacity = floorOpacity(resident.floor);
+        var opacity = residentOpacity(resident, position);
         resident.group.visible = opacity > 0.001;
         if (resident.mesh) resident.mesh.material.opacity = resident.spriteOpacity * opacity;
         if (resident.highlight) resident.highlight.material.opacity = resident.highlightOpacity * opacity;
@@ -903,14 +961,15 @@
         var direction = directionFor(state.tangent);
         var center = new THREE.Vector3(0, resident.height * (0.5 - SPRITE_FOOT_INSET), 0);
         var screen = screenPoint(center.applyQuaternion(camera.quaternion).add(position));
-        var opacity = floorOpacity(resident.floor);
+        var floor = residentFloor(resident, position);
+        var opacity = residentOpacity(resident, position);
         var spriteLoaded = Boolean(resident.mesh);
         residentMap[resident.id] = {
           id: resident.id,
           x: position.x,
           y: position.y,
           z: position.z,
-          floor: resident.floor,
+          floor: floor,
           visible: Boolean(modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
           spriteLoaded: spriteLoaded,
           opacity: opacity,
