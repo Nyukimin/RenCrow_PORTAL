@@ -7,6 +7,8 @@
   var ASSET_ROOT = "/assets/living/assets/";
   // Each directional image has a two-pixel transparent strip below the feet.
   var SPRITE_FOOT_INSET = 2 / 320;
+  var STAIR_FOOT_CLEARANCE = 0.07;
+  var STAIR_LIFT_APPROACH = 0.12;
   var TOP_TREAD_EDGE = -2.455;
   var UPPER_LANDING_EDGE = -2.725;
 
@@ -391,16 +393,22 @@
           var amount = clamp((distance - startDistance) / span, 0, 1);
           var from = resident.points[i];
           var to = resident.points[(i + 1) % resident.points.length];
+          var next = resident.points[(i + 2) % resident.points.length];
           var tangent = to.clone().sub(from);
           if (tangent.x === 0 && tangent.z === 0) {
             // A riser is vertical. Use the next tread to keep facing uphill or downhill even after a pause.
-            tangent = resident.points[(i + 2) % resident.points.length].clone().sub(to);
+            tangent = next.clone().sub(to);
           }
-          chosen = { position: from.clone().lerp(to, amount), tangent: tangent };
+          var position = from.clone().lerp(to, amount);
+          chosen = {
+            position: position,
+            tangent: tangent,
+            footLift: stairFootLift(resident, position, to, next, tangent)
+          };
           break;
         }
       }
-      if (!chosen) chosen = { position: resident.points[0].clone(), tangent: new THREE.Vector3() };
+      if (!chosen) chosen = { position: resident.points[0].clone(), tangent: new THREE.Vector3(), footLift: 0 };
       chosen.tangent.y = 0;
       if (chosen.tangent.lengthSq() > 0.000001) {
         chosen.tangent.normalize();
@@ -409,6 +417,25 @@
         chosen.tangent.copy(resident.lastTangent || new THREE.Vector3(0, 0, 1));
       }
       return chosen;
+    }
+
+    function stairFootLift(resident, position, to, next, tangent) {
+      var stairs = metadata.stairTrip;
+      if (!stairs || resident.landingHeight === Infinity || tangent.z >= 0 || position.x !== stairs.entry[0]) return 0;
+      if (position.z <= TOP_TREAD_EDGE || to.z > stairs.firstEdge) return 0;
+
+      var lift = STAIR_FOOT_CLEARANCE;
+      if (to.y > position.y) {
+        // Keep the visible foot above the nose while the route advances vertically at the riser.
+        lift += to.y - position.y;
+      } else if (next.y > to.y) {
+        var approach = smooth(1 - (position.z - to.z) / STAIR_LIFT_APPROACH);
+        lift += approach * (next.y - to.y);
+        if (position.y === stairs.entry[1]) lift -= (1 - approach) * STAIR_FOOT_CLEARANCE;
+      } else if (position.y >= resident.landingHeight - 0.00001) {
+        lift *= smooth((position.z - TOP_TREAD_EDGE) / STAIR_LIFT_APPROACH);
+      }
+      return lift * smooth(progress);
     }
 
     function residentFloor(resident, position) {
@@ -859,6 +886,7 @@
         var position = state.position;
         resident.lastTangent = state.tangent.clone();
         resident.group.position.copy(position);
+        resident.group.position.y += state.footLift;
         resident.direction = directionFor(state.tangent);
         var opacity = residentOpacity(resident, position);
         resident.group.visible = opacity > 0.001;
@@ -960,7 +988,9 @@
         var position = state.position;
         var direction = directionFor(state.tangent);
         var center = new THREE.Vector3(0, resident.height * (0.5 - SPRITE_FOOT_INSET), 0);
-        var screen = screenPoint(center.applyQuaternion(camera.quaternion).add(position));
+        center.applyQuaternion(camera.quaternion).add(position);
+        center.y += state.footLift;
+        var screen = screenPoint(center);
         var floor = residentFloor(resident, position);
         var opacity = residentOpacity(resident, position);
         var spriteLoaded = Boolean(resident.mesh);
