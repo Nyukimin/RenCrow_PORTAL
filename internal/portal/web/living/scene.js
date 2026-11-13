@@ -107,6 +107,7 @@
     var stairOccupant = null;
     var stairQueue = [];
     var hallwayLabels = new Map();
+    var upperRooms = new Map();
 
     var residents = metadata.residents.map(function (resident, index) {
       var route = resident && (resident.route ? metadata.routes && metadata.routes[resident.route] : resident.points);
@@ -712,6 +713,10 @@
           return material;
         };
         item.material = Array.isArray(item.material) ? item.material.map(replace) : replace(item.material);
+        if (upperRooms.has(item.parent)) {
+          upperRooms.get(item.parent).materials.add(item.material);
+          item.userData.skipShadow = true;
+        }
       });
     }
 
@@ -722,7 +727,7 @@
       object.traverse(function (item) {
         if (!item.isMesh) return;
         meshes += 1;
-        item.castShadow = true;
+        item.castShadow = !item.userData.skipShadow;
         item.receiveShadow = true;
         var materials = Array.isArray(item.material) ? item.material : [item.material];
         materials.forEach(function (material) {
@@ -959,33 +964,135 @@
           plankWidth - 0.012, 0.22, depth, planks);
       }
       piece("hallway-edge", (left + right) / 2, y + 0.06, front, width, 0.13, 0.10, trim);
-      var edge = left;
-      var doorwayWidth = 1.8;
-      var doorwayHeight = layout.doorHeight || 2.24;
-      layout.doors.forEach(function (x) {
-        var jamb = x - doorwayWidth / 2;
-        piece("room-front", (edge + jamb) / 2, y + 0.18, layout.wall, jamb - edge, 0.36, 0.16, trim);
-        piece("doorway-left", jamb, y + doorwayHeight / 2, layout.wall, 0.12, doorwayHeight, 0.22, posts);
-        edge = x + doorwayWidth / 2;
-        piece("doorway-right", edge, y + doorwayHeight / 2, layout.wall, 0.12, doorwayHeight, 0.22, posts);
-        piece("doorway-header", x, y + doorwayHeight, layout.wall, doorwayWidth + 0.12, 0.16, 0.22, posts);
-        piece("doorway-threshold", x, y + 0.02, layout.wall, doorwayWidth, 0.04, 0.32, posts);
+      layout.rooms.forEach(function (room, index) {
+        buildRoomFront(layout, room, floor, index, trim, posts);
       });
-      var end = layout.wallEnd || right;
-      piece("room-front", (edge + end) / 2, y + 0.18, layout.wall, end - edge, 0.36, 0.16, trim);
+    }
+
+    function buildRoomFront(layout, room, floor, index, trim, posts) {
+      var group = new THREE.Group();
+      var facade = new THREE.Group();
+      group.name = "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
+      facade.name = group.name + "-facade";
+      group.add(facade);
+      floor.add(group);
+      var y = layout.height;
+      var z = layout.z[0];
+      var left = room.x[0];
+      var right = room.x[1];
+      var doorHeight = layout.doorHeight;
+      var doorHalfWidth = layout.floor === 2 ? 0.77 : 0.85;
+      var wall = new THREE.MeshStandardMaterial({ color: room.color, roughness: 0.94, side: THREE.DoubleSide });
+      var frame = new THREE.MeshStandardMaterial({ color: 0x523321, roughness: 0.88 });
+      var leaf = new THREE.MeshStandardMaterial({ color: 0x875a3d, roughness: 0.81 });
+      var handle = new THREE.MeshStandardMaterial({ color: 0xc99b51, roughness: 0.48, metalness: 0.34 });
+      var doorWidth = doorHalfWidth * 2;
+
+      function top(x) {
+        if (layout.floor === 1) return 3.38;
+        return Math.min(2.88, (12.50 - Math.abs(x)) * 0.685);
+      }
+
+      function panel(start, end, bottom) {
+        var spans = [start];
+        [-8.30, 8.30].forEach(function (eave) {
+          if (start < eave && eave < end) spans.push(eave);
+        });
+        spans.push(end);
+        var shape = new THREE.Shape();
+        shape.moveTo(start, bottom);
+        shape.lineTo(end, bottom);
+        spans.reverse().forEach(function (x) { shape.lineTo(x, top(x)); });
+        shape.closePath();
+        var panelMesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), wall);
+        panelMesh.position.set(0, y, z);
+        facade.add(panelMesh);
+      }
+
+      function box(parent, x, height, depth, width, h, d, material) {
+        var mesh = new THREE.Mesh(new THREE.BoxGeometry(width, h, d), material);
+        mesh.position.set(x, y + height, z + depth);
+        parent.add(mesh);
+      }
+
+      var edge = left;
+      room.doors.forEach(function (x) {
+        var jamb = x - doorHalfWidth;
+        panel(edge, jamb, 0);
+        edge = x + doorHalfWidth;
+        panel(jamb, edge, doorHeight);
+        box(facade, x, doorHeight / 2, 0, doorWidth, doorHeight, 0.09, frame);
+        box(facade, x, doorHeight / 2, 0.06, doorWidth - 0.27, doorHeight - 0.17, 0.07, leaf);
+        box(facade, x, doorHeight * 0.68, 0.10, doorWidth - 0.59, doorHeight * 0.38, 0.03, frame);
+        box(facade, x, doorHeight * 0.29, 0.10, doorWidth - 0.59, doorHeight * 0.28, 0.03, frame);
+        box(facade, x + 0.53, doorHeight * 0.46, 0.13, 0.13, 0.10, 0.08, handle);
+        box(group, jamb, doorHeight / 2, 0.07, 0.12, doorHeight, 0.22, posts);
+        box(group, edge, doorHeight / 2, 0.07, 0.12, doorHeight, 0.22, posts);
+        box(group, x, doorHeight, 0.07, doorWidth + 0.12, 0.13, 0.22, posts);
+        box(group, x, 0.015, 0, doorWidth, 0.03, 0.30, trim);
+      });
+      panel(edge, right, 0);
+      if (layout.floor === 2 || index === 0) {
+        box(group, left, top(left) / 2, (layout.roomBack - z) / 2,
+          0.1, top(left), z - layout.roomBack, wall.clone());
+      }
+      if (index === layout.rooms.length - 1) {
+        box(group, right, top(right) / 2, (layout.roomBack - z) / 2,
+          0.1, top(right), z - layout.roomBack, wall.clone());
+      }
+
+      [wall, frame, leaf, handle].forEach(function (material) {
+        material.transparent = true;
+        material.alphaTest = 0.001;
+      });
+      facade.children.forEach(function (item) { item.renderOrder = 1; });
+      upperRooms.set(facade, {
+        layout: layout, x: room.x, materials: new Set(), amount: 1, occupied: false
+      });
+    }
+
+    function occupiedRoom(position) {
+      for (var room of upperRooms.values()) {
+        var layout = room.layout;
+        if (Math.abs(layout.height - position.y) < 0.00001 &&
+          room.x[0] < position.x && position.x < room.x[1] &&
+          layout.roomBack <= position.z && position.z < layout.z[0]) return room;
+      }
+    }
+
+    function updateRoomFronts(dt) {
+      upperRooms.forEach(function (room) { room.occupied = false; });
+      residents.forEach(function (resident) {
+        var room = occupiedRoom(resident.position);
+        if (room) room.occupied = true;
+      });
+      upperRooms.forEach(function (room, facade) {
+        var target = room.occupied ? 0.13 : 1;
+        var step = dt * 4.2;
+        room.amount += clamp(target - room.amount, -step, step);
+        var opacity = room.amount * floorOpacity(room.layout.floor);
+        facade.userData.occupied = room.occupied;
+        room.materials.forEach(function (material) {
+          material.opacity = opacity;
+          material.depthWrite = opacity >= 0.999;
+        });
+      });
     }
 
     function updateHallwayLabel(resident, position, opacity) {
-      var layout = (metadata.upperHallways || []).find(function (hallway) {
-        return Math.abs(hallway.height - position.y) < 0.00001;
+      var room = occupiedRoom(position);
+      var hallway = (metadata.upperHallways || []).find(function (layout) {
+        return Math.abs(layout.height - position.y) < 0.00001 &&
+          position.x >= layout.x[0] && position.x <= layout.x[1] &&
+          position.z >= layout.z[0] && position.z <= layout.z[1];
       });
-      if (!layout || opacity < 0.5 || (layout.floor === 1 && position.z < -2.2) ||
-          (layout.floor === 2 && position.x > 8.5 && position.z < layout.wall)) {
+      var layout = room ? room.layout : hallway;
+      if (!layout || opacity < 0.5) {
         if (resident.locationLabel) resident.locationLabel.visible = false;
         return;
       }
-      var inHall = position.z >= layout.wall;
-      var text = (layout.floor + 1) + "F " + (inHall ? "廊下" : "部屋");
+      var inHall = !room;
+      var text = (layout.floor + 1) + "F " + (inHall ? "廊下" : "在室");
       if (!hallwayLabels.has(text)) {
         var badge = global.document.createElement("canvas");
         badge.width = 192;
@@ -1012,6 +1119,7 @@
           transparent: true, depthWrite: false, toneMapped: false, map: hallwayLabels.get(text)
         }));
         label.name = "resident-location-" + resident.id;
+        label.renderOrder = 5;
         label.position.set(0, resident.height + 0.21, 0);
         label.scale.set(1.38, 0.42, 1);
         resident.group.add(label);
@@ -1306,9 +1414,10 @@
       };
     }
 
-    function draw() {
+    function draw(dt) {
       resize();
       applyCamera();
+      updateRoomFronts(dt);
       updateResidentWorldPositions();
       var renderStart = currentTime();
       renderer.render(scene, camera);
@@ -1325,7 +1434,7 @@
       clock += dt;
       if (!paused) advanceResidents(dt);
       advanceProgress(dt);
-      draw();
+      draw(dt);
       global.requestAnimationFrame(tick);
     }
 
