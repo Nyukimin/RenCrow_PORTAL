@@ -62,6 +62,14 @@
     var houseTarget = new THREE.Vector3().fromArray(cameraInfo.house.target);
     var livingPosition = new THREE.Vector3().fromArray(cameraInfo.living.position);
     var livingTarget = new THREE.Vector3().fromArray(cameraInfo.living.target);
+    var houseOffset = housePosition.clone().sub(houseTarget);
+    var livingOffset = livingPosition.clone().sub(livingTarget);
+    var houseYaw = Math.atan2(houseOffset.x, houseOffset.z);
+    var livingYaw = Math.atan2(livingOffset.x, livingOffset.z);
+    var housePitch = Math.atan2(houseOffset.y, Math.hypot(houseOffset.x, houseOffset.z));
+    var livingPitch = Math.atan2(livingOffset.y, Math.hypot(livingOffset.x, livingOffset.z));
+    var houseDistance = houseOffset.length();
+    var livingDistance = livingOffset.length();
     var houseBaseSpan = Number(cameraInfo.house.span);
     var livingBaseSpan = Number(cameraInfo.living.span);
     if (!isFinite(houseBaseSpan) || houseBaseSpan <= 0 || !isFinite(livingBaseSpan) || livingBaseSpan <= 0) {
@@ -72,8 +80,12 @@
     var groundRoot = null;
     var secondRoot = null;
     var atticRoot = null;
-    var upperFadeMaterials = [];
-    var upperVisible = true;
+    var secondFadeMaterials = [];
+    var atticFadeMaterials = [];
+    var secondRootVisible = true;
+    var atticRootVisible = true;
+    var shadowLight = null;
+    var baseShadowIntensity = 1;
     var markerGroup = new THREE.Group();
     markerGroup.name = "preview-seat-markers";
     markerGroup.visible = false;
@@ -140,6 +152,7 @@
       highlight.position.y = 0.035;
       highlight.renderOrder = 2;
       highlight.visible = false;
+      resident.highlightOpacity = highlight.material.opacity;
       resident.group.add(highlight);
       resident.highlight = highlight;
       scene.add(resident.group);
@@ -171,10 +184,8 @@
     var selectedId = null;
     var view = options.initialView === "living" ? "living" : "house";
     var progress = view === "living" ? 1 : 0;
-    var progressFrom = progress;
-    var progressTo = progress;
-    var transitionStart = 0;
-    var transitionDuration = 1;
+    var progressTarget = progress;
+    var progressVelocity = 0;
     var viewportWidth = 1;
     var viewportHeight = 1;
     var pixelRatio = 1;
@@ -250,11 +261,58 @@
       fitLivingSpan = fitSpan(livingBaseSpan, livingPosition, livingTarget, groundBounds, aspect);
     }
 
-    function updateCamera(now) {
-      var t = transitionDuration <= 1 ? 1 : clamp((now - transitionStart) / transitionDuration, 0, 1);
-      progress = lerp(progressFrom, progressTo, smooth(t));
-      camera.position.lerpVectors(housePosition, livingPosition, progress);
+    function floorOpacity(floor, value) {
+      value = value === undefined ? progress : value;
+      if (floor === 2) return 1 - smooth((value - 0.10) / 0.30);
+      if (floor === 1) return 1 - smooth((value - 0.32) / 0.34);
+      return 1;
+    }
+
+    function shadowIntensityScale(value) {
+      var entering = smooth((value - 0.34) / 0.12);
+      var leaving = 1 - smooth((value - 0.62) / 0.12);
+      var upperFloorBlend = entering * leaving;
+      return 1 - 0.12 * upperFloorBlend;
+    }
+
+    function advanceProgress(dt) {
+      if (options.reducedMotion) {
+        progress = progressTarget;
+        progressVelocity = 0;
+        return;
+      }
+      var frequency = 5.6;
+      var displacement = progress - progressTarget;
+      var coefficient = progressVelocity + frequency * displacement;
+      var decay = Math.exp(-frequency * dt);
+      var nextDisplacement = (displacement + coefficient * dt) * decay;
+      var nextVelocity = (progressVelocity - frequency * coefficient * dt) * decay;
+      progress = progressTarget + nextDisplacement;
+      progressVelocity = nextVelocity;
+      if (progress <= 0 && progressVelocity < 0) {
+        progress = 0;
+        progressVelocity = 0;
+      } else if (progress >= 1 && progressVelocity > 0) {
+        progress = 1;
+        progressVelocity = 0;
+      }
+      if (Math.abs(progress - progressTarget) < 0.0008 && Math.abs(progressVelocity) < 0.008) {
+        progress = progressTarget;
+        progressVelocity = 0;
+      }
+    }
+
+    function applyCamera() {
       var target = houseTarget.clone().lerp(livingTarget, progress);
+      var yaw = lerp(houseYaw, livingYaw, progress);
+      var pitch = lerp(housePitch, livingPitch, progress);
+      var distance = lerp(houseDistance, livingDistance, progress);
+      var horizontalDistance = Math.cos(pitch) * distance;
+      camera.position.set(
+        target.x + Math.sin(yaw) * horizontalDistance,
+        target.y + Math.sin(pitch) * distance,
+        target.z + Math.cos(yaw) * horizontalDistance
+      );
       camera.lookAt(target);
       var aspect = Math.max(0.1, viewportWidth / viewportHeight);
       var span = lerp(fitHouseSpan, fitLivingSpan, progress);
@@ -267,54 +325,63 @@
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld(true);
 
-      // The original mesh stays in place. Upper roots disappear only in the
-      // close, settled portion of LIVING so they cannot cover the 1F room.
-      var showUpper = progress < 0.94;
-      var fade = 1 - smooth((progress - 0.70) / 0.23);
-      if (secondRoot) secondRoot.visible = showUpper;
-      if (atticRoot) atticRoot.visible = showUpper;
-      upperFadeMaterials.forEach(function (entry) { entry.material.opacity = entry.opacity * fade; });
-      if (showUpper !== upperVisible && modelLoaded) {
-        upperVisible = showUpper;
+      var secondOpacity = floorOpacity(1);
+      var atticOpacity = floorOpacity(2);
+      var showSecond = secondOpacity > 0.001;
+      var showAttic = atticOpacity > 0.001;
+      if (secondRoot) secondRoot.visible = showSecond;
+      if (atticRoot) atticRoot.visible = showAttic;
+      secondFadeMaterials.forEach(function (entry) { entry.material.opacity = entry.opacity * secondOpacity; });
+      atticFadeMaterials.forEach(function (entry) { entry.material.opacity = entry.opacity * atticOpacity; });
+      if ((showSecond !== secondRootVisible || showAttic !== atticRootVisible) && modelLoaded) {
+        secondRootVisible = showSecond;
+        atticRootVisible = showAttic;
         renderer.shadowMap.needsUpdate = true;
       }
+      if (shadowLight) shadowLight.shadow.intensity = baseShadowIntensity * shadowIntensityScale(progress);
       return { target: target, span: span };
     }
 
-    function pathPosition(resident, time) {
+    function pathState(resident, time) {
       var distance = ((time * resident.speed + resident.phase) % 1) * resident.totalLength;
+      var chosen = null;
       for (var i = 0; i < resident.points.length; i += 1) {
         var startDistance = resident.lengths[i];
         var endDistance = resident.lengths[i + 1];
-        if (distance <= endDistance || i === resident.points.length - 1) {
+        if (distance < endDistance || i === resident.points.length - 1) {
           var span = Math.max(0.0001, endDistance - startDistance);
           var amount = clamp((distance - startDistance) / span, 0, 1);
-          return resident.points[i].clone().lerp(resident.points[(i + 1) % resident.points.length], amount);
+          var from = resident.points[i];
+          var to = resident.points[(i + 1) % resident.points.length];
+          chosen = { position: from.clone().lerp(to, amount), tangent: to.clone().sub(from) };
+          break;
         }
       }
-      return resident.points[0].clone();
+      if (!chosen) chosen = { position: resident.points[0].clone(), tangent: new THREE.Vector3() };
+      chosen.tangent.y = 0;
+      if (chosen.tangent.lengthSq() > 0.000001) {
+        chosen.tangent.normalize();
+      } else {
+        // A pause or a degenerate route segment keeps the last meaningful heading.
+        chosen.tangent.copy(resident.lastTangent || new THREE.Vector3(0, 0, 1));
+      }
+      return chosen;
     }
 
-    function directionFor(resident, position) {
-      var distance = ((residentClock * resident.speed + resident.phase) % 1) * resident.totalLength;
-      var segment = 0;
-      while (segment < resident.points.length - 1 && distance > resident.lengths[segment + 1]) segment += 1;
-      var from = resident.points[segment];
-      var to = resident.points[(segment + 1) % resident.points.length];
-      var moveX = to.x - from.x;
-      var moveZ = to.z - from.z;
-      var moveLength = Math.max(0.0001, Math.hypot(moveX, moveZ));
-      moveX /= moveLength;
-      moveZ /= moveLength;
-      var viewX = camera.position.x - position.x;
-      var viewZ = camera.position.z - position.z;
-      var viewLength = Math.max(0.0001, Math.hypot(viewX, viewZ));
-      viewX /= viewLength;
-      viewZ /= viewLength;
-      var facing = moveX * viewX + moveZ * viewZ;
-      if (facing > 0.35) return "front";
-      if (facing < -0.35) return "back";
-      return moveX * viewZ - moveZ * viewX > 0 ? "left" : "right";
+    function directionFor(tangent) {
+      var right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      right.y = 0;
+      if (right.lengthSq() < 0.000001) right.set(1, 0, 0);
+      else right.normalize();
+      // Camera local +Z points from the view target toward the viewer.
+      var towardObserver = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2);
+      towardObserver.y = 0;
+      if (towardObserver.lengthSq() < 0.000001) towardObserver.set(0, 0, 1);
+      else towardObserver.normalize();
+      var rightDot = tangent.x * right.x + tangent.z * right.z;
+      var observerDot = tangent.x * towardObserver.x + tangent.z * towardObserver.z;
+      if (Math.abs(rightDot) > Math.abs(observerDot)) return rightDot >= 0 ? "right" : "left";
+      return observerDot >= 0 ? "front" : "back";
     }
 
     function nearestAvailableTexture(residentId, direction) {
@@ -329,9 +396,9 @@
       return null;
     }
 
-    function updateSpriteTexture(resident, position) {
+    function updateSpriteTexture(resident, direction) {
       if (!resident.mesh) return;
-      var texture = nearestAvailableTexture(resident.id, directionFor(resident, position));
+      var texture = nearestAvailableTexture(resident.id, direction);
       if (!texture || resident.mesh.material.map === texture) return;
       resident.mesh.material.map = texture;
       resident.mesh.material.needsUpdate = true;
@@ -359,7 +426,8 @@
       mesh.renderOrder = 4;
       resident.group.add(mesh);
       resident.mesh = mesh;
-      updateSpriteTexture(resident, resident.points[0]);
+      resident.spriteOpacity = material.opacity;
+      updateSpriteTexture(resident, directionFor(resident.lastTangent || new THREE.Vector3(0, 0, 1)));
     }
 
     function finishImageLoad() {
@@ -393,7 +461,7 @@
             var resident = residents.find(function (entry) { return entry.id === id; });
             if (resident) {
               buildResidentMesh(resident);
-              if (resident.mesh) updateSpriteTexture(resident, resident.points[0]);
+              if (resident.mesh) updateSpriteTexture(resident, resident.direction || "front");
             }
             finishImageLoad();
           };
@@ -413,6 +481,8 @@
       scene.add(new THREE.HemisphereLight(0xd8e3ff, 0x503728, 1.05));
       scene.add(new THREE.AmbientLight(0xffdfbd, 0.38));
       var warmLight = new THREE.DirectionalLight(0xffd4a6, 2.15);
+      shadowLight = warmLight;
+      baseShadowIntensity = warmLight.shadow.intensity;
       warmLight.position.set(center.x - radius * 0.72, center.y + radius * 1.35, center.z + radius * 0.9);
       warmLight.target.position.copy(center);
       warmLight.castShadow = true;
@@ -430,7 +500,7 @@
       scene.add(warmLight, warmLight.target);
     }
 
-    function prepareUpperFade(object) {
+    function prepareUpperFade(object, fadeMaterials) {
       var cloned = new Map();
       object.traverse(function (item) {
         if (!item.isMesh || !item.material) return;
@@ -445,7 +515,7 @@
             material.depthWrite = false;
           }
           cloned.set(source, material);
-          upperFadeMaterials.push({ material: material, opacity: source.opacity });
+          fadeMaterials.push({ material: material, opacity: source.opacity });
           return material;
         };
         item.material = Array.isArray(item.material) ? item.material.map(replace) : replace(item.material);
@@ -613,8 +683,8 @@
         groundRoot = loadedGround;
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
-        prepareUpperFade(secondRoot);
-        prepareUpperFade(atticRoot);
+        prepareUpperFade(secondRoot, secondFadeMaterials);
+        prepareUpperFade(atticRoot, atticFadeMaterials);
         root.name = root.name || "HOUSE_105";
         scene.add(root);
         optimizeRoomGeometry();
@@ -672,12 +742,18 @@
 
     function updateResidentWorldPositions() {
       residents.forEach(function (resident) {
-        var position = pathPosition(resident, residentClock);
+        var state = pathState(resident, residentClock);
+        var position = state.position;
+        resident.lastTangent = state.tangent.clone();
         resident.group.position.copy(position);
-        resident.group.visible = resident.floor === 0 || progress < 0.88;
+        resident.direction = directionFor(state.tangent);
+        var opacity = floorOpacity(resident.floor);
+        resident.group.visible = opacity > 0.001;
+        if (resident.mesh) resident.mesh.material.opacity = resident.spriteOpacity * opacity;
+        if (resident.highlight) resident.highlight.material.opacity = resident.highlightOpacity * opacity;
         if (resident.mesh) {
           resident.mesh.quaternion.copy(camera.quaternion);
-          updateSpriteTexture(resident, position);
+          updateSpriteTexture(resident, resident.direction);
         }
       });
     }
@@ -764,12 +840,14 @@
       };
     }
 
-    function makeSnapshot(now) {
+    function makeSnapshot() {
       var residentMap = Object.create(null);
       residents.forEach(function (resident) {
-        var position = pathPosition(resident, residentClock);
+        var state = pathState(resident, residentClock);
+        var position = state.position;
+        var direction = directionFor(state.tangent);
         var screen = screenPoint(position.clone().add(new THREE.Vector3(0, resident.height * 0.5, 0)));
-        var floorVisible = resident.floor === 0 || progress < 0.94;
+        var opacity = floorOpacity(resident.floor);
         var spriteLoaded = Boolean(resident.mesh);
         residentMap[resident.id] = {
           id: resident.id,
@@ -777,8 +855,11 @@
           y: position.y,
           z: position.z,
           floor: resident.floor,
-          visible: Boolean(modelLoaded && !loadFailed && floorVisible && spriteLoaded && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
+          visible: Boolean(modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
           spriteLoaded: spriteLoaded,
+          opacity: opacity,
+          direction: direction,
+          heading: Math.atan2(state.tangent.x, state.tangent.z),
           screen: { x: screen.x, y: screen.y }
         };
       });
@@ -846,6 +927,7 @@
           span: camera.top * 2,
           focus: { x: target.x, y: target.y, z: target.z }
         },
+        floors: { ground: 1, second: floorOpacity(1), attic: floorOpacity(2) },
         frame: {
           intervalMs: frameIntervalMs,
           renderMs: lastFrameMs,
@@ -855,9 +937,9 @@
       };
     }
 
-    function draw(now) {
+    function draw() {
       resize();
-      updateCamera(now);
+      applyCamera();
       updateResidentWorldPositions();
       var renderStart = currentTime();
       renderer.render(scene, camera);
@@ -873,21 +955,23 @@
       lastFrame = now;
       clock += dt;
       if (!paused) residentClock += dt;
-      draw(now);
+      advanceProgress(dt);
+      draw();
       global.requestAnimationFrame(tick);
     }
 
     function setView(next) {
       next = next === "living" ? "living" : "house";
-      var now = currentTime();
-      updateCamera(now);
-      if (next === view && progressTo === (next === "living" ? 1 : 0)) return;
-      progressFrom = progress;
-      progressTo = next === "living" ? 1 : 0;
+      var target = next === "living" ? 1 : 0;
+      if (next === view && progressTarget === target) return;
       view = next;
-      transitionStart = now;
-      transitionDuration = options.reducedMotion ? 1 : Math.max(180, 1120 * Math.abs(progressTo - progressFrom));
-      if (options.reducedMotion) progress = progressTo;
+      progressTarget = target;
+      if (options.reducedMotion) {
+        progress = progressTarget;
+        progressVelocity = 0;
+        applyCamera();
+        updateResidentWorldPositions();
+      }
     }
 
     function selectResident(id) {
@@ -907,13 +991,11 @@
     }
 
     function snapshot() {
-      var now = currentTime();
-      updateCamera(now);
-      return makeSnapshot(now);
+      return makeSnapshot();
     }
 
     resize();
-    transitionStart = currentTime();
+    applyCamera();
     if (typeof global.requestAnimationFrame === "function") global.requestAnimationFrame(tick);
     loadSprites();
     loadModel();
