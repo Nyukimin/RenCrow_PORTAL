@@ -43,6 +43,7 @@ type handler struct {
 	page       *template.Template
 	luminaPage *template.Template
 	livingPage *template.Template
+	livingData livingPageData
 	assets     http.Handler
 	readiness  *http.Client
 }
@@ -58,6 +59,11 @@ type pageData struct {
 	ShowCharacterSwitcher bool
 	ShowChatAvatar        bool
 	ShowKuroMidoriAvatars bool
+}
+
+type livingPageData struct {
+	BoardURL     string
+	AssetVersion string
 }
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
@@ -90,6 +96,10 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("リビング HTMLを解析する: %w", err)
 	}
+	livingVersion, err := livingAssetVersion()
+	if err != nil {
+		return nil, err
+	}
 	assetFS, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		return nil, fmt.Errorf("PORTAL asset FSを作る: %w", err)
@@ -100,6 +110,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 		page:       page,
 		luminaPage: luminaPage,
 		livingPage: livingPage,
+		livingData: livingPageData{BoardURL: cfg.BoardURL, AssetVersion: livingVersion},
 		assets:     http.FileServer(http.FS(assetFS)),
 		readiness:  &http.Client{Timeout: 3 * time.Second},
 	}
@@ -130,6 +141,19 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	// PORTAL が自身で拒否したリクエストと CORE へ到達できなかったリクエストは
 	// CORE のログに現れない。PORTAL が唯一の証拠元であるため記録する。
 	return withAccessLog(newAccessLogger(nil), h), nil
+}
+
+// Fingerprint the small assets that must update together on /living.
+func livingAssetVersion() (string, error) {
+	digest := sha256.New()
+	for _, name := range []string{"living.css", "assets/house-data.js", "scene.js", "living.js"} {
+		file, err := webFiles.ReadFile("web/living/" + name)
+		if err != nil {
+			return "", fmt.Errorf("リビングのアセット %s を読む: %w", name, err)
+		}
+		_, _ = digest.Write(file)
+	}
+	return hex.EncodeToString(digest.Sum(nil)[:12]), nil
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -425,7 +449,7 @@ func (h *handler) serveLiving(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodHead {
 		return
 	}
-	if err := h.livingPage.Execute(w, h.cfg.BoardURL); err != nil {
+	if err := h.livingPage.Execute(w, h.livingData); err != nil {
 		http.Error(w, "リビングを表示できません", http.StatusInternalServerError)
 	}
 }

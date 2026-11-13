@@ -182,6 +182,7 @@
     var paused = false;
     var markerOn = false;
     var selectedId = null;
+    var cameraMotionEnabled = options.cameraMotionEnabled === undefined ? !options.reducedMotion : Boolean(options.cameraMotionEnabled);
     var view = options.initialView === "living" ? "living" : "house";
     var progress = view === "living" ? 1 : 0;
     var progressTarget = progress;
@@ -276,7 +277,7 @@
     }
 
     function advanceProgress(dt) {
-      if (options.reducedMotion) {
+      if (!cameraMotionEnabled) {
         progress = progressTarget;
         progressVelocity = 0;
         return;
@@ -966,7 +967,17 @@
       if (next === view && progressTarget === target) return;
       view = next;
       progressTarget = target;
-      if (options.reducedMotion) {
+      if (!cameraMotionEnabled) {
+        progress = progressTarget;
+        progressVelocity = 0;
+        applyCamera();
+        updateResidentWorldPositions();
+      }
+    }
+
+    function setCameraMotionEnabled(enabled) {
+      cameraMotionEnabled = Boolean(enabled);
+      if (!cameraMotionEnabled) {
         progress = progressTarget;
         progressVelocity = 0;
         applyCamera();
@@ -1002,6 +1013,7 @@
 
     return {
       setView: setView,
+      setCameraMotionEnabled: setCameraMotionEnabled,
       setPaused: setPaused,
       selectResident: selectResident,
       setMarker: setMarker,

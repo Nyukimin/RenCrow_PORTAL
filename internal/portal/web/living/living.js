@@ -6,6 +6,8 @@
   const frame = document.getElementById("scene-frame");
   const houseTab = document.getElementById("house-tab");
   const livingTab = document.getElementById("living-tab");
+  const viewMotionToggle = document.getElementById("view-motion-toggle");
+  const viewMotionState = document.getElementById("view-motion-state");
   const livingBoard = document.getElementById("living-board");
   const sceneName = document.getElementById("scene-view-name");
   const sceneContext = document.getElementById("scene-context-label");
@@ -26,7 +28,8 @@
     card.dataset.card,
     card.querySelector(".resident-name")?.textContent.trim() || card.dataset.card,
   ]));
-  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const systemMotionPreference = window.matchMedia?.("(prefers-reduced-motion: reduce)") || null;
+  const viewMotionPreferenceKey = "rencrow-living-view-motion-v1";
   const scrollKey = "rencrow-living-scroll";
   const validViews = new Set(["lcp", "workplace"]);
 
@@ -36,6 +39,14 @@
   let isPaused = false;
   let markerVisible = false;
   let scene = null;
+  let explicitViewMotion = null;
+  let viewMotionEnabled = true;
+
+  try {
+    const saved = window.localStorage.getItem(viewMotionPreferenceKey);
+    if (saved === "on" || saved === "off") explicitViewMotion = saved === "on";
+  } catch {}
+  viewMotionEnabled = explicitViewMotion ?? !(systemMotionPreference?.matches ?? false);
 
   function internalView(view) {
     return view === "workplace" ? "living" : "house";
@@ -120,6 +131,19 @@
     callScene("setPaused", isPaused);
   }
 
+  function setViewMotion(enabled, remember = false) {
+    viewMotionEnabled = Boolean(enabled);
+    if (remember) {
+      explicitViewMotion = viewMotionEnabled;
+      try {
+        window.localStorage.setItem(viewMotionPreferenceKey, viewMotionEnabled ? "on" : "off");
+      } catch {}
+    }
+    viewMotionToggle?.setAttribute("aria-pressed", String(viewMotionEnabled));
+    if (viewMotionState) viewMotionState.textContent = viewMotionEnabled ? "ON" : "OFF";
+    callScene("setCameraMotionEnabled", viewMotionEnabled);
+  }
+
   function setMarker(visible) {
     markerVisible = Boolean(visible);
     markerToggle?.setAttribute("aria-pressed", String(markerVisible));
@@ -165,6 +189,7 @@
 
   houseTab?.addEventListener("click", () => setView("lcp"));
   livingTab?.addEventListener("click", () => setView("workplace"));
+  viewMotionToggle?.addEventListener("click", () => setViewMotion(!viewMotionEnabled, true));
   livingJump?.addEventListener("click", () => setView(activeView === "lcp" ? "workplace" : "lcp"));
   motionToggle?.addEventListener("click", () => setPaused(!isPaused));
   markerToggle?.addEventListener("click", () => setMarker(!markerVisible));
@@ -199,10 +224,21 @@
   });
 
   restoreSelection();
+  setViewMotion(viewMotionEnabled);
+  if (systemMotionPreference) {
+    const followSystemMotion = (event) => {
+      if (explicitViewMotion === null) setViewMotion(!event.matches);
+    };
+    if (typeof systemMotionPreference.addEventListener === "function") {
+      systemMotionPreference.addEventListener("change", followSystemMotion);
+    } else if (typeof systemMotionPreference.addListener === "function") {
+      systemMotionPreference.addListener(followSystemMotion);
+    }
+  }
 
   if (canvas && typeof window.createHouseScene === "function") {
     try {
-      scene = window.createHouseScene(canvas, { reducedMotion, initialView: internalView(activeView) });
+      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView) });
       window.housePreview = scene;
       callScene("setView", internalView(activeView));
       callScene("setPaused", isPaused);

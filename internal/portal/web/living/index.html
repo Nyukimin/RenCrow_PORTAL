@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101720">
   <title>リビング | RenCrow PORTAL</title>
-  <link rel="stylesheet" href="/assets/living/living.css">
+  <link rel="stylesheet" href="/assets/living/living.css?v={{.AssetVersion}}">
   <script defer src="/assets/living/vendor/three-kit.js"></script>
-  <script defer src="/assets/living/assets/house-data.js"></script>
-  <script defer src="/assets/living/scene.js"></script>
-  <script defer src="/assets/living/living.js"></script>
+  <script defer src="/assets/living/assets/house-data.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/living/scene.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/living/living.js?v={{.AssetVersion}}"></script>
 </head>
 <body>
-  <div class="page-shell living" data-board-url="{{.}}">
+  <div class="page-shell living" data-board-url="{{.BoardURL}}">
     <header class="site-header">
       <a class="brand" href="/" aria-label="RenCrow PORTAL ホーム">
         <span class="brand-mark" aria-hidden="true">R</span>
@@ -28,6 +28,10 @@
         </button>
         <button id="living-tab" class="view-tab" type="button" aria-pressed="false" data-view="workplace">
           <span>LIVING</span>
+        </button>
+        <button id="view-motion-toggle" class="view-motion-toggle" type="button" aria-pressed="false">
+          <span>視点アニメーション</span>
+          <span id="view-motion-state" class="view-motion-state">OFF</span>
         </button>
       </nav>
 
@@ -189,7 +193,7 @@
             <button type="button" data-person="kit" data-participant="dots-comm" aria-pressed="false"><span class="avatar kit" aria-hidden="true">K</span><span class="person-name">KIT</span></button>
             <button type="button" data-person="grok" data-participant="grok-comm" aria-pressed="false"><span class="avatar grok" aria-hidden="true">ご</span><span class="person-name">ごろー</span></button>
           </div>
-          {{if .}}<a class="open-board" id="open-board" href="{{.}}">Mio の会話をBOARDで開く</a>
+          {{if .BoardURL}}<a class="open-board" id="open-board" href="{{.BoardURL}}">Mio の会話をBOARDで開く</a>
           {{else}}<p class="board-unavailable">BOARDの接続先が未設定です。</p>{{end}}
         </div>
       </section>

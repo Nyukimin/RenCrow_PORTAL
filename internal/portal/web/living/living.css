@@ -78,6 +78,26 @@ button:focus-visible, a:focus-visible { outline: 2px solid #dfc58f; outline-offs
 }
 .view-tab:hover { color: var(--ink); }
 .view-tab[aria-pressed="true"] { border-color: rgba(198, 167, 109, .25); background: linear-gradient(135deg, rgba(198, 167, 109, .16), rgba(198, 167, 109, .055)); color: #f3e9d3; }
+.view-motion-toggle {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-left: 4px;
+  padding: 0 12px;
+  border: 1px solid rgba(221, 215, 196, .2);
+  background: rgba(6, 11, 15, .28);
+  color: #b8b9af;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.view-motion-toggle:hover { border-color: rgba(221, 194, 139, .6); color: var(--ink); }
+.view-motion-toggle[aria-pressed="true"] { border-color: rgba(198, 167, 109, .65); background: rgba(198, 167, 109, .12); color: #f3e9d3; }
+.view-motion-state { min-width: 34px; padding: 4px 6px; border: 1px solid rgba(221, 215, 196, .2); color: #d6d2c8; font-size: 9px; font-weight: 750; letter-spacing: .1em; text-align: center; }
+.view-motion-toggle[aria-pressed="true"] .view-motion-state { border-color: rgba(198, 167, 109, .52); background: rgba(198, 167, 109, .2); color: #ffe8b3; }
 .tab-index { color: var(--gold-soft); font: 10px/1 Georgia, serif; letter-spacing: .04em; opacity: .8; }
 .preview-status { justify-self: end; display: inline-flex; align-items: center; gap: 9px; color: #dad3c3; font-size: 10px; letter-spacing: .08em; white-space: nowrap; }
 .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #bba36f; box-shadow: 0 0 10px rgba(198, 167, 109, .42); }
@@ -258,7 +278,9 @@ button.resident-card[aria-pressed="true"] { border-color: rgba(211, 180, 119, .7
   .preview-status { gap: 6px; font-size: 8px; }
   .status-sub, .status-divider { display: none; }
   .view-switch { width: 100%; }
+  .view-switch { display: grid; grid-template-columns: 1fr 1fr; }
   .view-tab { min-width: 0; flex: 1; height: 36px; font-size: 10px; }
+  .view-motion-toggle { grid-column: 1 / -1; min-height: 33px; margin: 3px 0 0; font-size: 9px; }
   .intro-row { align-items: start; padding: 18px 0 12px; }
   .eyebrow { font-size: 8px; }
   h1 { font-size: 21px; }

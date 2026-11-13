@@ -104,6 +104,38 @@ func TestPortalBoardLinkTemplateEscapesURLAndLabelAcrossModes(t *testing.T) {
 	}
 }
 
+func TestLivingPageUsesVersionedAssetsAndConfiguredBoard(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.BoardURL = "https://board.example/"
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := httptest.NewRecorder()
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/living?person=mio&view=workplace", nil))
+	if page.Code != http.StatusOK || page.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("living status = %d, Cache-Control = %q", page.Code, page.Header().Get("Cache-Control"))
+	}
+	if !strings.Contains(page.Body.String(), `data-board-url="https://board.example/"`) {
+		t.Fatal("living page is missing configured BOARD URL")
+	}
+	version, err := livingAssetVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"living.css", "assets/house-data.js", "scene.js", "living.js"} {
+		assetURL := "/assets/living/" + name + "?v=" + version
+		if !strings.Contains(page.Body.String(), `"`+assetURL+`"`) {
+			t.Errorf("living page is missing %q", assetURL)
+		}
+		asset := httptest.NewRecorder()
+		handler.ServeHTTP(asset, httptest.NewRequest(http.MethodGet, assetURL, nil))
+		if asset.Code != http.StatusOK {
+			t.Errorf("%s status = %d, want 200", assetURL, asset.Code)
+		}
+	}
+}
+
 func TestPortalServesLuminaDisplay(t *testing.T) {
 	handler, err := NewHandler(DefaultConfig())
 	if err != nil {
