@@ -98,17 +98,17 @@
     var markerTextureCache = Object.create(null);
 
     var residents = metadata.residents.map(function (resident, index) {
-      if (!resident || !resident.id || !Array.isArray(resident.points) || resident.points.length < 2) {
+      var route = resident && (resident.route ? metadata.routes && metadata.routes[resident.route] : resident.points);
+      if (!resident || !resident.id || !Array.isArray(route) || route.length < 2) {
         throw new Error("HOUSE_105の住人経路データが不完全です。");
       }
       if (![0, 1, 2].includes(Number(resident.floor))) throw new Error("HOUSE_105の住人フロアが不正です。");
-      var points = resident.points.map(function (point) {
+      var points = route.map(function (point) {
         if (!Array.isArray(point) || point.length < 3 || point.some(function (value) { return !isFinite(Number(value)); })) {
           throw new Error("HOUSE_105の住人経路に不正な座標があります。");
         }
         return new THREE.Vector3(Number(point[0]), Number(point[1]), Number(point[2]));
       });
-      if (resident.returnTrip) points = points.concat(points.slice(1, -1).reverse());
       var lengths = [0];
       var totalLength = 0;
       for (var i = 0; i < points.length; i += 1) {
@@ -123,7 +123,7 @@
         lengths: lengths,
         totalLength: Math.max(totalLength, 0.001),
         phase: index / Math.max(1, metadata.residents.length),
-        speed: resident.pace > 0 ? resident.pace / totalLength : 0.075 + (index % 4) * 0.012,
+        speed: resident.pace > 0 ? resident.pace / Math.max(totalLength, 0.001) : 0.075 + (index % 4) * 0.012,
         group: new THREE.Group(),
         mesh: null,
         highlight: null,
@@ -703,6 +703,25 @@
           node.position.y += group.offset[1];
           node.position.z += group.offset[2];
         });
+      });
+
+      if (metadata.routes && metadata.routes.groundLoop) addDeckThresholds(ground, nodes.get("1F_Plank_19_v4"));
+    }
+
+    function addDeckThresholds(ground, floor) {
+      // Join the indoor floor and the lower deck at both ends of the return path.
+      var threshold = new THREE.BoxGeometry(1.48, 0.20, 0.13);
+      var vertices = threshold.getAttribute("position");
+      for (var i = 0; i < vertices.count; i += 1) {
+        if (vertices.getY(i) > 0 && vertices.getZ(i) > 0) vertices.setY(i, -0.02);
+      }
+      threshold.computeVertexNormals();
+      [-3.65, 0.42].forEach(function (x) {
+        var ramp = new THREE.Mesh(threshold, floor.material);
+        ramp.name = "deck-walkway-threshold";
+        ramp.position.set(x, 0.11, 4.265);
+        ramp.receiveShadow = true;
+        ground.add(ramp);
       });
     }
 

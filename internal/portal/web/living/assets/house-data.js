@@ -1,19 +1,77 @@
 window.housePreviewData = {
   "source": "HOUSE_105_review.blend",
   "cameras": {"house":{"position":[0,4.93999,40],"target":[0,4.94,0.5],"span":15.1875},"living":{"position":[-18.56293,32.90005,40.43331],"target":[0,2.14442,0.625],"span":16.81542}},
-  "desks": [{"id":"workstation-01","residentId":"mio","position":[-11.07,1.11,1.52]},{"id":"workstation-02","residentId":"shiro","position":[-9.03,1.11,1.52]},{"id":"workstation-03","residentId":"kuro","position":[-6.87,1.11,1.52]},{"id":"workstation-04","residentId":"midori","position":[-4.83,1.11,1.52]},{"id":"workstation-05","residentId":"aka","position":[-11.07,1.11,-2.08]},{"id":"workstation-06","residentId":"ao","position":[-9.03,1.11,-2.08]},{"id":"workstation-07","residentId":"kin","position":[-6.87,1.11,-2.08]},{"id":"workstation-08","residentId":"gin","position":[-4.83,1.11,-2.08]}],
+  "desks": [{"id":"workstation-01","residentId":"mio","position":[-11.07,1.11,1.52]},{"id":"workstation-02","residentId":"shiro","position":[-9.03,1.11,1.52]},{"id":"workstation-03","residentId":"kuro","position":[-7.17,1.11,1.52]},{"id":"workstation-04","residentId":"midori","position":[-5.13,1.11,1.52]},{"id":"workstation-05","residentId":"aka","position":[-11.07,1.11,-2.08]},{"id":"workstation-06","residentId":"ao","position":[-9.03,1.11,-2.08]},{"id":"workstation-07","residentId":"kin","position":[-6.87,1.11,-2.08]},{"id":"workstation-08","residentId":"gin","position":[-4.83,1.11,-2.08]}],
   "residents": [
-    {"id":"mio","points":[[-3.34,0.21,-0.35],[-3.34,0.21,-0.75],[-3.05,0.21,-0.99],[-0.52,0.21,-0.99],[-0.49,0.21,-1.62],[-0.05,0.21,-2.03],[5.63,0.21,-2.03],[6.73,0.21,-1.99],[7.18,0.21,-1.58],[7.18,0.21,3.16],[6.73,0.21,3.56],[0.66,0.21,3.56]],"floor":0,"returnTrip":true,"pace":1.16},
-    {"id":"shiro","points":[[10.7,0.21,-1.79],[8.46,0.21,-1.92],[7.6,0.21,-1.98],[7.21,0.21,-1.58],[7.21,0.21,3.16],[7.62,0.21,3.52],[9.68,0.21,3.56]],"floor":0,"returnTrip":true,"pace":1.02},
+    {"id":"mio","floor":0,"pace":1.12,"route":"groundLoop"},
+    {"id":"shiro","floor":0,"pace":1.12,"route":"groundLoop"},
     {"id":"kuro","points":[[-5.08,3.72,1.25],[-4.2,3.72,1.25],[-4.2,3.72,2.1],[-5.08,3.72,2.1]],"floor":1},
     {"id":"midori","points":[[7.65,3.72,3.28],[9.95,3.72,3.28],[9.95,3.72,3.8],[7.65,3.72,3.8]],"floor":1},
-    {"id":"aka","points":[[-3.36,0.21,-0.31],[-3.36,0.21,-0.7],[-3.05,0.21,-1.04],[-0.54,0.21,-1.04],[-0.5,0.21,-1.7],[-0.04,0.21,-2.02],[1.55,0.21,-2.02]],"floor":0,"returnTrip":true,"pace":0.88},
-    {"id":"ao","points":[[6.24,0.21,3.66],[3.98,0.21,3.65],[1.02,0.21,3.64]],"floor":0,"returnTrip":true,"pace":0.94},
+    {"id":"aka","floor":0,"pace":1.12,"route":"groundLoop"},
+    {"id":"ao","floor":0,"pace":1.12,"route":"groundLoop"},
     {"id":"kin","points":[[-6.12,7.25,-0.5],[-5.22,7.25,-0.5],[-5.22,7.25,1.35],[-6.12,7.25,1.35]],"floor":2},
     {"id":"gin","points":[[6.1,7.25,0],[7,7.25,0],[7,7.25,1.35],[6.1,7.25,1.35]],"floor":2}
   ],
+  "routes": {
+    "groundLoop": [
+      [-3.45,0.21,0.54], [-3.42,0.21,-0.68], [-3.05,0.21,-0.99], [-0.52,0.21,-0.99],
+      [-0.49,0.21,-1.62], [-0.05,0.21,-2.03], [5.63,0.21,-2.03], [6.73,0.21,-1.99],
+      [10.55,0.21,-1.91], [11.1,0.21,-1.67], [11.19,0.21,-1.3], [11.19,0.21,2.94],
+      [10.65,0.21,3.6], [6.73,0.21,3.62], [1.2,0.21,3.65], [0.64,0.21,3.95],
+      [0.48,0.21,4.2], [0.4,0.176,4.237], [0.32,0.141,4.275], [0.24,0.09,4.33],
+      [0.16,0.09,4.62], [-0.45,0.09,4.83], [-3.26,0.09,4.83], [-3.57,0.09,4.59],
+      [-3.65,0.09,4.33], [-3.65,0.21,4.2], [-3.65,0.21,1.1]
+    ]
+  },
   "bounds": {"min":[-12.6,-0.41,-4.7],"max":[12.6,10.29,5.7]},
   "groundLayout": [
+    { "name": "front-workstations", "offset": [-0.3,0,0], "objects": [
+      "Arm pad.004_v4", "Arm pad.005_v4", "Arm support.004_v4",
+      "Arm support.005_v4", "ART05_Chair_back_welt_3__render_mesh", "ART05_Chair_seat_welt_3__render_mesh",
+      "ART08_Tablet_wood_support", "ART_Chair_lumbar_3", "ART_Desk_drawer_3_0",
+      "ART_Desk_drawer_3_1", "ART_Desk_drawer_3_2", "ART_Desk_mat_3",
+      "ART_Desk_memory_frame_3", "ART_Desk_notebook_3", "ART_Desk_pedestal_3",
+      "ART_Desk_reference_tablet_3", "ART_Drawer_pull_3_0__render_mesh", "ART_Drawer_pull_3_1__render_mesh",
+      "ART_Drawer_pull_3_2__render_mesh", "ART_Memory_color_card_3", "ART_Notebook_pages_3",
+      "ART_Tablet_matte_surface_3", "ART_Tablet_stylus_3__render_mesh", "Backrest.002_v4",
+      "Caster spoke.010_v4", "Caster spoke.011_v4", "Caster spoke.012_v4",
+      "Caster spoke.013_v4", "Caster spoke.014_v4", "Caster.010_v4",
+      "Caster.011_v4", "Caster.012_v4", "Caster.013_v4",
+      "Caster.014_v4", "Cup handle.002_v4__render_mesh", "Display housing.002_v4",
+      "Fan light.006_v4", "Fan light.007_v4", "Fan light.008_v4",
+      "Foliage grouped.002_v4", "Gas lift.002_v4", "Glass screen.002_v4",
+      "Interface line.008_v4", "Interface line.009_v4", "Interface line.010_v4",
+      "Interface line.011_v4", "Key row.008_v4", "Key row.009_v4",
+      "Key row.010_v4", "Key row.011_v4", "Keyboard row.012_v4",
+      "Keyboard row.013_v4", "Keyboard row.014_v4", "Keyboard row.015_v4",
+      "Keyboard row.016_v4", "Keyboard row.017_v4", "Keyboard.002_v4",
+      "Laptop base.002_v4", "Laptop display.002_v4", "Laptop lid.002_v4",
+      "Monitor foot.002_v4", "Monitor stem.002_v4", "Mouse.002_v4",
+      "PC tower.002_v4", "Plant pot.002_v4", "Seat.002_v4",
+      "Side panel.002_v4", "Soil.002_v4", "Stems.002_v4__render_mesh",
+      "Table leg.008_v4", "Table leg.009_v4", "Table leg.010_v4",
+      "Table leg.011_v4", "Tea cup body.002_v4", "Tea surface.002_v4",
+      "V2_armrest_joint.004_v4", "V2_armrest_joint.005_v4", "V2_ceramic_pot_rim.002_v4",
+      "V2_desk_leg_bracket.004_v4", "V2_desk_leg_bracket.005_v4", "V2_desktop_keyboard_keycaps.002_v4",
+      "V2_laptop_hinge.002_v4", "V2_laptop_keycaps.002_v4", "V2_laptop_trackpad.002_v4",
+      "V2_PC_fan_ring.006_v4", "V2_PC_fan_ring.007_v4", "V2_PC_fan_ring.008_v4",
+      "V2_PC_front_power_switch.002_v4", "V2_PC_side_panel.002_v4", "V2_plant_branching_stems.002_v4__render_mesh",
+      "V2_pot_foot.002_v4", "V2_workstation_cable.002_v4__render_mesh", "Wood tabletop.002_v4",
+      "Work_Monitor_Front_Right_A_v4_Display housing.002_v4", "Work_Monitor_Front_Right_A_v4_Glass screen.002_v4", "Work_Monitor_Front_Right_A_v4_Interface line.008_v4",
+      "Work_Monitor_Front_Right_A_v4_Interface line.009_v4", "Work_Monitor_Front_Right_A_v4_Interface line.010_v4", "Work_Monitor_Front_Right_A_v4_Interface line.011_v4",
+      "Work_Monitor_Front_Right_A_v4_Monitor foot.002_v4", "Work_Monitor_Front_Right_A_v4_Monitor stem.002_v4", "Work_Monitor_Front_Right_A_v4_Side panel.002_v4",
+      "Work_Monitor_Front_Right_C_v4_Display housing.002_v4", "Work_Monitor_Front_Right_C_v4_Glass screen.002_v4", "Work_Monitor_Front_Right_C_v4_Interface line.008_v4",
+      "Work_Monitor_Front_Right_C_v4_Interface line.009_v4", "Work_Monitor_Front_Right_C_v4_Interface line.010_v4", "Work_Monitor_Front_Right_C_v4_Interface line.011_v4",
+      "Work_Monitor_Front_Right_C_v4_Monitor foot.002_v4", "Work_Monitor_Front_Right_C_v4_Monitor stem.002_v4", "Work_Monitor_Front_Right_C_v4_Side panel.002_v4",
+      "Arm pad.004_v4__PORTAL_EXTRA_SEAT", "Arm pad.005_v4__PORTAL_EXTRA_SEAT", "Arm support.004_v4__PORTAL_EXTRA_SEAT",
+      "Arm support.005_v4__PORTAL_EXTRA_SEAT", "ART05_Chair_back_welt_3__render_mesh__PORTAL_EXTRA_SEAT", "ART05_Chair_seat_welt_3__render_mesh__PORTAL_EXTRA_SEAT",
+      "ART_Chair_lumbar_3__PORTAL_EXTRA_SEAT", "Backrest.002_v4__PORTAL_EXTRA_SEAT", "Caster spoke.010_v4__PORTAL_EXTRA_SEAT",
+      "Caster spoke.011_v4__PORTAL_EXTRA_SEAT", "Caster spoke.012_v4__PORTAL_EXTRA_SEAT", "Caster spoke.013_v4__PORTAL_EXTRA_SEAT",
+      "Caster spoke.014_v4__PORTAL_EXTRA_SEAT", "Caster.010_v4__PORTAL_EXTRA_SEAT", "Caster.011_v4__PORTAL_EXTRA_SEAT",
+      "Caster.012_v4__PORTAL_EXTRA_SEAT", "Caster.013_v4__PORTAL_EXTRA_SEAT", "Caster.014_v4__PORTAL_EXTRA_SEAT",
+      "Gas lift.002_v4__PORTAL_EXTRA_SEAT", "Seat.002_v4__PORTAL_EXTRA_SEAT", "V2_armrest_joint.004_v4__PORTAL_EXTRA_SEAT",
+      "V2_armrest_joint.005_v4__PORTAL_EXTRA_SEAT"
+    ] },
     { "name": "sofa", "offset": [0.05,0,-1.04], "objects": [
       "ART10_Back_welt_0__render_mesh", "ART10_Back_welt_1__render_mesh", "ART10_Back_welt_2__render_mesh",
       "ART10_Pillow_seam_0__render_mesh", "ART10_Pillow_seam_1__render_mesh", "ART10_Pillow_seam_2__render_mesh",
@@ -76,36 +134,24 @@ window.housePreviewData = {
       "ART_Rug_fringe_-1_44__render_mesh", "ART_Rug_woven_border_0.15__render_mesh", "ART_Rug_woven_border_0.26__render_mesh",
       "Woven rug_v4"
     ] },
-    { "name": "front-plant", "offset": [4.63,0,0.85], "objects": [
-      "Foliage grouped.011_v4", "Plant pot.011_v4", "Soil.011_v4",
-      "Stems.011_v4__render_mesh", "V2_ceramic_pot_rim.007_v4", "V2_plant_branching_stems.007_v4__render_mesh",
-      "V2_pot_foot.007_v4"
-    ] },
-    { "name": "stairs-plant", "offset": [0.05,0,-1.1], "objects": [
-      "Foliage grouped.010_v4", "Plant pot.010_v4", "Soil.010_v4",
-      "Stems.010_v4__render_mesh", "V2_ceramic_pot_rim.006_v4", "V2_plant_branching_stems.006_v4__render_mesh",
-      "V2_pot_foot.006_v4"
-    ] },
-    { "name": "guitar", "offset": [-1.32,0,-1.85], "objects": [
-      "Guitar lower body_v4", "Guitar neck_v4", "Guitar string.001_v4__render_mesh",
-      "Guitar string.002_v4__render_mesh", "Guitar string.003_v4__render_mesh", "Guitar string.004_v4__render_mesh",
-      "Guitar string.005_v4__render_mesh", "Guitar string_v4__render_mesh", "Guitar upper body_v4",
-      "Headstock_v4", "Sound hole_v4", "V2_guitar_bridge_v4",
-      "V2_guitar_tuner.001_v4", "V2_guitar_tuner.002_v4", "V2_guitar_tuner.003_v4",
-      "V2_guitar_tuner.004_v4", "V2_guitar_tuner.005_v4", "V2_guitar_tuner_v4"
-    ] },
-    { "name": "dining", "offset": [0.37,0,0], "objects": [
+    { "name": "dining-aisle-chairs", "offset": [-0.12,0,0], "objects": [
       "Backrest.006_v4", "Backrest.007_v4", "Backrest.008_v4",
+      "Chair leg.001_v4", "Chair leg.002_v4", "Chair leg.003_v4",
+      "Chair leg.004_v4", "Chair leg.005_v4", "Chair leg.006_v4",
+      "Chair leg.007_v4", "Chair leg.008_v4", "Chair leg.009_v4",
+      "Chair leg.010_v4", "Chair leg.011_v4", "Chair leg_v4",
+      "Seat.006_v4", "Seat.007_v4", "Seat.008_v4"
+    ] },
+    { "name": "dining-window-chairs", "offset": [-0.9,0,0], "objects": [
       "Backrest.009_v4", "Backrest.010_v4", "Backrest.011_v4",
-      "Ceramic vase_v4", "Chair leg.001_v4", "Chair leg.002_v4",
-      "Chair leg.003_v4", "Chair leg.004_v4", "Chair leg.005_v4",
-      "Chair leg.006_v4", "Chair leg.007_v4", "Chair leg.008_v4",
-      "Chair leg.009_v4", "Chair leg.010_v4", "Chair leg.011_v4",
       "Chair leg.012_v4", "Chair leg.013_v4", "Chair leg.014_v4",
       "Chair leg.015_v4", "Chair leg.016_v4", "Chair leg.017_v4",
       "Chair leg.018_v4", "Chair leg.019_v4", "Chair leg.020_v4",
       "Chair leg.021_v4", "Chair leg.022_v4", "Chair leg.023_v4",
-      "Chair leg_v4", "Cup handle.007_v4__render_mesh", "Cup handle.008_v4__render_mesh",
+      "Seat.009_v4", "Seat.010_v4", "Seat.011_v4"
+    ] },
+    { "name": "dining", "offset": [-0.5,0,0], "objects": [
+      "Ceramic vase_v4", "Cup handle.007_v4__render_mesh", "Cup handle.008_v4__render_mesh",
       "Dinner plate.001_v4", "Dinner plate_v4", "Flower center.001_v4",
       "Flower center.002_v4", "Flower center.003_v4", "Flower center.004_v4",
       "Flower center.005_v4", "Flower center.006_v4", "Flower center_v4",
@@ -123,11 +169,27 @@ window.housePreviewData = {
       "Petal.027_v4", "Petal.028_v4", "Petal.029_v4",
       "Petal.030_v4", "Petal.031_v4", "Petal.032_v4",
       "Petal.033_v4", "Petal.034_v4", "Petal_v4",
-      "Seat.006_v4", "Seat.007_v4", "Seat.008_v4",
-      "Seat.009_v4", "Seat.010_v4", "Seat.011_v4",
       "Table leg.024_v4", "Table leg.025_v4", "Table leg.026_v4",
       "Table leg.027_v4", "Tea cup body.007_v4", "Tea cup body.008_v4",
       "Tea surface.007_v4", "Tea surface.008_v4", "Wood tabletop.006_v4"
+    ] },
+    { "name": "stairs-plant", "offset": [0.05,0,-1.1], "objects": [
+      "Foliage grouped.010_v4", "Plant pot.010_v4", "Soil.010_v4",
+      "Stems.010_v4__render_mesh", "V2_ceramic_pot_rim.006_v4", "V2_plant_branching_stems.006_v4__render_mesh",
+      "V2_pot_foot.006_v4"
+    ] },
+    { "name": "front-plant", "offset": [-8.62,0,-6.12], "objects": [
+      "Foliage grouped.011_v4", "Plant pot.011_v4", "Soil.011_v4",
+      "Stems.011_v4__render_mesh", "V2_ceramic_pot_rim.007_v4", "V2_plant_branching_stems.007_v4__render_mesh",
+      "V2_pot_foot.007_v4"
+    ] },
+    { "name": "guitar", "offset": [-1.32,0,-1.85], "objects": [
+      "Guitar lower body_v4", "Guitar neck_v4", "Guitar string.001_v4__render_mesh",
+      "Guitar string.002_v4__render_mesh", "Guitar string.003_v4__render_mesh", "Guitar string.004_v4__render_mesh",
+      "Guitar string.005_v4__render_mesh", "Guitar string_v4__render_mesh", "Guitar upper body_v4",
+      "Headstock_v4", "Sound hole_v4", "V2_guitar_bridge_v4",
+      "V2_guitar_tuner.001_v4", "V2_guitar_tuner.002_v4", "V2_guitar_tuner.003_v4",
+      "V2_guitar_tuner.004_v4", "V2_guitar_tuner.005_v4", "V2_guitar_tuner_v4"
     ] }
   ]
 };
