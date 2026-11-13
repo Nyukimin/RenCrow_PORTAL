@@ -705,23 +705,19 @@
         });
       });
 
-      if (metadata.routes && metadata.routes.groundLoop) addDeckThresholds(ground, nodes.get("1F_Plank_19_v4"));
+      extendGroundFloor(nodes);
     }
 
-    function addDeckThresholds(ground, floor) {
-      // Join the indoor floor and the lower deck at both ends of the return path.
-      var threshold = new THREE.BoxGeometry(1.48, 0.20, 0.13);
-      var vertices = threshold.getAttribute("position");
-      for (var i = 0; i < vertices.count; i += 1) {
-        if (vertices.getY(i) > 0 && vertices.getZ(i) > 0) vertices.setY(i, -0.02);
-      }
-      threshold.computeVertexNormals();
-      [-3.65, 0.42].forEach(function (x) {
-        var ramp = new THREE.Mesh(threshold, floor.material);
-        ramp.name = "deck-walkway-threshold";
-        ramp.position.set(x, 0.11, 4.265);
-        ramp.receiveShadow = true;
-        ground.add(ramp);
+    function extendGroundFloor(nodes) {
+      // Keep the rear edge at -4.2 and continue the same planks through to the old deck's front edge.
+      var extension = 5.7 - 4.2;
+      nodes.forEach(function (node, name) {
+        if (/^(?:1F_Plank_\d+|1F_subfloor)_v4$/.test(name)) {
+          node.scale.z *= (8.4 + extension) / 8.4;
+          node.position.z += extension / 2;
+        } else if (/^(?:Front_deck|Deck_plank(?:\.\d+)?)_v4$/.test(name)) {
+          node.removeFromParent();
+        }
       });
     }
 
