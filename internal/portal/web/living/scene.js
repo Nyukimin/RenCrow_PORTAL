@@ -190,11 +190,14 @@
     var viewportWidth = 1;
     var viewportHeight = 1;
     var pixelRatio = 1;
-    var fitHouseSpan = houseBaseSpan;
-    var fitLivingSpan = livingBaseSpan;
+    var houseFraming = { span: houseBaseSpan, x: 0, y: 0 };
+    var livingFraming = { span: livingBaseSpan, x: 0, y: 0 };
+    var houseProjection;
+    var livingProjection;
     var modelBounds = new THREE.Box3();
     var groundBounds = new THREE.Box3();
     var temporaryCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 1000);
+    var projectionMatrix = new THREE.Matrix4();
     var reusableVector = new THREE.Vector3();
     var statusSummary = "loading";
 
@@ -215,27 +218,34 @@
       return global.performance && typeof global.performance.now === "function" ? global.performance.now() : Date.now();
     }
 
-    function fitSpan(baseSpan, position, target, bounds, aspect) {
-      if (!bounds || bounds.isEmpty()) return baseSpan;
+    function projectedBounds(object, position, target) {
       temporaryCamera.position.copy(position);
       temporaryCamera.lookAt(target);
       temporaryCamera.updateMatrixWorld(true);
-      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (var x = 0; x < 2; x += 1) {
-        for (var y = 0; y < 2; y += 1) {
-          for (var z = 0; z < 2; z += 1) {
-            reusableVector.set(x ? bounds.max.x : bounds.min.x, y ? bounds.max.y : bounds.min.y, z ? bounds.max.z : bounds.min.z);
-            reusableVector.applyMatrix4(temporaryCamera.matrixWorldInverse);
-            minX = Math.min(minX, reusableVector.x);
-            maxX = Math.max(maxX, reusableVector.x);
-            minY = Math.min(minY, reusableVector.y);
-            maxY = Math.max(maxY, reusableVector.y);
-          }
+      // Project the meshes once so empty corners of the room's 3D bounds don't dictate the zoom.
+      var bounds = new THREE.Box2();
+      object.traverse(function (mesh) {
+        if (!mesh.isMesh) return;
+        var points = mesh.geometry.getAttribute("position");
+        if (!points) return;
+        projectionMatrix.multiplyMatrices(temporaryCamera.matrixWorldInverse, mesh.matrixWorld);
+        for (var i = 0; i < points.count; i += 1) {
+          reusableVector.fromBufferAttribute(points, i).applyMatrix4(projectionMatrix);
+          bounds.min.x = Math.min(bounds.min.x, reusableVector.x);
+          bounds.max.x = Math.max(bounds.max.x, reusableVector.x);
+          bounds.min.y = Math.min(bounds.min.y, reusableVector.y);
+          bounds.max.y = Math.max(bounds.max.y, reusableVector.y);
         }
-      }
-      var innerWidth = Math.max(0.5, aspect * 0.86);
-      var innerHeight = 0.86;
-      return Math.max(baseSpan, (maxY - minY) / innerHeight, (maxX - minX) / innerWidth);
+      });
+      return bounds;
+    }
+
+    function fitFraming(bounds, aspect) {
+      return {
+        span: Math.max((bounds.max.y - bounds.min.y) / 0.93, (bounds.max.x - bounds.min.x) / (aspect * 0.95)),
+        x: (bounds.min.x + bounds.max.x) * 0.5,
+        y: (bounds.min.y + bounds.max.y) * 0.5
+      };
     }
 
     function resize() {
@@ -249,17 +259,13 @@
         pixelRatio = nextPixelRatio;
         renderer.setPixelRatio(pixelRatio);
         renderer.setSize(width, height, false);
-        var aspect = width / height;
-        camera.left = -camera.top * aspect;
-        camera.right = camera.top * aspect;
-        camera.updateProjectionMatrix();
-        if (modelLoaded) updateFittedSpans(aspect);
+        if (modelLoaded) updateFraming(width / height);
       }
     }
 
-    function updateFittedSpans(aspect) {
-      fitHouseSpan = fitSpan(houseBaseSpan, housePosition, houseTarget, modelBounds, aspect);
-      fitLivingSpan = fitSpan(livingBaseSpan, livingPosition, livingTarget, groundBounds, aspect);
+    function updateFraming(aspect) {
+      houseFraming = fitFraming(houseProjection, aspect);
+      livingFraming = fitFraming(livingProjection, aspect);
     }
 
     function floorOpacity(floor, value) {
@@ -316,11 +322,13 @@
       );
       camera.lookAt(target);
       var aspect = Math.max(0.1, viewportWidth / viewportHeight);
-      var span = lerp(fitHouseSpan, fitLivingSpan, progress);
-      camera.top = span * 0.5;
-      camera.bottom = -camera.top;
-      camera.left = -camera.top * aspect;
-      camera.right = camera.top * aspect;
+      var span = lerp(houseFraming.span, livingFraming.span, progress);
+      var centerX = lerp(houseFraming.x, livingFraming.x, progress);
+      var centerY = lerp(houseFraming.y, livingFraming.y, progress);
+      camera.top = centerY + span * 0.5;
+      camera.bottom = centerY - span * 0.5;
+      camera.left = centerX - span * 0.5 * aspect;
+      camera.right = centerX + span * 0.5 * aspect;
       camera.near = 0.05;
       camera.far = Math.max(1000, span * 80);
       camera.updateProjectionMatrix();
@@ -699,7 +707,9 @@
         });
         configureRoomLighting(modelBounds);
         countModelResources(root);
-        updateFittedSpans(viewportWidth / viewportHeight);
+        houseProjection = projectedBounds(root, housePosition, houseTarget);
+        livingProjection = projectedBounds(groundRoot, livingPosition, livingTarget);
+        updateFraming(viewportWidth / viewportHeight);
         modelLoaded = true;
         loadFailed = false;
         statusSummary = "loaded";
@@ -924,8 +934,8 @@
           target: [target.x, target.y, target.z],
           yaw: Math.atan2(offset.x, offset.z),
           pitch: Math.atan2(offset.y, Math.hypot(offset.x, offset.z)),
-          scale: camera.top > 0 ? 1 / camera.top : 0,
-          span: camera.top * 2,
+          scale: 2 / (camera.top - camera.bottom),
+          span: camera.top - camera.bottom,
           focus: { x: target.x, y: target.y, z: target.z }
         },
         floors: { ground: 1, second: floorOpacity(1), attic: floorOpacity(2) },

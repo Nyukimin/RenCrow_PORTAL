@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101720">
+  <meta name="theme-color" content="#171d35">
   <title>リビング | RenCrow PORTAL</title>
   <link rel="stylesheet" href="/assets/living/living.css?v={{.AssetVersion}}">
   <script defer src="/assets/living/vendor/three-kit.js"></script>
@@ -44,15 +44,10 @@
     </header>
 
     <main id="top">
-      <section class="scene-section" aria-label="RenCrow House のシーン">
+      <section class="scene-section" aria-labelledby="scene-view-name">
         <div class="scene-frame" id="scene-frame" data-view="lcp">
-          <canvas id="scene" aria-label="RenCrow House のHOUSE_105 3Dシーン" role="img"></canvas>
-          <div class="scene-grain" aria-hidden="true"></div>
           <div class="scene-topline">
-            <div class="scene-label">
-              <span class="scene-kicker">PORTAL · 外観プレビュー</span>
-              <span class="scene-view-name" id="scene-view-name">HOUSE / 全景</span>
-            </div>
+            <h1 class="scene-view-name" id="scene-view-name">HOUSE / 全景</h1>
             <div class="scene-controls" aria-label="シーン操作">
               <button id="motion-toggle" class="quiet-control" type="button" aria-pressed="false" aria-label="住人の動きを一時停止">
                 <span class="control-icon pause-icon" aria-hidden="true"><i></i><i></i></span>
@@ -65,6 +60,11 @@
             </div>
           </div>
 
+          <div class="scene-viewport">
+            <canvas id="scene" aria-label="RenCrow House のHOUSE_105 3Dシーン" role="img"></canvas>
+            <p class="scene-load-status" id="scene-load-status" role="status" aria-live="polite"></p>
+          </div>
+
           <div class="scene-bottomline">
             <div class="scene-context" aria-live="polite">
               <span class="context-label" id="scene-context-label">外から眺める</span>
@@ -73,15 +73,10 @@
             <div class="scene-actions">
               <span class="marker-note" id="marker-note" hidden>8人の仮配置を表示中</span>
               <button id="living-jump" class="scene-link" type="button" aria-label="LIVING ビューへ移動">
-                <span>みんなを見る</span><span aria-hidden="true">↗</span>
+                <span>1階を見る</span><span aria-hidden="true">↗</span>
               </button>
             </div>
           </div>
-          <p class="scene-load-status" id="scene-load-status" role="status" aria-live="polite"></p>
-        </div>
-        <div class="stage-caption">
-          <span><span class="caption-rule" aria-hidden="true"></span>HOUSE_105</span>
-          <span id="stage-caption-view">全景</span>
         </div>
       </section>
 

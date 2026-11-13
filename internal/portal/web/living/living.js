@@ -18,7 +18,6 @@
   const markerToggle = document.getElementById("marker-toggle");
   const markerNote = document.getElementById("marker-note");
   const livingJump = document.getElementById("living-jump");
-  const stageCaption = document.getElementById("stage-caption-view");
   const boardPeople = Array.from(document.querySelectorAll("[data-person]"));
   const cards = Array.from(document.querySelectorAll("[data-card]"));
   const groups = Array.from(document.querySelectorAll(".resident-group"));
@@ -95,7 +94,7 @@
     livingTab?.setAttribute("aria-pressed", String(isWorkplace));
     if (livingBoard) livingBoard.hidden = !isWorkplace;
     if (frame) frame.dataset.view = isWorkplace ? "living" : "house";
-    if (sceneName) sceneName.textContent = isWorkplace ? "LIVING / 1階（Workplace）" : "HOUSE / 全景";
+    if (sceneName) sceneName.textContent = isWorkplace ? "LIVING / 1階" : "HOUSE / 全景";
     if (sceneContext) sceneContext.textContent = isWorkplace ? "1階を眺める" : "家の全景を眺める";
     if (livingJump) {
       livingJump.innerHTML = isWorkplace
@@ -103,7 +102,6 @@
         : '<span>1階を見る</span><span aria-hidden="true">↗</span>';
       livingJump.setAttribute("aria-label", isWorkplace ? "HOUSE 全景へ切り替える" : "LIVING 1階へ切り替える");
     }
-    if (stageCaption) stageCaption.textContent = isWorkplace ? "1階（Workplace）" : "全景";
     callScene("setView", internalView(activeView));
     if (persist) saveSelection();
     else updateBoardLink();
