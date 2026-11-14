@@ -123,7 +123,7 @@ func TestLivingPageUsesVersionedAssetsAndConfiguredBoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "scene.js", "living.js"} {
+	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "world-home.js", "scene.js", "living.js"} {
 		assetURL := "/assets/living/" + name + "?v=" + version
 		if !strings.Contains(page.Body.String(), `"`+assetURL+`"`) {
 			t.Errorf("living page is missing %q", assetURL)
@@ -132,6 +132,28 @@ func TestLivingPageUsesVersionedAssetsAndConfiguredBoard(t *testing.T) {
 		handler.ServeHTTP(asset, httptest.NewRequest(http.MethodGet, assetURL, nil))
 		if asset.Code != http.StatusOK {
 			t.Errorf("%s status = %d, want 200", assetURL, asset.Code)
+		}
+	}
+}
+
+func TestLivingPageEnablesWorldHomeOnlyAfterExplicitConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.EnableWorldHome = true
+	portal, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	portal.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/living", nil))
+	for _, marker := range []string{
+		`data-world-home-enabled="true"`,
+		`data-house-asset-verified="true"`,
+		`data-house-sha256="602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e"`,
+		`id="world-home-toggle"`,
+		`/assets/living/world-home.js?`,
+	} {
+		if !strings.Contains(rec.Body.String(), marker) {
+			t.Errorf("opt-in living page is missing %q", marker)
 		}
 	}
 }
@@ -2203,5 +2225,163 @@ func TestPortalDisabledAuthStripsUntrustedIdentityHeadersBeforeCore(t *testing.T
 	}
 	if got := gotHeaders.Get("X-RenCrow-Authenticated-Actor"); got != "" {
 		t.Fatalf("disabled auth must not forward spoofed actor, got %q", got)
+	}
+}
+
+func TestWorldHomeHouseAssetMatchesPinnedDigest(t *testing.T) {
+	verified, err := worldHomeHouseAssetMatches()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !verified {
+		t.Fatal("embedded HOUSE asset does not match the pinned WORLD scene digest")
+	}
+}
+
+func TestWorldHomeRouteRejectsUnverifiedHouseAsset(t *testing.T) {
+	h := &handler{cfg: Config{EnableWorldHome: true}, worldHomeHouseVerified: false}
+	rec := httptest.NewRecorder()
+	h.serveLivingWorldAPI(rec, httptest.NewRequest(http.MethodGet, "/api/living/world", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unverified HOUSE digest status=%d, want 503", rec.Code)
+	}
+}
+
+func TestWorldHomeRouteIsOptInAndUsesOnlyFixedReadPath(t *testing.T) {
+	var calls atomic.Int32
+	var gotPath, gotQuery, gotProfile, gotClient, gotHost string
+	var gotAuthorization, gotCookie, gotWorldToken, gotForwarded, gotVia, gotRealIP string
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotProfile = r.Header.Get(interactionProfileHeader)
+		gotClient = r.Header.Get("X-RenCrow-Client")
+		gotHost = r.Host
+		gotAuthorization = r.Header.Get("Authorization")
+		gotCookie = r.Header.Get("Cookie")
+		gotWorldToken = r.Header.Get("X-World-Token")
+		gotForwarded = r.Header.Get("Forwarded") + r.Header.Get("X-Forwarded-For") + r.Header.Get("X-Forwarded-Host")
+		gotVia = r.Header.Get("Via")
+		gotRealIP = r.Header.Get("X-Real-IP")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"scene_sha256":"602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e","state_seq":1,"observed_at":"2026-11-14T00:00:00Z","actors":[]}`)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EnableWorldHome {
+		t.Fatal("WORLD HOUSE view unexpectedly enabled by default")
+	}
+	for _, target := range []string{"/api/living/world", "/api/living/world?unused=1"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("disabled %s status = %d, want 404", target, rec.Code)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("disabled WORLD view reached CORE: calls=%d", calls.Load())
+	}
+
+	cfg.EnableWorldHome = true
+	handler, err = NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/living/world", nil)
+	req.Header.Set(interactionProfileHeader, "spoofed-profile")
+	req.Header.Set("X-RenCrow-Client", "spoofed-client")
+	req.Header.Set("Authorization", "Bearer world-token-must-not-forward")
+	req.Header.Set("Cookie", "world_token=must-not-forward")
+	req.Header.Set("X-World-Token", "must-not-forward")
+	req.Header.Set("Forwarded", "for=198.51.100.4")
+	req.Header.Set("X-Forwarded-For", "198.51.100.4")
+	req.Header.Set("X-Forwarded-Host", "spoofed.example")
+	req.Header.Set("X-Real-IP", "198.51.100.4")
+	req.Header.Set("Via", "1.1 browser")
+	req.Header.Set(tailscaleUserLoginHeader, "ren@example.test")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"state_seq":1`) {
+		t.Fatalf("WORLD response status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if gotPath != "/viewer/world/home" || gotQuery != "" || gotProfile != "portal-living" || gotClient != "RenCrow_PORTAL" || gotHost != strings.TrimPrefix(core.URL, "http://") {
+		t.Fatalf("CORE path=%q query=%q profile=%q client=%q host=%q", gotPath, gotQuery, gotProfile, gotClient, gotHost)
+	}
+	if gotAuthorization != "" || gotCookie != "" || gotWorldToken != "" || gotForwarded != "" || gotVia != "" || gotRealIP != "" {
+		t.Fatalf("CORE received browser credentials or forwarding identity: authorization=%q cookie=%q world-token=%q forwarded=%q via=%q real-ip=%q", gotAuthorization, gotCookie, gotWorldToken, gotForwarded, gotVia, gotRealIP)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("CORE calls=%d, want one accepted request", calls.Load())
+	}
+
+	for _, test := range []struct {
+		method string
+		target string
+		want   int
+	}{
+		{http.MethodPost, "/api/living/world", http.StatusMethodNotAllowed},
+		{http.MethodHead, "/api/living/world", http.StatusMethodNotAllowed},
+		{http.MethodGet, "/api/living/world?actor=mio", http.StatusBadRequest},
+		{http.MethodGet, "/api/living/world/other", http.StatusNotFound},
+	} {
+		rejected := httptest.NewRecorder()
+		handler.ServeHTTP(rejected, httptest.NewRequest(test.method, test.target, nil))
+		if rejected.Code != test.want {
+			t.Errorf("%s %s status=%d, want %d", test.method, test.target, rejected.Code, test.want)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("rejected WORLD requests reached CORE: calls=%d", calls.Load())
+	}
+}
+
+func TestWorldHomeRouteKeepsPortalAuthentication(t *testing.T) {
+	var calls atomic.Int32
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		actor := r.Header.Get(authenticatedActorHeader)
+		if actor == "" || actor == "ren@example.test" {
+			t.Errorf("CORE actor = %q, want PORTAL hashed authenticated actor", actor)
+		}
+		if r.Header.Get(tailscaleUserLoginHeader) != "" {
+			t.Error("CORE received raw Tailscale identity")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer core.Close()
+
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	cfg.AuthMode = AuthModeTailscaleServe
+	cfg.EnableWorldHome = true
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, target := range []string{"/living", "/api/living/world"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("unauthenticated %s status=%d, want 401", target, rec.Code)
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("unauthenticated WORLD view reached CORE: calls=%d", calls.Load())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/living/world", nil)
+	req.Header.Set(tailscaleUserLoginHeader, "ren@example.test")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || calls.Load() != 1 {
+		t.Fatalf("authenticated WORLD view status=%d CORE calls=%d", rec.Code, calls.Load())
 	}
 }

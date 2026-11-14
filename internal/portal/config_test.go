@@ -36,6 +36,9 @@ func TestLoadConfigUsesSafeDefaults(t *testing.T) {
 	if cfg.BoardURL != "" {
 		t.Fatalf("BoardURL = %q, want unset", cfg.BoardURL)
 	}
+	if cfg.EnableWorldHome {
+		t.Fatal("WORLD HOUSE view must be disabled by default")
+	}
 }
 
 func TestLoadConfigBoardURLEnvOverridesJSON(t *testing.T) {
@@ -181,5 +184,19 @@ func TestConfigRejectsUnsupportedModes(t *testing.T) {
 		if err := cfg.Validate(); err == nil {
 			t.Fatalf("Validate() should reject %q mode", mode)
 		}
+	}
+}
+
+func TestLoadConfigEnablesWorldHomeOnlyWhenRequested(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "portal.json")
+	if err := os.WriteFile(path, []byte(`{"enable_world_home":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.EnableWorldHome {
+		t.Fatal("enable_world_home=true was not loaded")
 	}
 }

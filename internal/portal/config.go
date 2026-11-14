@@ -35,6 +35,7 @@ type Config struct {
 	DefaultMode    Mode     `json:"default_mode"`
 	EnabledModes   []Mode   `json:"enabled_modes"`
 	EnableWorldPOC bool     `json:"enable_world_poc"`
+	EnableWorldHome bool    `json:"enable_world_home"`
 }
 
 // DefaultConfigは外部へ意図せず公開しない安全な既定値を返す。

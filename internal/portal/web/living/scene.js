@@ -286,6 +286,9 @@
     var lastFrame = 0;
     var paused = false;
     var markerOn = false;
+    var worldHomeMode = false;
+    var worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
+    var houseAssetVerified = false;
     var selectedId = null;
     var cameraMotionEnabled = options.cameraMotionEnabled === undefined ? !options.reducedMotion : Boolean(options.cameraMotionEnabled);
     var view = options.initialView === "living" ? "living" : "house";
@@ -726,6 +729,12 @@
       }
       RESIDENT_IDS.forEach(function (id) {
         imageTextures[id] = Object.create(null);
+        imageFor(id + "-sleep").then(function (image) {
+          imageTextures[id].sleep = textureFrom(image);
+          var resident = residents.find(function (entry) { return entry.id === id; });
+          var sample = worldHomeMode && worldHomeTimeline && worldHomeTimeline.sample(id, currentTime());
+          if (sample && sample.actor.active_kind === "sleep" && resident && resident.mesh) setSpriteTexture(resident, imageTextures[id].sleep);
+        }).catch(function () {});
         directions.forEach(function (direction) {
           var key = id + "-" + direction;
           var required = CARDINAL.includes(direction);
@@ -1363,7 +1372,8 @@
       panel(left, doorLeft, 0);
       panel(doorLeft, doorRight, doorHeight);
       panel(doorRight, right, 0);
-      box(facade, doorX, doorHeight / 2, 0, doorHalfWidth * 2, doorHeight, 0.10, leaf).name = "room-door";
+      var door = box(facade, doorX, doorHeight / 2, 0, doorHalfWidth * 2, doorHeight, 0.10, leaf);
+      door.name = "room-door";
       box(facade, doorX + doorHalfWidth - 0.20, doorHeight * 0.46, 0.08, 0.13, 0.10, 0.08, handle);
       if (layout.floor === 2 || index === 0) {
         box(group, left, top(left) / 2, (layout.roomBack - z) / 2,
@@ -1380,7 +1390,9 @@
       });
       facade.children.forEach(function (item) { item.renderOrder = 1; });
       upperRooms.set(facade, {
-        layout: layout, x: room.x, materials: new Set(), amount: 1, occupied: false
+        layout: layout, x: room.x, roomId: "upper-room-" + (layout.floor + 1) + "-" + (index + 1),
+        door: door, doorX: doorX, doorHalfWidth: doorHalfWidth, doorAmount: 0,
+        materials: new Set(), amount: 1, occupied: false
       });
     }
 
@@ -1395,16 +1407,28 @@
 
     function updateRoomFronts(dt) {
       upperRooms.forEach(function (room) { room.occupied = false; });
-      residents.forEach(function (resident) {
-        var room = occupiedRoom(resident.position);
-        if (room) room.occupied = true;
-      });
+      if (worldHomeMode && worldHomeTimeline && worldHomeTimeline.snapshot()) {
+        worldHomeTimeline.snapshot().actors.forEach(function (actor) {
+          upperRooms.forEach(function (room) {
+            if (actor.room_id === room.roomId) room.occupied = true;
+          });
+        });
+      } else if (!worldHomeMode) {
+        residents.forEach(function (resident) {
+          var room = occupiedRoom(resident.position);
+          if (room) room.occupied = true;
+        });
+      }
       upperRooms.forEach(function (room, facade) {
         var target = room.occupied ? 0.13 : 1;
         var step = dt * 4.2;
         room.amount += clamp(target - room.amount, -step, step);
         var opacity = room.amount * floorOpacity(room.layout.floor);
         facade.userData.occupied = room.occupied;
+        var doorTarget = worldHomeMode && worldHomeDoorPassing(room) ? 1 : 0;
+        room.doorAmount += clamp(doorTarget - room.doorAmount, -dt * 4.5, dt * 4.5);
+        room.door.rotation.y = Math.PI * 0.48 * room.doorAmount;
+        room.door.userData.measuredRoutePassing = doorTarget === 1;
         room.materials.forEach(function (material) {
           material.opacity = opacity;
           material.depthWrite = opacity >= 0.999;
@@ -1412,7 +1436,35 @@
       });
     }
 
+    function worldHomeDoorPassing(room) {
+      if (!worldHomeTimeline || !room || !room.door) return false;
+      var snapshot = worldHomeTimeline.snapshot();
+      if (!snapshot) return false;
+      var now = currentTime();
+      return snapshot.actors.some(function (actor) {
+        if (actor.active_kind !== "move" || !Array.isArray(actor.move_points)) return false;
+        var sample = worldHomeTimeline.sample(actor.id, now);
+        if (!sample || !sample.moving) return false;
+        var start = actor.move_points[sample.segmentIndex];
+        var end = actor.move_points[sample.segmentIndex + 1];
+        if (!start || !end) return false;
+        var doorZ = room.layout.z[0];
+        var dz = end[2] - start[2];
+        if (Math.abs(dz) < 0.000001 || (start[2] - doorZ) * (end[2] - doorZ) > 0) return false;
+        var fraction = (doorZ - start[2]) / dz;
+        if (fraction < 0 || fraction > 1) return false;
+        var crossingX = start[0] + (end[0] - start[0]) * fraction;
+        var crossingY = start[1] + (end[1] - start[1]) * fraction;
+        if (Math.abs(crossingX - room.doorX) > room.doorHalfWidth || crossingY < room.layout.height || crossingY > room.layout.height + room.layout.doorHeight) return false;
+        return Math.hypot(sample.position[0] - crossingX, sample.position[2] - doorZ) < 1.15;
+      });
+    }
+
     function updateHallwayLabel(resident, position, opacity) {
+      if (worldHomeMode) {
+        if (resident.locationLabel) resident.locationLabel.visible = false;
+        return;
+      }
       var room = occupiedRoom(position);
       var hallway = (metadata.upperHallways || []).find(function (layout) {
         return Math.abs(layout.height - position.y) < 0.00001 &&
@@ -1528,12 +1580,14 @@
       try {
         if (typeof global.fetch !== "function") throw new Error("fetch is unavailable");
         var loader = new GLTFLoader();
-        global.fetch(ASSET_ROOT + "house-105.glb", { credentials: "same-origin" })
+        global.fetch(ASSET_ROOT + "house-105.glb?sha256=" + encodeURIComponent(options.houseSha256 || ""), { credentials: "same-origin", cache: "force-cache" })
           .then(function (response) {
             if (!response.ok) throw new Error("HOUSE_105 GLB request failed: " + response.status);
             return response.arrayBuffer();
           })
           .then(function (data) {
+            houseAssetVerified = Boolean(global.houseWorldHome && options.houseAssetVerified &&
+              String(options.houseSha256 || "").toLowerCase() === global.houseWorldHome.houseSHA256);
             loader.parse(data, ASSET_ROOT, onModelLoaded, function (error) {
               console.error("HOUSE_105 GLB parse failed", error);
               showUnavailable("HOUSE_105を読み込めませんでした。GLBデータを確認してください。");
@@ -1550,6 +1604,40 @@
     }
 
     function updateResidentWorldPositions() {
+      if (worldHomeMode) {
+        residents.forEach(function (resident) {
+          var sample = worldHomeTimeline && worldHomeTimeline.sample(resident.id, currentTime());
+          if (!sample || !modelLoaded || !houseAssetVerified) {
+            resident.group.visible = false;
+            if (resident.locationLabel) resident.locationLabel.visible = false;
+            return;
+          }
+          var actor = sample.actor;
+          var position = new THREE.Vector3().fromArray(sample.position);
+          resident.group.position.copy(position);
+          if (sample.tangent.some(function (value) { return Math.abs(value) > 0.000001; })) {
+            resident.lastTangent.set(sample.tangent[0], sample.tangent[1], sample.tangent[2]);
+          }
+          resident.direction = directionFor(resident.lastTangent || new THREE.Vector3(0, 0, 1), resident.direction);
+          var opacity = residentOpacity(resident, position);
+          resident.group.visible = opacity > 0.001 && Boolean(resident.mesh);
+          if (resident.mesh) {
+            resident.mesh.quaternion.copy(camera.quaternion);
+            if (actor.active_kind === "sleep" && imageTextures[resident.id] && imageTextures[resident.id].sleep) {
+              setSpriteTexture(resident, imageTextures[resident.id].sleep);
+              resident.mesh.position.y = 0;
+              resident.walking = false;
+            } else {
+              updateSpriteTexture(resident, resident.direction, sample.moving ? sample.distance : null);
+              resident.walking = Boolean(sample.moving);
+            }
+            resident.mesh.material.opacity = resident.spriteOpacity * opacity;
+          }
+          if (resident.highlight) resident.highlight.material.opacity = resident.highlightOpacity * opacity;
+          if (resident.locationLabel) resident.locationLabel.visible = false;
+        });
+        return;
+      }
       residents.forEach(function (resident) {
         var state = pathState(resident);
         var position = state.position;
@@ -1638,9 +1726,9 @@
         sprite.material.map = markerTexture(index, selected);
         sprite.material.needsUpdate = true;
         sprite.scale.set(selected ? 0.62 : 0.5, selected ? 0.62 : 0.5, 1);
-        sprite.visible = markerOn && modelLoaded;
+        sprite.visible = markerOn && modelLoaded && !worldHomeMode;
       });
-      markerGroup.visible = markerOn && modelLoaded;
+      markerGroup.visible = markerOn && modelLoaded && !worldHomeMode;
     }
 
     function screenPoint(point) {
@@ -1656,11 +1744,14 @@
       var residentMap = Object.create(null);
       residents.forEach(function (resident) {
         var state = pathState(resident);
-        var position = state.position;
-        var direction = directionFor(state.tangent, resident.direction);
+        var worldSample = worldHomeMode && worldHomeTimeline ? worldHomeTimeline.sample(resident.id, currentTime()) : null;
+        var actor = worldSample && worldSample.actor;
+        var position = worldSample ? new THREE.Vector3().fromArray(worldSample.position) : state.position;
+        var tangent = worldSample && worldSample.moving ? new THREE.Vector3().fromArray(worldSample.tangent) : state.tangent;
+        var direction = directionFor(tangent, resident.direction);
         var center = new THREE.Vector3(0, resident.height * (0.5 - SPRITE_FOOT_INSET), 0);
         center.applyQuaternion(camera.quaternion).add(position);
-        center.y += state.footLift;
+        if (!worldHomeMode) center.y += state.footLift;
         var screen = screenPoint(center);
         var floor = residentFloor(resident, position);
         var opacity = residentOpacity(resident, position);
@@ -1670,12 +1761,15 @@
           x: position.x,
           y: position.y,
           z: position.z,
+          room_id: actor ? actor.room_id : null,
+          active_kind: actor ? actor.active_kind : null,
+          active_pose: actor ? actor.active_pose : null,
           floor: floor,
-          visible: Boolean(modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
+          visible: Boolean(modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && resident.group.visible && (!worldHomeMode || actor) && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
           spriteLoaded: spriteLoaded,
           opacity: opacity,
           direction: direction,
-          heading: Math.atan2(state.tangent.x, state.tangent.z),
+          heading: Math.atan2(tangent.x, tangent.z),
           walkFrame: resident.walking ? resident.walkFrame : null,
           screen: { x: screen.x, y: screen.y }
         };
@@ -1759,7 +1853,7 @@
       resize();
       applyCamera();
       updateRoomFronts(dt);
-      updateMotionPreview(paused ? 0 : dt);
+      updateMotionPreview(paused || worldHomeMode ? 0 : dt);
       updateResidentWorldPositions();
       var renderStart = currentTime();
       renderer.render(scene, camera);
@@ -1774,7 +1868,7 @@
       var dt = clamp((now - lastFrame) / 1000, 0, 0.06);
       lastFrame = now;
       clock += dt;
-      if (!paused) advanceResidents(dt);
+      if (!paused && !worldHomeMode) advanceResidents(dt);
       advanceProgress(dt);
       draw(dt);
       global.requestAnimationFrame(tick);
@@ -1820,6 +1914,36 @@
       refreshMarkers();
     }
 
+    function setWorldHomeMode(value) {
+      var enabled = Boolean(value);
+      if (enabled === worldHomeMode) return true;
+      worldHomeMode = enabled;
+      if (enabled) {
+        if (demonstration) stopMotionPreview();
+        worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
+        residents.forEach(function (resident) { resident.group.visible = false; });
+      } else {
+        worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
+        updateResidentWorldPositions();
+      }
+      refreshMarkers();
+      return Boolean(worldHomeTimeline);
+    }
+
+    function setWorldHomeSnapshot(snapshot) {
+      if (!worldHomeMode || !houseAssetVerified || !modelLoaded || !worldHomeTimeline) return false;
+      try {
+        worldHomeTimeline.accept(snapshot, currentTime());
+      } catch (error) {
+        return false;
+      }
+      return true;
+    }
+
+    function worldHomeReady() {
+      return Boolean(worldHomeTimeline && modelLoaded && houseAssetVerified && !loadFailed);
+    }
+
     function snapshot() {
       return makeSnapshot();
     }
@@ -1841,6 +1965,9 @@
       seekMotionPreview: seekMotionPreview,
       setMotionCloseView: setMotionCloseView,
       motionPreviewState: motionPreviewState,
+      setWorldHomeMode: setWorldHomeMode,
+      setWorldHomeSnapshot: setWorldHomeSnapshot,
+      worldHomeReady: worldHomeReady,
       snapshot: snapshot
     };
   }

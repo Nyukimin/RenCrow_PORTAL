@@ -2,6 +2,7 @@
   "use strict";
 
   const living = document.querySelector(".living");
+  const worldHome = window.houseWorldHome;
   const canvas = document.getElementById("scene");
   const frame = document.getElementById("scene-frame");
   const houseTab = document.getElementById("house-tab");
@@ -17,6 +18,11 @@
   const motionLabel = document.getElementById("motion-label");
   const markerToggle = document.getElementById("marker-toggle");
   const markerNote = document.getElementById("marker-note");
+  const worldHomeToggle = document.getElementById("world-home-toggle");
+  const worldHomeIndicator = document.getElementById("world-home-indicator");
+  const worldHomeStatus = document.getElementById("world-home-status");
+  const worldHomeObservedAt = document.getElementById("world-home-observed-at");
+  const worldHomeBoardNote = document.getElementById("world-home-board-note");
   const livingJump = document.getElementById("living-jump");
   const boardPeople = Array.from(document.querySelectorAll("[data-person]"));
   const cards = Array.from(document.querySelectorAll("[data-card]"));
@@ -35,6 +41,9 @@
   const scrollKey = "rencrow-living-scroll";
   const validViews = new Set(["lcp", "workplace"]);
   const motionPreviewEnabled = new URLSearchParams(window.location.search).get("motion") === "preview";
+  const worldHomeEnabled = living?.dataset.worldHomeEnabled === "true";
+  const houseAssetVerified = living?.dataset.houseAssetVerified === "true" &&
+    living?.dataset.houseSha256?.toLowerCase() === worldHome?.houseSHA256;
 
   let activeView = "lcp";
   let selectedResidentId = null;
@@ -42,6 +51,10 @@
   let isPaused = false;
   let markerVisible = false;
   let scene = null;
+  let worldHomeLive = false;
+  let worldHomeLatest = null;
+  let worldHomePollTimer = null;
+  let worldHomeRequestVersion = 0;
   let explicitViewMotion = null;
   let viewMotionEnabled = true;
 
@@ -154,6 +167,104 @@
     callScene("setMarker", markerVisible);
   }
 
+  function setWorldHomeStatus(message, unavailable = false) {
+    if (worldHomeIndicator) worldHomeIndicator.textContent = worldHomeLive ? "WORLD 実データ" : "外観プレビュー";
+    if (worldHomeStatus) worldHomeStatus.textContent = message;
+    if (worldHomeStatus) worldHomeStatus.dataset.state = unavailable ? "unavailable" : worldHomeLive ? "live" : "preview";
+    if (worldHomeBoardNote) {
+      const lines = worldHomeLive
+        ? ["所在地と活動はCOREの受信snapshotに基づきます。", "受信できない間は最終表示を保持します。"]
+        : ["活動・作業・所在地・来訪情報は未取得です。", "外観プレビューは実際の状態を示しません。"];
+      worldHomeBoardNote.replaceChildren(document.createTextNode(lines[0]), document.createElement("br"), document.createTextNode(lines[1]));
+    }
+  }
+
+  function showWorldHomeSnapshot(snapshot) {
+    const accepted = worldHome.validateSnapshot(snapshot);
+    if (!scene?.worldHomeReady?.() || !scene.setWorldHomeSnapshot(accepted)) {
+      throw new Error("HOUSE model is not ready for WORLD data");
+    }
+    worldHomeLatest = accepted;
+    const actors = new Map(accepted.actors.map((actor) => [actor.id, actor]));
+    cards.forEach((card) => {
+      const status = card.querySelector(".resident-status");
+      const actor = actors.get(card.dataset.card);
+      if (status) status.textContent = actor ? worldHome.describeActor(actor) : "WORLD 状態未取得";
+    });
+    if (worldHomeObservedAt) {
+      worldHomeObservedAt.textContent = `観測 ${new Date(accepted.observed_at).toLocaleString()}`;
+      worldHomeObservedAt.hidden = false;
+    }
+    setWorldHomeStatus(`受信済み · seq ${accepted.state_seq}`);
+  }
+
+  function scheduleWorldHomePoll(version) {
+    if (!worldHomeLive || version !== worldHomeRequestVersion) return;
+    worldHomePollTimer = window.setTimeout(() => pollWorldHome(version), 1500);
+  }
+
+  async function pollWorldHome(version) {
+    if (!worldHomeLive || version !== worldHomeRequestVersion) return;
+    if (!houseAssetVerified) {
+      setWorldHomeStatus("HOUSE asset hash未確認 · WORLD表示不可", true);
+      return;
+    }
+    if (!scene?.worldHomeReady?.()) {
+      setWorldHomeStatus("HOUSE読み込み待ち");
+      scheduleWorldHomePoll(version);
+      return;
+    }
+    try {
+      const response = await fetch("/api/living/world", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!worldHomeLive || version !== worldHomeRequestVersion) return;
+      if (!response.ok) throw new Error(`WORLD snapshot unavailable (${response.status})`);
+      const snapshot = await response.json();
+      if (!worldHomeLive || version !== worldHomeRequestVersion) return;
+      showWorldHomeSnapshot(snapshot);
+    } catch (error) {
+      if (!worldHomeLive || version !== worldHomeRequestVersion) return;
+      console.warn("WORLD HOUSE snapshot unavailable", error);
+      setWorldHomeStatus(worldHomeLatest ? "接続不可 · 最終受信状態を保持" : "接続不可 · 住人を非表示", true);
+      if (!worldHomeLatest) {
+        cards.forEach((card) => {
+          const status = card.querySelector(".resident-status");
+          if (status) status.textContent = "WORLD 状態未取得";
+        });
+      }
+    } finally {
+      scheduleWorldHomePoll(version);
+    }
+  }
+
+  function setWorldHomeLive(enabled) {
+    if (enabled && !worldHomeEnabled) return false;
+    worldHomeLive = Boolean(enabled);
+    worldHomeRequestVersion += 1;
+    if (worldHomePollTimer !== null) window.clearTimeout(worldHomePollTimer);
+    worldHomePollTimer = null;
+    worldHomeToggle?.setAttribute("aria-pressed", String(worldHomeLive));
+    if (worldHomeToggle) worldHomeToggle.textContent = worldHomeLive ? "プレビューへ戻る" : "WORLD 実データを見る";
+    callScene("setWorldHomeMode", worldHomeLive);
+    if (worldHomeLive) {
+      setView("lcp", false);
+      setWorldHomeStatus("接続中…");
+      void pollWorldHome(worldHomeRequestVersion);
+    } else {
+      worldHomeLatest = null;
+      if (worldHomeObservedAt) worldHomeObservedAt.hidden = true;
+      cards.forEach((card) => {
+        const status = card.querySelector(".resident-status");
+        if (status) status.textContent = "未取得";
+      });
+      setWorldHomeStatus("状況データ未接続");
+    }
+  }
+
   function setFilter(filter) {
     filters.forEach((button) => {
       const isActive = button.dataset.filter === filter;
@@ -195,6 +306,7 @@
   livingJump?.addEventListener("click", () => setView(activeView === "lcp" ? "workplace" : "lcp"));
   motionToggle?.addEventListener("click", () => setPaused(!isPaused));
   markerToggle?.addEventListener("click", () => setMarker(!markerVisible));
+  worldHomeToggle?.addEventListener("click", () => setWorldHomeLive(!worldHomeLive));
   filters.forEach((button) => button.addEventListener("click", () => setFilter(button.dataset.filter)));
   boardPeople.forEach((button) => {
     button.addEventListener("click", () => {
@@ -226,6 +338,7 @@
   });
 
   restoreSelection();
+  if (worldHomeToggle) worldHomeToggle.hidden = !worldHomeEnabled;
   setViewMotion(viewMotionEnabled);
   if (systemMotionPreference) {
     const followSystemMotion = (event) => {
@@ -240,7 +353,7 @@
 
   if (canvas && typeof window.createHouseScene === "function") {
     try {
-      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled });
+      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled, houseAssetVerified, houseSha256: living.dataset.houseSha256 });
       window.housePreview = scene;
       callScene("setView", internalView(activeView));
       callScene("setPaused", isPaused);
@@ -301,6 +414,7 @@
     motionPreview.open = true;
   }
 
-  window.housePreviewUI = Object.freeze({ setView, selectResident, setPaused, setMarker });
+  window.housePreviewUI = Object.freeze({ setView, selectResident, setPaused, setMarker, setWorldHomeLive });
+  if (worldHomeEnabled && scene) setWorldHomeLive(true);
   window.addEventListener("pageshow", restoreSelection);
 })();

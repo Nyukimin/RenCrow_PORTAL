@@ -6,7 +6,28 @@
       "workingDirectory": ".",
       "filePath": "go",
       "arguments": ["vet", "./..."],
-      "testFiles": ["*_test.go", "internal/portal/webtest/other_presence_lifecycle.test.js"]
+      "testFiles": ["*_test.go"]
+    },
+    {
+      "name": "windows-web-tests",
+      "workingDirectory": ".",
+      "filePath": "node",
+      "arguments": ["--test", "internal/portal/webtest/*.test.js"],
+      "testFiles": ["internal/portal/webtest/*.test.js"]
+    },
+    {
+      "name": "windows-avatar-manager-tests",
+      "workingDirectory": ".",
+      "filePath": "python",
+      "arguments": [
+        "skills/rencrow-avatar-manager/scripts/test_inspect_avatar.py",
+        "ResolvePackagesRootTest.test_relative_is_resolved_against_portal_repo_root",
+        "ResolvePackagesRootTest.test_repo_root_contains_this_skill",
+        "ResolvePackagesRootTest.test_windows_absolute_is_used_as_written",
+        "ResolvePackagesRootTest.test_missing_key_falls_back_to_purupuru_root",
+        "ResolvePackagesRootTest.test_committed_registry_uses_relative_packages_root"
+      ],
+      "testFiles": ["skills/rencrow-avatar-manager/scripts/test_inspect_avatar.py"]
     },
     {
       "name": "windows-build",

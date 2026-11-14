@@ -4,5 +4,6 @@
   "board_url": "",
   "auth_mode": "disabled",
   "default_mode": "IdleChat",
-  "enabled_modes": ["IdleChat", "Chat", "Games"]
+  "enabled_modes": ["IdleChat", "Chat", "Games"],
+  "enable_world_home": false
 }

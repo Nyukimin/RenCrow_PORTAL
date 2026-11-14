@@ -37,7 +37,7 @@ Config、health、errorを提供します。PORTALはWSLや外部databaseを標�
 
 Luminaの素材確認は、認証済みPORTALの`/lumina`で行えます。これは表示確認専用の画面で、配置済みのプレビュー素材を使った立ち絵と表情切替を提供します。LuminaをChat／IdleChatのAgentとして公開するには、別途`.purupuru`正規パッケージとCORE側のActor契約を追加し、既存のキャラクター登録・同期経路へ統合します。
 
-HOUSE_105の室内プレビューは、認証済みPORTALの`/living`で開きます。既定は家全体のLCP viewで、`?view=lcp`と`?view=workplace`で切り替えます。どちらも同じcanvasとHOUSE_105のgeometry／boundsを保ったままカメラ視点だけを切り替えます。HOUSE／Living2Dの表示確認用であり、PORTALのChat／IdleChat／Games mode、CORE proxy、WORLDの正式表示経路には追加しません。WORLD表示仕様やR04 mock-only World PoCの受入を示すものでもありません。
+HOUSE_105の室内ビューは、認証済みPORTALの`/living`で開きます。既定は家全体のLCP viewで、`?view=lcp`と`?view=workplace`で切り替えます。どちらも同じcanvasとHOUSE_105のgeometry／boundsを保ったままカメラ視点だけを切り替えます。表示素材とシミュレーションは既定のプレビューです。設定JSONで`"enable_world_home": true`を指定すると、WORLD実データ表示が初期選択され、切替buttonからプレビューへ戻れます。この表示はGET `/api/living/world`からCOREの`/viewer/world/home`だけを読みます。PORTALは既存の入口認証を適用し、固定path・queryなしの読み取りだけを`portal-living` profileで中継します。WORLD tokenやbrowser credentialはCOREへ転送しません。CORE snapshotの`scene_sha256`とPORTALに埋め込まれたモデルのSHA-256が一致し、HOUSE modelの読み込みが完了した場合だけ、WORLD位置を表示します。移動はsnapshotの測定済み`move_points`とUTC活動時刻で補間し、所在地ラベルはCORE snapshotの`room_id`に従います。未接続・不一致時はWORLD表示を停止して利用不可を表示します。R04 mock-only World PoCとは別の読み取り経路です。
 
 既存のBOARD参加者リンクとqueryは維持し、`agent`、`from=living`、`person`、`view`を引き継ぎます。BOARDから戻ると、室内の選択中personとviewを復元します。モデルは`internal/portal/web/living/assets/house-105.glb`に固定し、`HOUSE_105_review.blend`由来のprototypeをPORTAL向けに変換したものです（SHA-256: `602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e`）。PORTAL用GLBではLIVING正面の支柱2本と、正面・階段脇のivy cluster／vineを削除し、4つのワークデスクに既存椅子部品を再配置・複製して各2席（計8席）を設けています。階段、手すり、その他の植物は保持しています。人物表示には既存のLiving2D spritesを使います。
 
@@ -52,7 +52,7 @@ R04のmock-only World PoCは通常modeではなく、既定OFFの個別例外で
 この画面はmock値を表示し、実空間の位置や最終アートを表しません。Chat／IdleChat／Gamesの
 mode、Task／Event経路は利用しません。可視中は`other`前景presenceだけをCOREへ通知します。
 
-将来の正式なLCP・Workplace二視点は[WORLD / HOUSE表示仕様](docs/仕様/WORLD_HOUSE表示仕様.md)に設計として記載します。R04 Mockの稼働・受入とは分けます。
+表示範囲とHOUSE座標の対応は[WORLD / HOUSE表示仕様](docs/仕様/WORLD_HOUSE表示仕様.md)を参照します。R04 Mockの稼働・受入とは分けます。
 
 ASSISTANT連携でも、読み取り画面からwrite actionを許可せず、他利用者のprivate data、secret、device credentialを中継しません。
 

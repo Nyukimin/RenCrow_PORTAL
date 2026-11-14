@@ -32,6 +32,7 @@ const (
 	controlBodyLimit           = 2 << 20
 	sttBodyLimit               = 65 << 20
 	viewerSendBodyLimit        = 121 << 20
+	worldHomeHouseSHA256       = "602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e"
 )
 
 type authenticatedActorContextKey struct{}
@@ -44,6 +45,7 @@ type handler struct {
 	luminaPage *template.Template
 	livingPage *template.Template
 	livingData livingPageData
+	worldHomeHouseVerified bool
 	assets     http.Handler
 	readiness  *http.Client
 }
@@ -62,8 +64,11 @@ type pageData struct {
 }
 
 type livingPageData struct {
-	BoardURL     string
-	AssetVersion string
+	BoardURL            string
+	AssetVersion        string
+	WorldHomeEnabled    bool
+	HouseAssetVerified  bool
+	HouseAssetSHA256    string
 }
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
@@ -100,6 +105,13 @@ func NewHandler(cfg Config) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	houseAssetVerified := false
+	if cfg.EnableWorldHome {
+		houseAssetVerified, err = worldHomeHouseAssetMatches()
+		if err != nil {
+			return nil, err
+		}
+	}
 	assetFS, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		return nil, fmt.Errorf("PORTAL asset FSを作る: %w", err)
@@ -110,7 +122,12 @@ func NewHandler(cfg Config) (http.Handler, error) {
 		page:       page,
 		luminaPage: luminaPage,
 		livingPage: livingPage,
-		livingData: livingPageData{BoardURL: cfg.BoardURL, AssetVersion: livingVersion},
+		livingData: livingPageData{
+			BoardURL: cfg.BoardURL, AssetVersion: livingVersion,
+			WorldHomeEnabled: cfg.EnableWorldHome, HouseAssetVerified: houseAssetVerified,
+			HouseAssetSHA256: worldHomeHouseSHA256,
+		},
+		worldHomeHouseVerified: houseAssetVerified,
 		assets:     http.FileServer(http.FS(assetFS)),
 		readiness:  &http.Client{Timeout: 3 * time.Second},
 	}
@@ -146,7 +163,7 @@ func NewHandler(cfg Config) (http.Handler, error) {
 // Fingerprint the small assets that must update together on /living.
 func livingAssetVersion() (string, error) {
 	digest := sha256.New()
-	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "scene.js", "living.js"} {
+	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "world-home.js", "scene.js", "living.js"} {
 		file, err := webFiles.ReadFile("web/living/" + name)
 		if err != nil {
 			return "", fmt.Errorf("リビングのアセット %s を読む: %w", name, err)
@@ -200,6 +217,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(r.URL.Path, "/api/"):
 		if r.URL.Path == "/api/other" || strings.HasPrefix(r.URL.Path, "/api/other/") {
 			h.serveOtherAPI(w, r)
+		} else if r.URL.Path == "/api/living" || strings.HasPrefix(r.URL.Path, "/api/living/") {
+			h.serveLivingWorldAPI(w, r)
 		} else if r.URL.Path == "/api/world-poc" || strings.HasPrefix(r.URL.Path, "/api/world-poc/") {
 			h.serveWorldPOCAPI(w, r)
 		} else {
@@ -284,6 +303,50 @@ func (h *handler) serveWorldPOCAPI(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set(interactionProfileHeader, "portal-world-poc")
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, "/api/world-poc")
 	h.proxy.ServeHTTP(w, r)
+}
+
+func (h *handler) serveLivingWorldAPI(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.EnableWorldHome {
+		http.NotFound(w, r)
+		return
+	}
+	if r.URL.Path != "/api/living/world" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.URL.RawQuery != "" {
+		http.Error(w, "unexpected query", http.StatusBadRequest)
+		return
+	}
+	if !h.worldHomeHouseVerified {
+		http.Error(w, "HOUSE asset digest is not verified", http.StatusServiceUnavailable)
+		return
+	}
+	// This read route accepts no browser-supplied credentials or identity fields.
+	r.Header = make(http.Header)
+	r.Header.Set(interactionProfileHeader, "portal-living")
+	r.URL.Path = "/viewer/world/home"
+	r.URL.RawPath = ""
+	r.URL.RawQuery = ""
+	r.Body = http.NoBody
+	r.ContentLength = 0
+	r.Header.Del("Content-Length")
+	r.Header.Del("Content-Type")
+	w.Header().Set("Cache-Control", "no-store")
+	h.proxy.ServeHTTP(w, r)
+}
+
+func worldHomeHouseAssetMatches() (bool, error) {
+	asset, err := webFiles.ReadFile("web/living/assets/house-105.glb")
+	if err != nil {
+		return false, fmt.Errorf("HOUSE_105 model assetを読む: %w", err)
+	}
+	digest := sha256.Sum256(asset)
+	return hex.EncodeToString(digest[:]) == worldHomeHouseSHA256, nil
 }
 
 func (h *handler) serveOtherAPI(w http.ResponseWriter, r *http.Request) {
@@ -642,7 +705,18 @@ func (h *handler) directProxyRequest(r *http.Request) {
 	if actor, ok := authenticatedActorFromContext(r.Context()); ok {
 		r.Header.Set(authenticatedActorHeader, actor)
 	}
-	r.Header.Set("X-Forwarded-Host", originalHost)
+	if r.URL.Path == "/viewer/world/home" {
+		for name := range r.Header {
+			lower := strings.ToLower(name)
+			if lower == "forwarded" || lower == "via" || lower == "x-real-ip" || strings.HasPrefix(lower, "x-forwarded-") || strings.HasPrefix(lower, "tailscale-") {
+				delete(r.Header, name)
+			}
+		}
+		// A nil value suppresses ReverseProxy's automatic X-Forwarded-For append.
+		r.Header["X-Forwarded-For"] = nil
+	} else {
+		r.Header.Set("X-Forwarded-Host", originalHost)
+	}
 	r.Header.Set("X-RenCrow-Client", "RenCrow_PORTAL")
 }
 

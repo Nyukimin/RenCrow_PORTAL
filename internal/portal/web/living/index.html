@@ -9,11 +9,12 @@
   <script defer src="/assets/living/vendor/three-kit.js"></script>
   <script defer src="/assets/living/assets/house-data.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/sd-motion.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/living/world-home.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/scene.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/living.js?v={{.AssetVersion}}"></script>
 </head>
 <body>
-  <div class="page-shell living" data-board-url="{{.BoardURL}}" data-asset-version="{{.AssetVersion}}">
+  <div class="page-shell living" data-board-url="{{.BoardURL}}" data-asset-version="{{.AssetVersion}}" data-world-home-enabled="{{.WorldHomeEnabled}}" data-house-asset-verified="{{.HouseAssetVerified}}" data-house-sha256="{{.HouseAssetSHA256}}">
     <header class="site-header">
       <a class="brand" href="/" aria-label="RenCrow PORTAL ホーム">
         <span class="brand-mark" aria-hidden="true">R</span>
@@ -36,11 +37,11 @@
         </button>
       </nav>
 
-      <div class="preview-status" aria-label="PORTALの外観プレビュー、状況データ未接続">
+      <div class="preview-status" aria-label="PORTALの外観プレビュー">
         <span class="status-dot" aria-hidden="true"></span>
-        <span>外観プレビュー</span>
+        <span id="world-home-indicator">外観プレビュー</span>
         <span class="status-divider" aria-hidden="true"></span>
-        <span class="status-sub">状況データ未接続</span>
+        <span id="world-home-status" class="status-sub">状況データ未接続</span>
       </div>
     </header>
 
@@ -58,6 +59,7 @@
                 <span class="marker-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                 <span>作業位置</span>
               </button>
+              <button id="world-home-toggle" class="quiet-control" type="button" aria-pressed="false" hidden>WORLD 実データ</button>
             </div>
           </div>
 
@@ -72,6 +74,7 @@
               <span class="selected-resident" id="selected-resident" hidden></span>
             </div>
             <div class="scene-actions">
+              <span class="marker-note" id="world-home-observed-at" hidden></span>
               <span class="marker-note" id="marker-note" hidden>8人の仮配置を表示中</span>
               <button id="living-jump" class="scene-link" type="button" aria-label="LIVING ビューへ移動">
                 <span>1階を見る</span><span aria-hidden="true">↗</span>
@@ -105,7 +108,7 @@
             <p class="eyebrow">THE PEOPLE AROUND THE HOUSE</p>
             <h2 id="living-title">みんなの今</h2>
           </div>
-          <p class="board-note">活動・作業・所在地・来訪情報は未取得です。<br>外観プレビューは実際の状態を示しません。</p>
+          <p class="board-note" id="world-home-board-note">活動・作業・所在地・来訪情報は未取得です。<br>外観プレビューは実際の状態を示しません。</p>
         </div>
 
         <div class="board-toolbar">
