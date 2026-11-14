@@ -33,3 +33,20 @@ WORLD の `mio/shiro/kuro/midori/aka/ao/kin/gin` は HOUSE の住人・表示対
 R12 以降の正式 PORTAL mode は、R06 WORLD 永続状態、R07 認証 API、R08/R09 CORE 投影・read bridge、R10/R11 生活と空間の成立を入力とする。R13 で二視点・同一 store・ordered Delta を受け入れ、R14 で参考画と実機 PC/スマートフォン横画面を比較する完成美術 Gate を別に通す。Blender 仮レンダ、R04 Mock、HOUSE の候補素材を本番美術合格にしない。
 
 受入は ZIP の `W14-AC-015`〜`018`（配信・非公開情報）、`W14-AC-023`（Main/PinP と音声）、`W14-AC-024`（HOUSE の８住人・Visitor・二視点・美術・長時間運転）を対応させる。各試験は実 WORLD → CORE の認証済み read bridge → PORTAL → 利用者の表示・音声を通し、再起動・再接続・閲覧 scope の変更を含める。ZIP の24件はすべて `not_run` であり、本書の追加を実機受入へ換算しない。
+
+## 屋根裏3Fプレビューの境界・扉位置（2026-11-14）
+
+**Failure:** HOUSE 正面の後壁ピアに合わせた境界（x=-6, 0, 6）に対し、プレビュー室の右端は x=-4.14, 1.35, 8.48 で、東側に旧3室目の余白が残っていた。扉も旧区画の中心に配置され、指定された室内区画と一致していなかった。
+
+**Cause:** `house-data.js` の屋根裏 `upperHallways[1].rooms` が古い区画値を保持し、`atticTrip.aisle` の6回の前面横断も旧扉中心 x=-8.07, -1.395, 4.915 を使っていた。`scene.js` は同じ `room.x` から前面と扉を生成し、通常プレビューの在室判定にも使うため、別の描画補正では一致しない。
+
+**MissedPredicate:** 以前の確認は3室あることと既存の経路点が有限であることを見ていたが、実GLBで測った後壁ピア中心と各 room 境界の一致、全経路区間の前面・間仕切り交差を照合していなかった。
+
+**Invariants:** 3室を `[-12,-6]`, `[-6,0]`, `[0,6]` に保ち、x>6 の東側は4室目にせず階段アクセスとして開ける。各扉中心は室境界から生成される x=-9, -3, 3。3室の内側滞在点、屋根裏階段・到着・出発経路、および2F layoutは維持する。WORLD表示の `room_id` と `move_points` は別の入力経路であり、このプレビュー検査だけをWORLD実経路の受入証拠にしない。
+
+| Requirement | Entry point and consumer | Expected observable | Focused check |
+| --- | --- | --- | --- |
+| 3F facade boundaries follow HOUSE piers; east stair access stays open | `assets/house-data.js` → `scene.js` `buildRoomFront` / `occupiedRoom` | Three rooms end at the measured GLB rear piers x=-6, 0, 6; no facade remains at x=8.48 | `webtest/living_attic_layout.test.js` reads GLB JSON mesh bounds and checks the room count, boundaries, and open east span |
+| Preview residents pass through each centered opening without crossing an interior partition | `atticTrip.aisle` → preview route sampling and `scene.js` front/room geometry | Exactly six facade crossings, two per door, inside their openings; no route segment crosses a room partition at room depth | Same test intersects every aisle segment with z=1.55 and each room partition |
+| Preserve adjacent geometry and stops | Same house data → `scene.js` stair / floor setup | Interior stops, arrival/departure, attic stair count, and 2F layout remain intact | Same test asserts these invariants |
+| Keep WORLD location and motion owner-defined | CORE snapshot `room_id` / `move_points` → `world-home.js` timeline → `scene.js` `worldHomeDoorPassing` | WORLD label and measured door animation continue to use the snapshot; preview aisle points do not replace its canonical route | Not established by the preview data test; validate through the WORLD owner route separately |
