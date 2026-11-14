@@ -110,6 +110,9 @@
     var stairOccupant = null;
     var stairQueue = [];
     var hallwayLabels = new Map();
+    var heartbeatBubbleLayer = global.document && global.document.getElementById("scene-heartbeat-bubbles");
+    var heartbeatBubbleNodes = new Map();
+    var heartbeatBubbleContent = new Map();
     var upperRooms = new Map();
 
     var residents = metadata.residents.map(function (resident, index) {
@@ -257,6 +260,26 @@
     var residentIds = new Set(residents.map(function (resident) { return resident.id; }));
     if (RESIDENT_IDS.some(function (id) { return !residentIds.has(id); })) {
       throw new Error("HOUSE_105の住人IDが8人分そろっていません。");
+    }
+    var residentsById = new Map(residents.map(function (resident) { return [resident.id, resident]; }));
+    if (heartbeatBubbleLayer && global.document && typeof global.document.createElement === "function") {
+      RESIDENT_IDS.forEach(function (id) {
+        var bubble = global.document.createElement("div");
+        bubble.className = "scene-heartbeat-bubble";
+        bubble.setAttribute("data-heartbeat-actor", id);
+        bubble.setAttribute("role", "note");
+        bubble.setAttribute("aria-live", "off");
+        bubble.hidden = true;
+        var label = global.document.createElement("span");
+        label.className = "scene-heartbeat-bubble__label";
+        var title = global.document.createElement("span");
+        title.className = "scene-heartbeat-bubble__title";
+        title.hidden = true;
+        bubble.appendChild(label);
+        bubble.appendChild(title);
+        heartbeatBubbleLayer.appendChild(bubble);
+        heartbeatBubbleNodes.set(id, { root: bubble, label: label, title: title });
+      });
     }
 
     var imageCount = 0;
@@ -1658,6 +1681,93 @@
       });
     }
 
+    function hideHeartbeatBubbles() {
+      heartbeatBubbleNodes.forEach(function (bubble) { bubble.root.hidden = true; });
+    }
+
+    function updateHeartbeatBubblePositions() {
+      if (!heartbeatBubbleLayer) return;
+      var bounds = canvas.getBoundingClientRect();
+      if (!bounds.width || !bounds.height || view !== "living") {
+        hideHeartbeatBubbles();
+        return;
+      }
+      var candidates = [];
+      heartbeatBubbleNodes.forEach(function (bubble, id) {
+        var resident = residentsById.get(id);
+        if (!heartbeatBubbleContent.has(id) || !resident || !resident.group.visible || !resident.mesh || resident.mesh.material.opacity < 0.5) {
+          bubble.root.hidden = true;
+          return;
+        }
+        var anchor = new THREE.Vector3(0, resident.height + 0.75, 0);
+        resident.group.localToWorld(anchor);
+        anchor.project(camera);
+        var left = (anchor.x + 1) * bounds.width / 2;
+        var top = (1 - anchor.y) * bounds.height / 2;
+        if (anchor.z < -1 || anchor.z > 1 || left < 0 || left > bounds.width || top < 0 || top > bounds.height) {
+          bubble.root.hidden = true;
+          return;
+        }
+        bubble.root.hidden = false;
+        candidates.push({
+          bubble: bubble,
+          left: left,
+          top: top,
+          width: bubble.root.offsetWidth || 104,
+          height: bubble.root.offsetHeight || 28
+        });
+      });
+      candidates.sort(function (a, b) { return a.top - b.top || a.left - b.left; });
+      var placed = [];
+      candidates.forEach(function (candidate) {
+        var top = candidate.top;
+        var lift = 0;
+        var tries = 0;
+        function overlapsPlaced() {
+          var box = { left: candidate.left - candidate.width / 2, top: top - candidate.height - 8, right: candidate.left + candidate.width / 2, bottom: top - 8 };
+          return placed.some(function (other) {
+            return box.left < other.right + 3 && box.right > other.left - 3 && box.top < other.bottom + 3 && box.bottom > other.top - 3;
+          });
+        }
+        while (overlapsPlaced() && tries < 4 && top - candidate.height - 8 > 4) {
+          top -= candidate.height + 4;
+          lift += candidate.height + 4;
+          tries += 1;
+        }
+        if (overlapsPlaced()) {
+          top = candidate.top;
+          lift = 0;
+        }
+        candidate.bubble.root.style.left = candidate.left + "px";
+        candidate.bubble.root.style.top = top + "px";
+        candidate.bubble.root.style.setProperty("--scene-heartbeat-bubble-stem", lift ? (lift + 8) + "px" : "0px");
+        placed.push({
+          left: candidate.left - candidate.width / 2,
+          right: candidate.left + candidate.width / 2,
+          top: top - candidate.height - 8,
+          bottom: top - 8
+        });
+      });
+    }
+
+    function setHeartbeatBubbles(items) {
+      heartbeatBubbleContent.clear();
+      hideHeartbeatBubbles();
+      if (!Array.isArray(items)) return;
+      items.forEach(function (item) {
+        if (!item || typeof item.actor_id !== "string" || !RESIDENT_IDS.includes(item.actor_id) || typeof item.label !== "string") return;
+        var bubble = heartbeatBubbleNodes.get(item.actor_id);
+        if (!bubble) return;
+        var label = item.label.slice(0, 48);
+        var title = typeof item.title === "string" ? item.title.trim().slice(0, 120) : "";
+        bubble.label.textContent = label;
+        bubble.title.textContent = title;
+        bubble.title.hidden = title === "";
+        bubble.root.setAttribute("aria-label", (item.actor_name || item.actor_id) + ": " + label + (title ? ": " + title : ""));
+        heartbeatBubbleContent.set(item.actor_id, true);
+      });
+    }
+
     function createMarker(desk, index) {
       var selected = desk.residentId === selectedId || (!selectedId && desk.residentId === "mio");
       var sprite = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -1857,6 +1967,7 @@
       updateResidentWorldPositions();
       var renderStart = currentTime();
       renderer.render(scene, camera);
+      updateHeartbeatBubblePositions();
       lastFrameMs = currentTime() - renderStart;
       measuredFrames += 1;
       averageFrameMs += (lastFrameMs - averageFrameMs) / measuredFrames;
@@ -1880,6 +1991,7 @@
       if (next === view && progressTarget === target) return;
       view = next;
       progressTarget = target;
+      if (view !== "living") hideHeartbeatBubbles();
       if (!cameraMotionEnabled) {
         progress = progressTarget;
         progressVelocity = 0;
@@ -1960,6 +2072,7 @@
       setPaused: setPaused,
       selectResident: selectResident,
       setMarker: setMarker,
+      setHeartbeatBubbles: setHeartbeatBubbles,
       startMotionPreview: startMotionPreview,
       stopMotionPreview: stopMotionPreview,
       seekMotionPreview: seekMotionPreview,

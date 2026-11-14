@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -33,21 +34,23 @@ const (
 	sttBodyLimit               = 65 << 20
 	viewerSendBodyLimit        = 121 << 20
 	worldHomeHouseSHA256       = "602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e"
+	livingHeartbeatBodyLimit   = 32 << 10
 )
 
 type authenticatedActorContextKey struct{}
 
 type handler struct {
-	cfg        Config
-	coreURL    *url.URL
-	proxy      *httputil.ReverseProxy
-	page       *template.Template
-	luminaPage *template.Template
-	livingPage *template.Template
-	livingData livingPageData
+	cfg                    Config
+	coreURL                *url.URL
+	proxy                  *httputil.ReverseProxy
+	page                   *template.Template
+	luminaPage             *template.Template
+	livingPage             *template.Template
+	livingData             livingPageData
 	worldHomeHouseVerified bool
-	assets     http.Handler
-	readiness  *http.Client
+	assets                 http.Handler
+	readiness              *http.Client
+	livingHeartbeat        *http.Client
 }
 
 type pageData struct {
@@ -64,11 +67,11 @@ type pageData struct {
 }
 
 type livingPageData struct {
-	BoardURL            string
-	AssetVersion        string
-	WorldHomeEnabled    bool
-	HouseAssetVerified  bool
-	HouseAssetSHA256    string
+	BoardURL           string
+	AssetVersion       string
+	WorldHomeEnabled   bool
+	HouseAssetVerified bool
+	HouseAssetSHA256   string
 }
 
 // NewHandlerはPORTALのHTTP handlerを構築する。
@@ -128,8 +131,14 @@ func NewHandler(cfg Config) (http.Handler, error) {
 			HouseAssetSHA256: worldHomeHouseSHA256,
 		},
 		worldHomeHouseVerified: houseAssetVerified,
-		assets:     http.FileServer(http.FS(assetFS)),
-		readiness:  &http.Client{Timeout: 3 * time.Second},
+		assets:                 http.FileServer(http.FS(assetFS)),
+		readiness:              &http.Client{Timeout: 3 * time.Second},
+		livingHeartbeat: &http.Client{
+			Timeout: 3 * time.Second,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}
 	h.proxy = &httputil.ReverseProxy{
 		Director:      h.directProxyRequest,
@@ -215,7 +224,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/assets")
 		h.assets.ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/"):
-		if r.URL.Path == "/api/other" || strings.HasPrefix(r.URL.Path, "/api/other/") {
+		if r.URL.Path == "/api/living/heartbeat" {
+			h.serveLivingHeartbeat(w, r)
+		} else if r.URL.Path == "/api/other" || strings.HasPrefix(r.URL.Path, "/api/other/") {
 			h.serveOtherAPI(w, r)
 		} else if r.URL.Path == "/api/living" || strings.HasPrefix(r.URL.Path, "/api/living/") {
 			h.serveLivingWorldAPI(w, r)
@@ -347,6 +358,153 @@ func worldHomeHouseAssetMatches() (bool, error) {
 	}
 	digest := sha256.Sum256(asset)
 	return hex.EncodeToString(digest[:]) == worldHomeHouseSHA256, nil
+}
+
+type livingHeartbeatAgent struct {
+	ActorID      string  `json:"actor_id"`
+	State        string  `json:"state"`
+	ActivityKind *string `json:"activity_kind,omitempty"`
+	Title        *string `json:"title,omitempty"`
+}
+
+type livingHeartbeatResponse struct {
+	ObservedAt string                 `json:"observed_at"`
+	Agents     []livingHeartbeatAgent `json:"agents"`
+}
+
+func (h *handler) serveLivingHeartbeat(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.RawPath != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unexpected query"})
+		return
+	}
+	if h.coreURL == nil {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+	coreIP := net.ParseIP(h.coreURL.Hostname())
+	if coreIP == nil || !coreIP.IsLoopback() {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+
+	target := *h.coreURL
+	target.Path = "/viewer/living/heartbeat"
+	target.RawPath = ""
+	target.RawQuery = ""
+	target.ForceQuery = false
+	target.Fragment = ""
+	target.RawFragment = ""
+	target.User = nil
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target.String(), nil)
+	if err != nil {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("X-RenCrow-Client", "RenCrow_PORTAL")
+	request.Header.Set(interactionProfileHeader, "portal-living")
+
+	response, err := h.livingHeartbeat.Do(request)
+	if err != nil {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK || response.ContentLength > livingHeartbeatBodyLimit {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, livingHeartbeatBodyLimit+1))
+	if err != nil || len(body) > livingHeartbeatBodyLimit {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+	projected, err := projectLivingHeartbeat(body)
+	if err != nil {
+		writeLivingHeartbeatUnavailable(w)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	writeJSON(w, http.StatusOK, projected)
+}
+
+func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
+	var received struct {
+		ObservedAt string                  `json:"observed_at"`
+		Agents     *[]livingHeartbeatAgent `json:"agents"`
+	}
+	if err := json.Unmarshal(body, &received); err != nil {
+		return livingHeartbeatResponse{}, err
+	}
+	observedAt, err := time.Parse(time.RFC3339, received.ObservedAt)
+	if err != nil || received.Agents == nil || len(*received.Agents) != 8 {
+		return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat contract")
+	}
+
+	allowedActors := map[string]bool{
+		"mio": true, "shiro": true, "kuro": true, "midori": true,
+		"aka": true, "ao": true, "kin": true, "gin": true,
+	}
+	allowedStates := map[string]bool{"waiting": true, "checking": true, "running": true, "stopping": true}
+	allowedActivities := map[string]bool{"board": true, "private": true, "game": true, "foreground": true, "routine": true}
+	projected := livingHeartbeatResponse{
+		ObservedAt: observedAt.UTC().Format(time.RFC3339Nano),
+		Agents:     make([]livingHeartbeatAgent, 0, len(*received.Agents)),
+	}
+	seen := make(map[string]bool, len(*received.Agents))
+	for _, agent := range *received.Agents {
+		if !allowedActors[agent.ActorID] || !allowedStates[agent.State] || seen[agent.ActorID] {
+			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat agent")
+		}
+		seen[agent.ActorID] = true
+		if agent.ActivityKind != nil && !allowedActivities[*agent.ActivityKind] {
+			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat activity")
+		}
+		if agent.Title != nil {
+			if agent.ActivityKind == nil || *agent.ActivityKind != "private" || (agent.State != "running" && agent.State != "stopping") {
+				agent.Title = nil
+			} else {
+				title := safeLivingHeartbeatTitle(*agent.Title)
+				agent.Title = title
+			}
+		}
+		projected.Agents = append(projected.Agents, agent)
+	}
+	return projected, nil
+}
+
+func safeLivingHeartbeatTitle(value string) *string {
+	cleaned := make([]rune, 0, 120)
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			if character == '\n' || character == '\r' || character == '\t' {
+				character = ' '
+			} else {
+				continue
+			}
+		}
+		cleaned = append(cleaned, character)
+		if len(cleaned) == 120 {
+			break
+		}
+	}
+	title := strings.TrimSpace(string(cleaned))
+	if title == "" {
+		return nil
+	}
+	return &title
+}
+
+func writeLivingHeartbeatUnavailable(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "living heartbeat unavailable"})
 }
 
 func (h *handler) serveOtherAPI(w http.ResponseWriter, r *http.Request) {

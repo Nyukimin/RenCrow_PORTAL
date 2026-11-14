@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"html/template"
 	"io"
 	"net/http"
@@ -1250,6 +1251,162 @@ func TestWorldPOCUsesReadOnlyCoreProxyProfile(t *testing.T) {
 	}
 	if calls.Load() != 3 {
 		t.Fatalf("rejected World PoC requests reached CORE: calls=%d, want 3", calls.Load())
+	}
+}
+
+func TestLivingHeartbeatRelayUsesExactAuthorizedBoundedProjection(t *testing.T) {
+	var calls atomic.Int32
+	var gotMethod, gotPath, gotQuery, gotClient string
+	var gotHeaders http.Header
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+		gotClient, gotHeaders = r.Header.Get("X-RenCrow-Client"), r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"observed_at":"2026-11-14T01:02:03+09:00","agents":[{"actor_id":"mio","state":"running","activity_kind":"board","title":"Desk support","task_id":"private-task"},{"actor_id":"shiro","state":"running","activity_kind":"private","title":"Private slot"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"checking"},{"actor_id":"aka","state":"stopping","activity_kind":"private","title":"Stopping private slot"},{"actor_id":"ao","state":"running","activity_kind":"game","title":"Game title"},{"actor_id":"kin","state":"running","activity_kind":"foreground"},{"actor_id":"gin","state":"running","activity_kind":"routine","title":"Routine title"}],"token":"private-token"}`)
+	}))
+	defer core.Close()
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	cfg.AuthMode = AuthModeTailscaleServe
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unauthenticated := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, "/api/living/heartbeat", nil))
+	if unauthenticated.Code != http.StatusUnauthorized || calls.Load() != 0 {
+		t.Fatalf("unauthenticated status=%d CORE calls=%d, want 401 and no CORE request", unauthenticated.Code, calls.Load())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/living/heartbeat", nil)
+	req.Header.Set(tailscaleUserLoginHeader, "ren@example.test")
+	req.Header.Set("Authorization", "Bearer browser-secret")
+	req.Header.Set("Cookie", "portal-session=browser-secret")
+	req.Header.Set("X-Forwarded-Host", "attacker.example")
+	req.Header.Set("X-Forwarded-For", "192.0.2.10")
+	req.Header.Set("X-RenCrow-Client", "spoofed-client")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("authenticated heartbeat status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Content-Type") != "application/json; charset=utf-8" || rec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("heartbeat response headers = %#v", rec.Header())
+	}
+	if gotMethod != http.MethodGet || gotPath != "/viewer/living/heartbeat" || gotQuery != "" || gotClient != "RenCrow_PORTAL" {
+		t.Fatalf("CORE request method=%q path=%q query=%q client=%q", gotMethod, gotPath, gotQuery, gotClient)
+	}
+	if gotHeaders.Get(interactionProfileHeader) != "portal-living" {
+		t.Fatal("CORE request did not use the LIVING interaction profile")
+	}
+	for _, name := range []string{"Authorization", "Cookie", "X-Forwarded-Host", "X-Forwarded-For", authenticatedActorHeader} {
+		if value := gotHeaders.Get(name); value != "" {
+			t.Errorf("browser/auth identity header %s reached CORE: %q", name, value)
+		}
+	}
+	var projected livingHeartbeatResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &projected); err != nil {
+		t.Fatalf("heartbeat response is not JSON: %v", err)
+	}
+	if projected.ObservedAt != "2026-11-13T16:02:03Z" || len(projected.Agents) != 8 {
+		t.Fatalf("projected heartbeat = %#v", projected)
+	}
+	agents := make(map[string]livingHeartbeatAgent, len(projected.Agents))
+	for _, agent := range projected.Agents {
+		agents[agent.ActorID] = agent
+	}
+	if agent := agents["mio"]; agent.State != "running" || agent.ActivityKind == nil || *agent.ActivityKind != "board" || agent.Title != nil {
+		t.Fatalf("board agent projection = %#v", agent)
+	}
+	if agent := agents["shiro"]; agent.Title == nil || *agent.Title != "Private slot" {
+		t.Fatalf("private running title projection = %#v", agent)
+	}
+	if agent := agents["aka"]; agent.State != "stopping" || agent.Title == nil || *agent.Title != "Stopping private slot" {
+		t.Fatalf("private stopping title projection = %#v", agent)
+	}
+	if agent := agents["gin"]; agent.ActivityKind == nil || *agent.ActivityKind != "routine" || agent.Title != nil {
+		t.Fatalf("routine projection = %#v", agent)
+	}
+	for _, forbidden := range []string{"private-task", "private-token", "task_id", "token"} {
+		if strings.Contains(rec.Body.String(), forbidden) {
+			t.Errorf("unapproved CORE field %q escaped projection: %s", forbidden, rec.Body.String())
+		}
+	}
+
+	for _, test := range []struct {
+		method string
+		path   string
+		want   int
+	}{
+		{method: http.MethodPost, path: "/api/living/heartbeat", want: http.StatusMethodNotAllowed},
+		{method: http.MethodGet, path: "/api/living/heartbeat?scope=all", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/living/heartbeat?", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/living/%68eartbeat", want: http.StatusBadRequest},
+		{method: http.MethodGet, path: "/api/living/heartbeat/extra", want: http.StatusNotFound},
+		{method: http.MethodGet, path: "/viewer/living/heartbeat", want: http.StatusNotFound},
+	} {
+		rejected := httptest.NewRecorder()
+		req := httptest.NewRequest(test.method, test.path, nil)
+		req.Header.Set(tailscaleUserLoginHeader, "ren@example.test")
+		handler.ServeHTTP(rejected, req)
+		if rejected.Code != test.want {
+			t.Errorf("%s %s status=%d, want %d", test.method, test.path, rejected.Code, test.want)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("non-exact or unauthenticated requests reached CORE: calls=%d, want 1", calls.Load())
+	}
+}
+
+func TestLivingHeartbeatProjectionRequiresEightUniqueRegisteredActors(t *testing.T) {
+	for _, body := range []string{
+		`{"observed_at":"2026-11-14T00:00:00Z","agents":[{"actor_id":"mio","state":"waiting"}]}`,
+		`{"observed_at":"2026-11-14T00:00:00Z","agents":[{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"},{"actor_id":"mio","state":"waiting"}]}`,
+	} {
+		if _, err := projectLivingHeartbeat([]byte(body)); err == nil {
+			t.Errorf("projectLivingHeartbeat accepted invalid actor set: %s", body)
+		}
+	}
+}
+
+func TestLivingHeartbeatRelayBoundsCOREResponseAndRejectsRedirect(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{
+			name: "oversized",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = io.WriteString(w, `{"observed_at":"`+strings.Repeat("x", livingHeartbeatBodyLimit)+`"}`)
+			},
+		},
+		{
+			name: "redirect",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, "http://example.invalid/viewer/living/heartbeat", http.StatusFound)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			core := httptest.NewServer(test.handler)
+			defer core.Close()
+			cfg := DefaultConfig()
+			cfg.CoreURL = core.URL
+			handler, err := NewHandler(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/living/heartbeat", nil))
+			if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Header().Get("Content-Type"), "application/json") {
+				t.Fatalf("status=%d content-type=%q body=%s", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "example.invalid") || strings.Contains(rec.Body.String(), "xxxxx") {
+				t.Fatalf("upstream response escaped: %s", rec.Body.String())
+			}
+		})
 	}
 }
 

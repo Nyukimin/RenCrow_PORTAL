@@ -44,6 +44,22 @@
   const worldHomeEnabled = living?.dataset.worldHomeEnabled === "true";
   const houseAssetVerified = living?.dataset.houseAssetVerified === "true" &&
     living?.dataset.houseSha256?.toLowerCase() === worldHome?.houseSHA256;
+  const heartbeatActors = new Set(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]);
+  const heartbeatStates = new Set(["waiting", "checking", "running", "stopping"]);
+  const heartbeatActivities = new Set(["board", "private", "game", "foreground", "routine"]);
+  const heartbeatActivityLabels = {
+    board: "BOARD対応中",
+    private: "個別タスク中",
+    game: "ゲーム中",
+    foreground: "会話対応中",
+    routine: "日課中",
+  };
+  const heartbeatStateLabels = {
+    waiting: "待機中",
+    checking: "確認中",
+    running: "実行中",
+    stopping: "停止中",
+  };
 
   let activeView = "lcp";
   let selectedResidentId = null;
@@ -55,6 +71,11 @@
   let worldHomeLatest = null;
   let worldHomePollTimer = null;
   let worldHomeRequestVersion = 0;
+  let heartbeatBubbles = [];
+  let heartbeatPollTimer = null;
+  let heartbeatController = null;
+  let heartbeatInFlight = false;
+  let heartbeatGeneration = 0;
   let explicitViewMotion = null;
   let viewMotionEnabled = true;
 
@@ -81,6 +102,97 @@
         if (sceneStatus) sceneStatus.textContent = "シーン操作を反映できませんでした。";
       }
     }
+  }
+
+  function clearHeartbeatBubbles() {
+    heartbeatBubbles = [];
+    callScene("setHeartbeatBubbles", heartbeatBubbles);
+  }
+
+  function stopLivingHeartbeat() {
+    heartbeatGeneration += 1;
+    if (heartbeatPollTimer !== null) window.clearTimeout(heartbeatPollTimer);
+    heartbeatPollTimer = null;
+    const controller = heartbeatController;
+    heartbeatController = null;
+    heartbeatInFlight = false;
+    controller?.abort();
+    clearHeartbeatBubbles();
+  }
+
+  function heartbeatPollingAllowed() {
+    return Boolean(scene) && activeView === "workplace" && document.visibilityState === "visible";
+  }
+
+  function presentHeartbeatResponse(payload) {
+    const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+    if (!payload || typeof payload.observed_at !== "string" || !timestampPattern.test(payload.observed_at) || !Number.isFinite(Date.parse(payload.observed_at)) || !Array.isArray(payload.agents) || payload.agents.length !== 8) {
+      throw new TypeError("invalid living heartbeat response");
+    }
+    const seen = new Set();
+    return payload.agents.map((agent) => {
+      if (!agent || !heartbeatActors.has(agent.actor_id) || !heartbeatStates.has(agent.state) || seen.has(agent.actor_id)) {
+        throw new TypeError("invalid living heartbeat agent");
+      }
+      if (agent.activity_kind !== undefined && !heartbeatActivities.has(agent.activity_kind)) {
+        throw new TypeError("invalid living heartbeat activity");
+      }
+      if (agent.title !== undefined && agent.title !== null && typeof agent.title !== "string") {
+        throw new TypeError("invalid living heartbeat title");
+      }
+      seen.add(agent.actor_id);
+      const label = agent.state === "running"
+        ? (heartbeatActivityLabels[agent.activity_kind] || heartbeatStateLabels.running)
+        : heartbeatStateLabels[agent.state];
+      const titleIsPublic = agent.activity_kind === "private" && (agent.state === "running" || agent.state === "stopping");
+      const title = titleIsPublic && typeof agent.title === "string"
+        ? agent.title.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120)
+        : "";
+      return { actor_id: agent.actor_id, actor_name: names.get(agent.actor_id) || agent.actor_id, label, title };
+    });
+  }
+
+  async function pollLivingHeartbeat(generation) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    heartbeatController = controller;
+    heartbeatInFlight = true;
+    try {
+      if (typeof window.fetch !== "function") throw new TypeError("fetch unavailable");
+      const response = await window.fetch("/api/living/heartbeat", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+      if (!response.ok) throw new Error("living heartbeat unavailable");
+      const bubbles = presentHeartbeatResponse(await response.json());
+      if (generation !== heartbeatGeneration || !heartbeatPollingAllowed()) return;
+      heartbeatBubbles = bubbles;
+      callScene("setHeartbeatBubbles", heartbeatBubbles);
+    } catch {
+      if (generation === heartbeatGeneration) clearHeartbeatBubbles();
+    } finally {
+      if (heartbeatController === controller) {
+        heartbeatController = null;
+        heartbeatInFlight = false;
+      }
+      if (generation === heartbeatGeneration && heartbeatPollingAllowed()) {
+        heartbeatPollTimer = window.setTimeout(() => {
+          heartbeatPollTimer = null;
+          syncLivingHeartbeat();
+        }, 10_000);
+      }
+    }
+  }
+
+  function syncLivingHeartbeat() {
+    if (!heartbeatPollingAllowed()) {
+      stopLivingHeartbeat();
+      return;
+    }
+    if (heartbeatInFlight || heartbeatPollTimer !== null) return;
+    void pollLivingHeartbeat(heartbeatGeneration);
   }
 
   function updateBoardLink() {
@@ -120,6 +232,7 @@
       livingJump.setAttribute("aria-label", isWorkplace ? "HOUSE 全景へ切り替える" : "LIVING 1階へ切り替える");
     }
     callScene("setView", internalView(activeView));
+    syncLivingHeartbeat();
     if (persist) saveSelection();
     else updateBoardLink();
   }
@@ -302,6 +415,7 @@
 
   houseTab?.addEventListener("click", () => setView("lcp"));
   livingTab?.addEventListener("click", () => setView("workplace"));
+  document.addEventListener("visibilitychange", syncLivingHeartbeat);
   viewMotionToggle?.addEventListener("click", () => setViewMotion(!viewMotionEnabled, true));
   livingJump?.addEventListener("click", () => setView(activeView === "lcp" ? "workplace" : "lcp"));
   motionToggle?.addEventListener("click", () => setPaused(!isPaused));
@@ -359,6 +473,8 @@
       callScene("setPaused", isPaused);
       callScene("selectResident", selectedResidentId);
       callScene("setMarker", markerVisible);
+      callScene("setHeartbeatBubbles", heartbeatBubbles);
+      syncLivingHeartbeat();
     } catch (error) {
       console.error("House scene initialization failed", error);
       if (sceneStatus) sceneStatus.textContent = error?.message || "シーンを読み込めませんでした。";

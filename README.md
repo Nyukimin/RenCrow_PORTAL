@@ -39,6 +39,8 @@ Luminaの素材確認は、認証済みPORTALの`/lumina`で行えます。こ�
 
 HOUSE_105の室内ビューは、認証済みPORTALの`/living`で開きます。既定は家全体のLCP viewで、`?view=lcp`と`?view=workplace`で切り替えます。どちらも同じcanvasとHOUSE_105のgeometry／boundsを保ったままカメラ視点だけを切り替えます。表示素材とシミュレーションは既定のプレビューです。設定JSONで`"enable_world_home": true`を指定すると、WORLD実データ表示が初期選択され、切替buttonからプレビューへ戻れます。この表示はGET `/api/living/world`からCOREの`/viewer/world/home`だけを読みます。PORTALは既存の入口認証を適用し、固定path・queryなしの読み取りだけを`portal-living` profileで中継します。WORLD tokenやbrowser credentialはCOREへ転送しません。CORE snapshotの`scene_sha256`とPORTALに埋め込まれたモデルのSHA-256が一致し、HOUSE modelの読み込みが完了した場合だけ、WORLD位置を表示します。移動はsnapshotの測定済み`move_points`とUTC活動時刻で補間し、所在地ラベルはCORE snapshotの`room_id`に従います。未接続・不一致時はWORLD表示を停止して利用不可を表示します。R04 mock-only World PoCとは別の読み取り経路です。
 
+Workplaceでは同一originの`GET /api/living/heartbeat`だけを通じ、COREの固定loopback `GET /viewer/living/heartbeat`が返す8体の状態を各avatar頭上のbubbleへ表示します。Relayは登録済み8 actorと許可enumだけを再構成し、titleは公開可能なprivate slotのrunning／stoppingだけを表示します。失敗時と非表示中はbubbleを消します。
+
 既存のBOARD参加者リンクとqueryは維持し、`agent`、`from=living`、`person`、`view`を引き継ぎます。BOARDから戻ると、室内の選択中personとviewを復元します。モデルは`internal/portal/web/living/assets/house-105.glb`に固定し、`HOUSE_105_review.blend`由来のprototypeをPORTAL向けに変換したものです（SHA-256: `602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e`）。PORTAL用GLBではLIVING正面の支柱2本と、正面・階段脇のivy cluster／vineを削除し、4つのワークデスクに既存椅子部品を再配置・複製して各2席（計8席）を設けています。階段、手すり、その他の植物は保持しています。人物表示には既存のLiving2D spritesを使います。
 
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
