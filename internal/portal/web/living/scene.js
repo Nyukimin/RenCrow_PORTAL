@@ -15,6 +15,54 @@
   var RESIDENT_CLEARANCE = 1.45;
   var RESIDENT_VERTICAL_CLEARANCE = 1.55;
 
+  function clamp(value, minimum, maximum) {
+    return Math.max(minimum, Math.min(maximum, value));
+  }
+
+  function smooth(value) {
+    var t = clamp(value, 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function floorOpacityFor(floor, value) {
+    if (floor === 2) return 1 - smooth((value - 0.10) / 0.30);
+    if (floor === 1) return 1 - smooth((value - 0.32) / 0.34);
+    return 1;
+  }
+
+  function floorStateFor(view, position, metadata, opacity) {
+    var y = Array.isArray(position) ? position[1] : position && position.y;
+    var secondFloor = metadata && metadata.stairTrip && metadata.stairTrip.landing && metadata.stairTrip.landing[0];
+    var atticFloor = metadata && metadata.atticTrip && metadata.atticTrip.landing && metadata.atticTrip.landing[0];
+    var secondHeight = secondFloor && secondFloor[1];
+    var atticHeight = atticFloor && atticFloor[1];
+    if (!Number.isFinite(y) || !Number.isFinite(secondHeight) || !Number.isFinite(atticHeight)) {
+      return { floor: null, opacity: 0, visible: false };
+    }
+    var floor = y >= atticHeight ? 2 : y >= secondHeight ? 1 : 0;
+    var visible = view !== "living" || floor === 0;
+    return { floor: floor, opacity: visible ? opacity : 0, visible: visible };
+  }
+
+  function worldResidentOpacityFor(position, floor, metadata, value) {
+    if (floor !== 1) return floorOpacityFor(floor, value);
+    var stairs = metadata && metadata.stairTrip;
+    var secondFloor = stairs && stairs.landing && stairs.landing[0];
+    var secondHeight = secondFloor && secondFloor[1];
+    var stairEntryX = stairs && stairs.entry && stairs.entry[0];
+    if (!Number.isFinite(secondHeight) || !Number.isFinite(stairEntryX) || Math.abs(position.y - secondHeight) > 0.00001 ||
+        Math.abs(position.x - stairEntryX) > 0.00001) {
+      return floorOpacityFor(1, value);
+    }
+    if (position.z <= UPPER_LANDING_EDGE) return floorOpacityFor(1, value);
+    if (position.z >= TOP_TREAD_EDGE) return floorOpacityFor(0, value);
+    return lerp(floorOpacityFor(0, value), floorOpacityFor(1, value), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
+  }
+
   function createHouseScene(canvas, options) {
     options = options || {};
     if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
@@ -335,19 +383,6 @@
     var reusableVector = new THREE.Vector3();
     var statusSummary = "loading";
 
-    function clamp(value, minimum, maximum) {
-      return Math.max(minimum, Math.min(maximum, value));
-    }
-
-    function smooth(value) {
-      var t = clamp(value, 0, 1);
-      return t * t * (3 - 2 * t);
-    }
-
-    function lerp(a, b, t) {
-      return a + (b - a) * t;
-    }
-
     function currentTime() {
       return global.performance && typeof global.performance.now === "function" ? global.performance.now() : Date.now();
     }
@@ -404,9 +439,7 @@
 
     function floorOpacity(floor, value) {
       value = value === undefined ? progress : value;
-      if (floor === 2) return 1 - smooth((value - 0.10) / 0.30);
-      if (floor === 1) return 1 - smooth((value - 0.32) / 0.34);
-      return 1;
+      return floorOpacityFor(floor, value);
     }
 
     function shadowIntensityScale(value) {
@@ -604,15 +637,22 @@
       return lift * smooth(progress);
     }
 
-    function residentFloor(resident, position) {
-      if (position.y >= ATTIC_HEIGHT - 0.00001) return 2;
-      return position.y >= resident.landingHeight - 0.00001 && position.z <= UPPER_LANDING_EDGE ? 1 : resident.floor;
-    }
-
-    function residentOpacity(resident, position) {
+    function residentBaseOpacity(resident, position) {
       if (position.y < resident.landingHeight - 0.00001) return floorOpacity(resident.floor);
       if (position.y > resident.landingHeight + 0.00001) return floorOpacity(position.y < ATTIC_HEIGHT - 0.00001 ? 1 : 2);
       return lerp(1, floorOpacity(1), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
+    }
+
+    function worldResidentBaseOpacity(position, floor) {
+      return worldResidentOpacityFor(position, floor, metadata, progress);
+    }
+
+    function residentFloorState(resident, position) {
+      var floorState = floorStateFor("house", position, metadata, 1);
+      var opacity = worldHomeMode
+        ? worldResidentBaseOpacity(position, floorState.floor)
+        : residentBaseOpacity(resident, position);
+      return floorStateFor(view, position, metadata, opacity);
     }
 
     function directionFor(tangent, previous) {
@@ -1705,8 +1745,9 @@
             resident.lastTangent.fromArray(sample.tangent);
           }
           resident.direction = directionFor(resident.lastTangent || new THREE.Vector3(0, 0, 1), resident.direction);
-          var opacity = residentOpacity(resident, position);
-          resident.group.visible = opacity > 0.001 && Boolean(resident.mesh);
+          var floorState = residentFloorState(resident, position);
+          var opacity = floorState.opacity;
+          resident.group.visible = floorState.visible && opacity > 0.001 && Boolean(resident.mesh);
           if (resident.mesh) {
             resident.mesh.position.set(0, 0, 0);
             resident.mesh.quaternion.copy(camera.quaternion);
@@ -1737,8 +1778,9 @@
         resident.group.position.copy(position);
         resident.group.position.y += state.footLift;
         resident.direction = directionFor(state.tangent, resident.direction);
-        var opacity = residentOpacity(resident, position);
-        resident.group.visible = opacity > 0.001 && (!demonstration || (resident.id !== demonstration.id && resident.id !== demonstration.guest?.id));
+        var floorState = residentFloorState(resident, position);
+        var opacity = floorState.opacity;
+        resident.group.visible = floorState.visible && opacity > 0.001 && (!demonstration || (resident.id !== demonstration.id && resident.id !== demonstration.guest?.id));
         if (resident.mesh) resident.mesh.material.opacity = resident.spriteOpacity * opacity;
         if (resident.highlight) resident.highlight.material.opacity = resident.highlightOpacity * opacity;
         if (resident.mesh) {
@@ -1932,8 +1974,9 @@
         center.applyQuaternion(camera.quaternion).add(position);
         if (!worldHomeMode) center.y += state.footLift;
         var screen = screenPoint(center);
-        var floor = residentFloor(resident, position);
-        var opacity = residentOpacity(resident, position);
+        var floorState = residentFloorState(resident, position);
+        var floor = floorState.floor;
+        var opacity = floorState.opacity;
         var spriteLoaded = Boolean(resident.mesh);
         residentMap[resident.id] = {
           id: resident.id,
@@ -1946,7 +1989,7 @@
           seat_id: actor?.seat_id || null,
           seat_action: actor?.seat_id && resident.livingArt && resident.activity || null,
           floor: floor,
-          visible: Boolean(modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && resident.group.visible && (!worldHomeMode || actor) && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
+          visible: Boolean(floorState.visible && modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && resident.group.visible && (!worldHomeMode || actor) && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
           spriteLoaded: spriteLoaded,
           opacity: opacity,
           direction: direction,
@@ -2067,8 +2110,8 @@
         progress = progressTarget;
         progressVelocity = 0;
         applyCamera();
-        updateResidentWorldPositions();
       }
+      updateResidentWorldPositions();
     }
 
     function setCameraMotionEnabled(enabled) {
@@ -2120,6 +2163,7 @@
       } catch (error) {
         return false;
       }
+      updateResidentWorldPositions();
       return true;
     }
 
@@ -2157,4 +2201,7 @@
   }
 
   global.createHouseScene = createHouseScene;
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = { floorStateFor: floorStateFor, floorOpacityFor: floorOpacityFor, worldResidentOpacityFor: worldResidentOpacityFor };
+  }
 })(typeof window !== "undefined" ? window : globalThis);
