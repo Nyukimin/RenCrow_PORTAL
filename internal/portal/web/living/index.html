@@ -100,7 +100,7 @@
           <button type="button" class="quiet-control" id="motion-preview-seek">着席中を見る</button>
           <button type="button" class="quiet-control" id="motion-preview-stop">終了</button>
         </form>
-        <p id="motion-preview-status" role="status">姿勢と家具の位置を確認するサンプルです。</p>
+        <p id="motion-preview-status" role="status">再生すると動作サンプルに切り替わります。終了すると元の表示に戻ります。</p>
       </details>
 
       <section class="living-section" id="living-board" aria-labelledby="living-title" hidden>
@@ -178,10 +178,10 @@
           <section class="resident-group" data-group="external" aria-labelledby="group-external-title">
             <div class="group-heading"><h3 id="group-external-title">外部</h3><span>AROUND US</span></div>
             <div class="resident-grid">
-              <article class="resident-card resident-card--external" data-card="lumina" data-group="external" data-selectable="false">
+              <button type="button" class="resident-card resident-card--external" data-card="lumina" data-group="external" data-selectable="false" aria-label="Luminaの動作サンプルを選ぶ">
                 <span class="portrait"><img src="/assets/living/assets/lumina-front.webp" alt="" loading="lazy"><span class="portrait-monogram" aria-hidden="true">L</span></span>
                 <span class="resident-copy"><span class="resident-name">Lumina</span><span class="resident-role">EXTERNAL</span><span class="resident-status"><i></i>未取得</span></span>
-              </article>
+              </button>
               <article class="resident-card resident-card--external" data-card="muusan" data-group="external" data-selectable="false">
                 <span class="portrait portrait--type"><span class="portrait-monogram" aria-hidden="true">む</span></span>
                 <span class="resident-copy"><span class="resident-name">むーさん</span><span class="resident-role">EXTERNAL</span><span class="resident-status"><i></i>未取得</span></span>

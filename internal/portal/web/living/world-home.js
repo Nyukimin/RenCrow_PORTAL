@@ -49,11 +49,12 @@
     if (String(snapshot.scene_sha256 || "").toLowerCase() !== HOUSE_SHA256) throw new Error("WORLD snapshot HOUSE hash does not match");
     if (!Number.isSafeInteger(snapshot.state_seq) || snapshot.state_seq < 0) throw new Error("WORLD snapshot state_seq is invalid");
     if (!validTimestamp(snapshot.observed_at)) throw new Error("WORLD snapshot observed_at is invalid");
-    if (!Array.isArray(snapshot.actors) || snapshot.actors.length > RESIDENT_IDS.length) throw new Error("WORLD snapshot actors are invalid");
+    if (!Array.isArray(snapshot.actors) || snapshot.actors.length > RESIDENT_IDS.length + 1) throw new Error("WORLD snapshot actors are invalid");
 
     var seen = new Set();
     var actors = snapshot.actors.map(function (actor) {
-      if (!actor || typeof actor !== "object" || Array.isArray(actor) || !RESIDENT_IDS.includes(actor.id) || seen.has(actor.id)) {
+      if (!actor || typeof actor !== "object" || Array.isArray(actor) ||
+          (!RESIDENT_IDS.includes(actor.id) && actor.id !== "lumina") || seen.has(actor.id)) {
         throw new Error("WORLD snapshot actor id is invalid");
       }
       seen.add(actor.id);
@@ -76,6 +77,18 @@
         throw new Error("WORLD snapshot mirror_pose_completions is invalid");
       }
       var accepted = { id: actor.id, room_id: actor.room_id, position: actor.position.slice() };
+      if (actor.id === "lumina") {
+        if (!validTimestamp(actor.visit_until)) throw new Error("WORLD visitor expiration is invalid");
+        accepted.visit_until = actor.visit_until;
+      }
+      var validSeat = actor.seat_id === "desk-" + actor.id && actor.room_id === "living" ||
+        ["sofa", "sofa-guest"].includes(actor.seat_id) && actor.room_id === "living" ||
+        ["dining", "dining-guest"].includes(actor.seat_id) && actor.room_id === "dining";
+      if (validSeat && !actor.active_kind) {
+        accepted.seat_id = actor.seat_id;
+        if (["type", "notes", "review", "talk"].includes(actor.seat_action) ||
+            (actor.id === "lumina" && actor.seat_action === "relax")) accepted.seat_action = actor.seat_action;
+      }
       ["active_kind", "active_pose", "activity_started_at", "activity_due_at", "target_room_id", "mirror_pose_completions"].forEach(function (key) {
         if (actor[key] !== undefined) accepted[key] = actor[key];
       });
@@ -159,6 +172,7 @@
       if (!actor) return null;
       var observedAt = Date.parse(current.observed_at);
       var serverNow = observedAt + (Number.isFinite(nowMonotonicMs) ? nowMonotonicMs - receiptMonotonicMs : 0);
+      if (actor.visit_until && serverNow >= Date.parse(actor.visit_until)) return null;
       var metrics = actorMetrics.get(actorId);
       if (!metrics || !metrics.total) {
         return { position: actor.position.slice(), tangent: [0, 0, 0], distance: 0, segmentIndex: 0, moving: false, actor: actor };

@@ -222,6 +222,7 @@
     houseTab?.setAttribute("aria-pressed", String(!isWorkplace));
     livingTab?.setAttribute("aria-pressed", String(isWorkplace));
     if (livingBoard) livingBoard.hidden = !isWorkplace;
+    if (motionPreview) motionPreview.hidden = !(isWorkplace || motionPreviewEnabled) || !window.houseSDMotion;
     if (frame) frame.dataset.view = isWorkplace ? "living" : "house";
     if (sceneName) sceneName.textContent = isWorkplace ? "LIVING / 1階" : "HOUSE / 全景";
     if (sceneContext) sceneContext.textContent = isWorkplace ? "1階を眺める" : "家の全景を眺める";
@@ -249,6 +250,11 @@
       selectedLabel.textContent = selectedResidentId ? names.get(selectedResidentId) : "";
     }
     callScene("selectResident", selectedResidentId);
+    const character = motionPreviewForm?.elements.namedItem("character");
+    if (character && id && Array.from(character.options).some(option => option.value === id)) {
+      character.value = id;
+      if (!motionPreview.hidden) motionPreview.open = true;
+    }
   }
 
   function setPaused(paused) {
@@ -429,7 +435,7 @@
     });
   });
   cards.forEach((card) => {
-    if (card.dataset.selectable !== "true") return;
+    if (card.dataset.selectable !== "true" && card.dataset.card !== "lumina") return;
     card.addEventListener("click", () => {
       selectResident(selectedResidentId === card.dataset.card ? null : card.dataset.card);
     });
@@ -467,7 +473,7 @@
 
   if (canvas && typeof window.createHouseScene === "function") {
     try {
-      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled, houseAssetVerified, houseSha256: living.dataset.houseSha256 });
+      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled, manualMotion: true, houseAssetVerified, houseSha256: living.dataset.houseSha256 });
       window.housePreview = scene;
       callScene("setView", internalView(activeView));
       callScene("setPaused", isPaused);
@@ -485,12 +491,13 @@
     window.housePreview = null;
   }
 
-  if (scene && motionPreviewForm && window.houseSDMotion && motionPreviewEnabled) {
+  if (scene && motionPreviewForm && window.houseSDMotion) {
     const character = motionPreviewForm.elements.namedItem("character");
     const seat = motionPreviewForm.elements.namedItem("seat");
     const activity = motionPreviewForm.elements.namedItem("activity");
     const close = motionPreviewForm.elements.namedItem("close");
     const seek = document.getElementById("motion-preview-seek");
+    let resumeWorld = false;
     const button = motionPreviewForm.querySelector('button[type="submit"]');
     function refreshActivities() {
       activity.replaceChildren(...Object.entries(window.houseSDMotion.actions[seat.value]).map(([value, label]) => new Option(label, value)));
@@ -503,6 +510,11 @@
       button.disabled = true;
       motionPreviewStatus.textContent = "動作サンプルの素材を読み込み中";
       try {
+        const wasLive = worldHomeLive;
+        if (wasLive) {
+          resumeWorld = true;
+          setWorldHomeLive(false);
+        }
         setView("workplace");
         if (await scene.startMotionPreview(character.value, seat.value, activity.value)) {
           scene.setMotionCloseView(close.checked);
@@ -520,14 +532,19 @@
     });
     document.getElementById("motion-preview-stop").addEventListener("click", () => {
       scene.stopMotionPreview();
+      if (resumeWorld) {
+        resumeWorld = false;
+        setWorldHomeLive(true);
+        setView("workplace");
+      }
       motionPreviewStatus.textContent = "動作サンプルを終了しました";
     });
     seek.addEventListener("click", () => {
       if (!scene.seekMotionPreview()) motionPreviewStatus.textContent = "再生後に着席中の動作へ進めます";
     });
     refreshActivities();
-    motionPreview.hidden = false;
-    motionPreview.open = true;
+    motionPreview.hidden = activeView !== "workplace" && !motionPreviewEnabled;
+    motionPreview.open = motionPreviewEnabled;
   }
 
   window.housePreviewUI = Object.freeze({ setView, selectResident, setPaused, setMarker, setWorldHomeLive });

@@ -23,7 +23,7 @@
 
     var THREE = global.THREE;
     var motion = global.houseSDMotion;
-    var motionEnabled = Boolean(motion && options.motionPreview);
+    var motionEnabled = Boolean(motion && (options.motionPreview || options.manualMotion));
     var directions = motionEnabled ? motion.directions : CARDINAL;
     var GLTFLoader = global.GLTFLoader;
     if (!THREE || !GLTFLoader) {
@@ -262,6 +262,10 @@
       throw new Error("HOUSE_105の住人IDが8人分そろっていません。");
     }
     var residentsById = new Map(residents.map(function (resident) { return [resident.id, resident]; }));
+    var visitor = { id:"lumina", group:new THREE.Group(), floor:0, landingHeight:Infinity, height:residents[0].height };
+    visitor.group.visible = false;
+    scene.add(visitor.group);
+    var worldResidents = residents.concat(visitor);
     if (heartbeatBubbleLayer && global.document && typeof global.document.createElement === "function") {
       RESIDENT_IDS.forEach(function (id) {
         var bubble = global.document.createElement("div");
@@ -1007,6 +1011,47 @@
       return demonstrationArt.get(id);
     }
 
+    function clearLivingProps(resident) {
+      if (!resident.livingProps) return;
+      resident.livingProps.props.traverse(function (item) {
+        if (item.geometry) item.geometry.dispose();
+        if (item.material) item.material.dispose();
+      });
+      resident.livingProps.props.removeFromParent();
+      resident.livingProps = null;
+    }
+
+    function renderLivingSeat(resident, actor) {
+      var seat = motionEnabled && seats.get(actor.seat_id);
+      if (!seat || !resident.mesh) return false;
+      if (!resident.livingArtPending) {
+        resident.livingArtPending = true;
+        loadDemoArt(resident.id).then(function (images) {
+          resident.livingArt = images;
+        }).catch(function () { resident.livingArtPending = false; });
+      }
+      if (!resident.livingArt) return false;
+      var action = actor.seat_action || "sit";
+      var kind = actor.seat_id.split("-")[0];
+      var time = currentTime() / 1000;
+      var state = { position:actor.position, heading:seat.heading, stage:"activity", mix:1, time:time, seatY:seat.y, seatKind:kind };
+      seatedActor(resident, resident.livingArt, state, action);
+      resident.walking = false;
+      var propKey = actor.seat_id + ":" + action;
+      if (resident.livingProps?.key !== propKey) {
+        clearLivingProps(resident);
+        if (kind === "desk" && action !== "sit") {
+          var clip = { action:action, kind:kind, seat:seat, table:worktops.get(actor.seat_id), active:5 };
+          resident.livingProps = { key:propKey, clip:clip, props:buildProps(clip), actor:resident };
+        }
+      }
+      if (resident.livingProps) {
+        state.time %= resident.livingProps.clip.active;
+        updateProps(resident.livingProps, state);
+      }
+      return true;
+    }
+
     async function startMotionPreview(id, kind, action) {
       if (!motionEnabled || !modelLoaded || !Object.hasOwn(motion.actions, kind) || !Object.hasOwn(motion.actions[kind], action)) return false;
       if (!RESIDENT_IDS.includes(id) && id !== "lumina") return false;
@@ -1628,29 +1673,41 @@
 
     function updateResidentWorldPositions() {
       if (worldHomeMode) {
-        residents.forEach(function (resident) {
+        worldResidents.forEach(function (resident) {
           var sample = worldHomeTimeline && worldHomeTimeline.sample(resident.id, currentTime());
           if (!sample || !modelLoaded || !houseAssetVerified) {
+            clearLivingProps(resident);
             resident.group.visible = false;
             if (resident.locationLabel) resident.locationLabel.visible = false;
             return;
+          }
+          if (resident === visitor && !resident.mesh && !resident.livingArtPending) {
+            resident.livingArtPending = true;
+            loadDemoArt(visitor.id).then(function (images) {
+              resident.livingArt = images;
+              buildResidentMesh(visitor);
+            }).catch(function () { resident.livingArtPending = false; });
           }
           var actor = sample.actor;
           var position = new THREE.Vector3().fromArray(sample.position);
           resident.group.position.copy(position);
           if (sample.tangent.some(function (value) { return Math.abs(value) > 0.000001; })) {
-            resident.lastTangent.set(sample.tangent[0], sample.tangent[1], sample.tangent[2]);
+            if (!resident.lastTangent) resident.lastTangent = new THREE.Vector3();
+            resident.lastTangent.fromArray(sample.tangent);
           }
           resident.direction = directionFor(resident.lastTangent || new THREE.Vector3(0, 0, 1), resident.direction);
           var opacity = residentOpacity(resident, position);
           resident.group.visible = opacity > 0.001 && Boolean(resident.mesh);
           if (resident.mesh) {
+            resident.mesh.position.set(0, 0, 0);
             resident.mesh.quaternion.copy(camera.quaternion);
-            if (actor.active_kind === "sleep" && imageTextures[resident.id] && imageTextures[resident.id].sleep) {
+            var seated = renderLivingSeat(resident, actor);
+            if (!seated) clearLivingProps(resident);
+            if (!seated && actor.active_kind === "sleep" && imageTextures[resident.id] && imageTextures[resident.id].sleep) {
               setSpriteTexture(resident, imageTextures[resident.id].sleep);
               resident.mesh.position.y = 0;
               resident.walking = false;
-            } else {
+            } else if (!seated) {
               updateSpriteTexture(resident, resident.direction, sample.moving ? sample.distance : null);
               resident.walking = Boolean(sample.moving);
             }
@@ -1661,7 +1718,10 @@
         });
         return;
       }
+      visitor.group.visible = false;
       residents.forEach(function (resident) {
+        clearLivingProps(resident);
+        if (resident.mesh) resident.mesh.position.set(0, 0, 0);
         var state = pathState(resident);
         var position = state.position;
         resident.lastTangent = state.tangent.clone();
@@ -1852,9 +1912,10 @@
 
     function makeSnapshot() {
       var residentMap = Object.create(null);
-      residents.forEach(function (resident) {
-        var state = pathState(resident);
+      (worldHomeMode ? worldResidents : residents).forEach(function (resident) {
         var worldSample = worldHomeMode && worldHomeTimeline ? worldHomeTimeline.sample(resident.id, currentTime()) : null;
+        if (resident === visitor && !worldSample) return;
+        var state = resident === visitor ? { tangent:resident.lastTangent || new THREE.Vector3(0, 0, 1) } : pathState(resident);
         var actor = worldSample && worldSample.actor;
         var position = worldSample ? new THREE.Vector3().fromArray(worldSample.position) : state.position;
         var tangent = worldSample && worldSample.moving ? new THREE.Vector3().fromArray(worldSample.tangent) : state.tangent;
@@ -1874,6 +1935,8 @@
           room_id: actor ? actor.room_id : null,
           active_kind: actor ? actor.active_kind : null,
           active_pose: actor ? actor.active_pose : null,
+          seat_id: actor?.seat_id || null,
+          seat_action: actor?.seat_id && resident.livingArt && resident.activity || null,
           floor: floor,
           visible: Boolean(modelLoaded && !loadFailed && opacity > 0.001 && spriteLoaded && resident.group.visible && (!worldHomeMode || actor) && screen.depth >= -1 && screen.depth <= 1 && screen.x >= -40 && screen.x <= viewportWidth + 40 && screen.y >= -90 && screen.y <= viewportHeight + 40),
           spriteLoaded: spriteLoaded,
