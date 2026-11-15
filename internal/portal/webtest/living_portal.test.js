@@ -312,6 +312,7 @@ function testAtticMarkingBeamsAreRemovedBeforeMeshBatching() {
     "Attic_Roof_Beam.001_v4",
     "Attic_Roof_Beam.002_v4",
     "Attic_Roof_Beam.003_v4",
+    "Attic_Roof_Beam.004_v4",
   ];
   const arrangeAt = sceneSource.indexOf("var atticNodes = arrangeFloor(atticRoot, metadata.atticLayout);");
   assert.notEqual(arrangeAt, -1, "attic floor nodes must be retained for the roof cleanup");
@@ -319,7 +320,6 @@ function testAtticMarkingBeamsAreRemovedBeforeMeshBatching() {
   const optimizeAt = sceneSource.indexOf("optimizeRoomGeometry();", arrangeAt);
   assert.ok(removeAt > arrangeAt && optimizeAt > removeAt, "roof beams must be removed after floor arrangement and before batching");
   for (const name of names) assert.ok(sceneSource.includes(name), `must remove ${name}`);
-  assert.ok(!sceneSource.includes("Attic_Roof_Beam.004_v4"), "the .004 roof beam must remain outside the removal list");
   assert.doesNotMatch(sceneSource.slice(arrangeAt, optimizeAt), /Attic_Roof_Beam[^\n]*\.visible\s*=\s*false/);
 }
 

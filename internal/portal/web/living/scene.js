@@ -1680,7 +1680,8 @@
           "Attic_Roof_Beam_v4",
           "Attic_Roof_Beam.001_v4",
           "Attic_Roof_Beam.002_v4",
-          "Attic_Roof_Beam.003_v4"
+          "Attic_Roof_Beam.003_v4",
+          "Attic_Roof_Beam.004_v4"
         ].forEach(function (name) {
           var beam = atticNodes.get(name);
           if (!beam) throw new Error("HOUSE_105の屋根梁が見つかりません: " + name);
