@@ -1262,7 +1262,7 @@ func TestLivingHeartbeatRelayUsesExactAuthorizedBoundedProjection(t *testing.T) 
 		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
 		gotClient, gotHeaders = r.Header.Get("X-RenCrow-Client"), r.Header.Clone()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"observed_at":"2026-11-14T01:02:03+09:00","agents":[{"actor_id":"mio","state":"running","activity_kind":"board","title":"Desk support","task_id":"private-task"},{"actor_id":"shiro","state":"running","activity_kind":"private","title":"Private slot"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"checking"},{"actor_id":"aka","state":"stopping","activity_kind":"private","title":"Stopping private slot"},{"actor_id":"ao","state":"running","activity_kind":"game","title":"Game title"},{"actor_id":"kin","state":"running","activity_kind":"foreground"},{"actor_id":"gin","state":"running","activity_kind":"routine","title":"Routine title"}],"token":"private-token"}`)
+		_, _ = io.WriteString(w, `{"observed_at":"2026-11-14T01:02:03+09:00","agents":[{"actor_id":"mio","state":"running","activity_kind":"board","title":"Desk support","task_id":"private-task"},{"actor_id":"shiro","state":"running","activity_kind":"private","title":"Private slot"},{"actor_id":"kuro","state":"waiting","routine_availability":"available","ongoing_activity":"sleep_window"},{"actor_id":"midori","state":"checking"},{"actor_id":"aka","state":"stopping","activity_kind":"private","title":"Stopping private slot"},{"actor_id":"ao","state":"waiting","routine_availability":"disabled"},{"actor_id":"kin","state":"waiting","routine_availability":"unavailable"},{"actor_id":"gin","state":"running","activity_kind":"routine","title":"Routine title"}],"token":"private-token"}`)
 	}))
 	defer core.Close()
 	cfg := DefaultConfig()
@@ -1328,6 +1328,15 @@ func TestLivingHeartbeatRelayUsesExactAuthorizedBoundedProjection(t *testing.T) 
 	if agent := agents["gin"]; agent.ActivityKind == nil || *agent.ActivityKind != "routine" || agent.Title != nil {
 		t.Fatalf("routine projection = %#v", agent)
 	}
+	if agent := agents["mio"]; agent.RoutineAvailability != nil || agent.OngoingActivity != nil {
+		t.Fatalf("active agent must not receive waiting-only activity: %#v", agent)
+	}
+	if agent := agents["kuro"]; agent.RoutineAvailability == nil || *agent.RoutineAvailability != "available" || agent.OngoingActivity == nil || *agent.OngoingActivity != "sleep_window" {
+		t.Fatalf("waiting activity projection = %#v", agent)
+	}
+	if agent := agents["ao"]; agent.RoutineAvailability == nil || *agent.RoutineAvailability != "disabled" || agent.OngoingActivity != nil {
+		t.Fatalf("disabled availability projection = %#v", agent)
+	}
 	for _, forbidden := range []string{"private-task", "private-token", "task_id", "token"} {
 		if strings.Contains(rec.Body.String(), forbidden) {
 			t.Errorf("unapproved CORE field %q escaped projection: %s", forbidden, rec.Body.String())
@@ -1366,6 +1375,20 @@ func TestLivingHeartbeatProjectionRequiresEightUniqueRegisteredActors(t *testing
 	} {
 		if _, err := projectLivingHeartbeat([]byte(body)); err == nil {
 			t.Errorf("projectLivingHeartbeat accepted invalid actor set: %s", body)
+		}
+	}
+}
+
+func TestLivingHeartbeatProjectionRejectsInvalidWaitingActivity(t *testing.T) {
+	base := `{"observed_at":"2026-11-14T00:00:00Z","agents":[{"actor_id":"mio","state":"waiting"},{"actor_id":"shiro","state":"waiting"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"waiting"},{"actor_id":"aka","state":"waiting"},{"actor_id":"ao","state":"waiting"},{"actor_id":"kin","state":"waiting"},{"actor_id":"gin","state":"waiting"}]}`
+	for _, body := range []string{
+		strings.Replace(base, `"state":"waiting"}`, `"state":"running","routine_availability":"available"}`, 1),
+		strings.Replace(base, `"state":"waiting"}`, `"state":"waiting","routine_availability":"maybe"}`, 1),
+		strings.Replace(base, `"state":"waiting"}`, `"state":"waiting","ongoing_activity":"rest"}`, 1),
+		strings.Replace(base, `"state":"waiting"}`, `"state":"waiting","routine_availability":"disabled","ongoing_activity":"rest"}`, 1),
+	} {
+		if _, err := projectLivingHeartbeat([]byte(body)); err == nil {
+			t.Errorf("projectLivingHeartbeat accepted invalid waiting activity: %s", body)
 		}
 	}
 }

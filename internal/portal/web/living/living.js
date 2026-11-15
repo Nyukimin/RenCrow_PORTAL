@@ -48,6 +48,8 @@
   const heartbeatActors = new Set(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]);
   const heartbeatStates = new Set(["waiting", "checking", "running", "stopping"]);
   const heartbeatActivities = new Set(["board", "private", "game", "foreground", "routine"]);
+  const heartbeatRoutineAvailability = new Set(["available", "disabled", "unavailable"]);
+  const heartbeatOngoingActivities = new Set(["rest", "sleep_window", "waiting"]);
   const heartbeatActivityLabels = {
     board: "BOARD対応中",
     private: "個別タスク中",
@@ -60,6 +62,11 @@
     checking: "確認中",
     running: "実行中",
     stopping: "停止中",
+  };
+  const heartbeatOngoingActivityLabels = {
+    rest: "休憩中",
+    sleep_window: "就寝時間",
+    waiting: "次の活動を確認中",
   };
 
   let activeView = "lcp";
@@ -168,13 +175,28 @@
       if (agent.activity_kind !== undefined && !heartbeatActivities.has(agent.activity_kind)) {
         throw new TypeError("invalid living heartbeat activity");
       }
+      if (agent.routine_availability !== undefined && (!heartbeatRoutineAvailability.has(agent.routine_availability) || agent.state !== "waiting")) {
+        throw new TypeError("invalid living heartbeat routine availability");
+      }
+      if (agent.ongoing_activity !== undefined && (!heartbeatOngoingActivities.has(agent.ongoing_activity) || agent.state !== "waiting" || agent.routine_availability !== "available")) {
+        throw new TypeError("invalid living heartbeat ongoing activity");
+      }
+      if (agent.routine_availability === "available" && agent.ongoing_activity === undefined) {
+        throw new TypeError("missing living heartbeat ongoing activity");
+      }
       if (agent.title !== undefined && agent.title !== null && typeof agent.title !== "string") {
         throw new TypeError("invalid living heartbeat title");
       }
       seen.add(agent.actor_id);
-      const label = agent.state === "running"
-        ? (heartbeatActivityLabels[agent.activity_kind] || heartbeatStateLabels.running)
-        : heartbeatStateLabels[agent.state];
+      const label = agent.state === "waiting" && agent.routine_availability === "available"
+        ? heartbeatOngoingActivityLabels[agent.ongoing_activity]
+        : agent.state === "waiting" && agent.routine_availability === "disabled"
+          ? "日課停止中"
+          : agent.state === "waiting" && agent.routine_availability === "unavailable"
+            ? "日課状態を取得できません"
+            : agent.state === "running"
+              ? (heartbeatActivityLabels[agent.activity_kind] || heartbeatStateLabels.running)
+              : heartbeatStateLabels[agent.state];
       const titleIsPublic = agent.activity_kind === "private" && (agent.state === "running" || agent.state === "stopping");
       const title = titleIsPublic && typeof agent.title === "string"
         ? agent.title.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120)
