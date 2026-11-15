@@ -16,7 +16,105 @@ const snapshot = (actor) => ({
   scene_sha256: worldHome.houseSHA256,
   state_seq: 17,
   observed_at: observedAt,
-  actors: [actor]
+  actors: Array.isArray(actor) ? actor : [actor]
+});
+
+test("defines the fourth attic facade with Gin's WORLD room id", () => {
+  const attic = house.upperHallways.find((layout) => layout.floor === 2);
+  assert.equal(attic.rooms.length, 4);
+  assert.equal(attic.rooms[3].x[0], 6);
+  assert.equal(attic.rooms[3].x[1], 12);
+  assert.equal(attic.rooms[3].roomId, "attic-window");
+  assert.equal(scene.upperRoomIdFor(attic, 3, attic.rooms[3]), "attic-window");
+  assert.equal(scene.upperRoomIdFor(attic, 2, attic.rooms[2]), "upper-room-3-3");
+});
+
+test("attic-window opacity follows sampled 3F position and ignores stale room labels", () => {
+  const timeline = worldHome.createTimeline();
+  timeline.accept(snapshot({
+    id: "gin", room_id: "hall-attic", position: [9.64, 7.25, -0.42]
+  }), 1000);
+  assert.equal(scene.atticWindowOccupied(timeline, 1000, house), true, "landing position counts despite the stale hallway room_id");
+  timeline.accept(snapshot([]), 1050);
+  assert.equal(scene.atticWindowOccupied(timeline, 1050, house), false, "an actor without a current sample counts as absent");
+
+  timeline.accept(snapshot({
+    id: "gin", room_id: "attic-window", position: [9, 7.25, 1.55]
+  }), 1100);
+  assert.equal(scene.atticWindowOccupied(timeline, 1100, house), false, "hallway position does not count despite the stale room_id");
+
+  timeline.accept(snapshot({
+    id: "gin", room_id: "hall-attic", position: [8.95, 7.71, 0.2], active_kind: "sleep"
+  }), 1200);
+  assert.equal(scene.atticWindowOccupied(timeline, 1200, house), true, "the bed's measured y=7.71 remains on 3F");
+});
+
+test("attic-window occupancy observes measured movement, exact bounds, and expired samples", () => {
+  const timeline = worldHome.createTimeline();
+  const routeActor = {
+    id: "gin", room_id: "hall-attic", target_room_id: "attic-window", position: [9.64, 7.25, -0.42],
+    active_kind: "move", activity_started_at: observedAt,
+    activity_due_at: "2026-11-14T00:00:15.000Z",
+    move_points: [[9.64, 7.25, -0.42], [8.55, 7.25, 1.9]]
+  };
+  timeline.accept(snapshot(routeActor), 1000);
+  assert.equal(scene.atticWindowOccupied(timeline, 4500, house), true, "an in-flight interpolated position inside the room counts");
+
+  timeline.accept(snapshot({ id: "gin", room_id: "attic-window", position: [6, 7.25, 0] }), 5000);
+  assert.equal(scene.atticWindowOccupied(timeline, 5000, house), false, "the west x boundary is excluded");
+  timeline.accept(snapshot({ id: "gin", room_id: "attic-window", position: [9, 7.25, -4.1] }), 5100);
+  assert.equal(scene.atticWindowOccupied(timeline, 5100, house), true, "the roomBack z boundary is included");
+
+  timeline.accept(snapshot({
+    id: "lumina", room_id: "attic-window", position: [9, 7.25, 0],
+    visit_until: "2026-11-14T00:00:05.500Z"
+  }), 5200);
+  assert.equal(scene.atticWindowOccupied(timeline, 5800, house), false, "expired WORLD samples count as absent");
+});
+
+test("attic door opens across the measured room-to-hall route at x=9", () => {
+  const timeline = worldHome.createTimeline();
+  const doorRoom = {
+    layout: house.upperHallways.find((layout) => layout.floor === 2),
+    door: {}, doorX: 9, doorHalfWidth: 0.77
+  };
+  timeline.accept(snapshot({
+    id: "gin", room_id: "attic-window", target_room_id: "hall-attic", position: [8.55, 7.25, 1.9],
+    active_kind: "move", activity_started_at: observedAt,
+    activity_due_at: "2026-11-14T00:00:15.000Z",
+    move_points: [[9.64, 7.25, -0.42], [9.42, 7.25, 0.63], [8.55, 7.25, 1.9]]
+  }), 1000);
+  assert.equal(scene.worldHomeDoorRoutePasses(doorRoom, timeline, 9400), true);
+  assert.equal(scene.worldHomeDoorRoutePasses({ ...doorRoom, doorX: 11 }, timeline, 9400), false);
+});
+
+test("preview attic arrival and departure cross the facade within the door opening", () => {
+  const attic = house.upperHallways.find((layout) => layout.floor === 2);
+  const doorX = 9;
+  const doorHalfWidth = 0.77;
+  const doorZ = attic.z[0];
+  const crossing = (route) => {
+    for (let index = 0; index < route.length - 1; index += 1) {
+      const start = route[index];
+      const end = route[index + 1];
+      const dz = end[2] - start[2];
+      if (Math.abs(dz) < 1e-9) continue;
+      const fraction = (doorZ - start[2]) / dz;
+      if (fraction < 0 || fraction > 1) continue;
+      return {
+        x: start[0] + (end[0] - start[0]) * fraction,
+        y: start[1] + (end[1] - start[1]) * fraction
+      };
+    }
+    return null;
+  };
+
+  for (const [name, route] of Object.entries({ arrival: house.atticTrip.arrival, departure: house.atticTrip.departure })) {
+    const point = crossing(route);
+    assert.ok(point, `${name} must cross the attic facade`);
+    assert.ok(Math.abs(point.x - doorX) <= doorHalfWidth, `${name} crosses within the x=9 door opening`);
+    assert.equal(point.y, attic.height, `${name} crosses at the 3F floor height`);
+  }
 });
 
 test("accepts only snapshots pinned to the shipped HOUSE and valid actor state", () => {

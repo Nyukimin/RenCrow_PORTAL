@@ -63,6 +63,55 @@
     return lerp(floorOpacityFor(0, value), floorOpacityFor(1, value), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
   }
 
+  function upperRoomIdFor(layout, index, room) {
+    return room && typeof room.roomId === "string" && room.roomId ? room.roomId :
+      "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
+  }
+
+  function atticWindowOccupied(timeline, now, metadata) {
+    if (!timeline || typeof timeline.snapshot !== "function" || typeof timeline.sample !== "function") return false;
+    var snapshot = timeline.snapshot();
+    if (!snapshot || !Array.isArray(snapshot.actors)) return false;
+    var layout = (metadata && metadata.upperHallways || []).find(function (candidate) {
+      return candidate.floor === 2 && candidate.rooms && candidate.rooms.some(function (room) {
+        return room.roomId === "attic-window";
+      });
+    });
+    if (!layout) return false;
+    var room = layout.rooms.find(function (candidate) { return candidate.roomId === "attic-window"; });
+    if (!room || !Array.isArray(room.x) || !Array.isArray(layout.z)) return false;
+    return snapshot.actors.some(function (actor) {
+      var sample = timeline.sample(actor.id, now);
+      var position = sample && sample.position;
+      if (!Array.isArray(position) || floorStateFor("house", position, metadata, 1).floor !== 2) return false;
+      return room.x[0] < position[0] && position[0] < room.x[1] &&
+        layout.roomBack <= position[2] && position[2] < layout.z[0];
+    });
+  }
+
+  function worldHomeDoorRoutePasses(room, timeline, now) {
+    if (!timeline || !room || !room.door || typeof timeline.snapshot !== "function" || typeof timeline.sample !== "function") return false;
+    var snapshot = timeline.snapshot();
+    if (!snapshot) return false;
+    return snapshot.actors.some(function (actor) {
+      if (actor.active_kind !== "move" || !Array.isArray(actor.move_points)) return false;
+      var sample = timeline.sample(actor.id, now);
+      if (!sample || !sample.moving) return false;
+      var start = actor.move_points[sample.segmentIndex];
+      var end = actor.move_points[sample.segmentIndex + 1];
+      if (!start || !end) return false;
+      var doorZ = room.layout.z[0];
+      var dz = end[2] - start[2];
+      if (Math.abs(dz) < 0.000001 || (start[2] - doorZ) * (end[2] - doorZ) > 0) return false;
+      var fraction = (doorZ - start[2]) / dz;
+      if (fraction < 0 || fraction > 1) return false;
+      var crossingX = start[0] + (end[0] - start[0]) * fraction;
+      var crossingY = start[1] + (end[1] - start[1]) * fraction;
+      if (Math.abs(crossingX - room.doorX) > room.doorHalfWidth || crossingY < room.layout.height || crossingY > room.layout.height + room.layout.doorHeight) return false;
+      return Math.hypot(sample.position[0] - crossingX, sample.position[2] - doorZ) < 1.15;
+    });
+  }
+
   function createHouseScene(canvas, options) {
     options = options || {};
     if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
@@ -1431,7 +1480,7 @@
     function buildRoomFront(layout, room, floor, index) {
       var group = new THREE.Group();
       var facade = new THREE.Group();
-      group.name = "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
+      group.name = upperRoomIdFor(layout, index, room);
       facade.name = group.name + "-facade";
       group.add(facade);
       floor.add(group);
@@ -1497,7 +1546,7 @@
       });
       facade.children.forEach(function (item) { item.renderOrder = 1; });
       upperRooms.set(facade, {
-        layout: layout, x: room.x, roomId: "upper-room-" + (layout.floor + 1) + "-" + (index + 1),
+        layout: layout, x: room.x, roomId: group.name,
         door: door, doorX: doorX, doorHalfWidth: doorHalfWidth, doorAmount: 0,
         materials: new Set(), amount: 1, occupied: false
       });
@@ -1514,12 +1563,16 @@
 
     function updateRoomFronts(dt) {
       upperRooms.forEach(function (room) { room.occupied = false; });
-      if (worldHomeMode && worldHomeTimeline && worldHomeTimeline.snapshot()) {
-        worldHomeTimeline.snapshot().actors.forEach(function (actor) {
+      if (worldHomeMode && worldHomeTimeline) {
+        var worldSnapshot = worldHomeTimeline.snapshot();
+        if (worldSnapshot) {
+          var now = currentTime();
           upperRooms.forEach(function (room) {
-            if (actor.room_id === room.roomId) room.occupied = true;
+            room.occupied = room.roomId === "attic-window" ?
+              atticWindowOccupied(worldHomeTimeline, now, metadata) :
+              worldSnapshot.actors.some(function (actor) { return actor.room_id === room.roomId; });
           });
-        });
+        }
       } else if (!worldHomeMode) {
         residents.forEach(function (resident) {
           var room = occupiedRoom(resident.position);
@@ -1544,27 +1597,7 @@
     }
 
     function worldHomeDoorPassing(room) {
-      if (!worldHomeTimeline || !room || !room.door) return false;
-      var snapshot = worldHomeTimeline.snapshot();
-      if (!snapshot) return false;
-      var now = currentTime();
-      return snapshot.actors.some(function (actor) {
-        if (actor.active_kind !== "move" || !Array.isArray(actor.move_points)) return false;
-        var sample = worldHomeTimeline.sample(actor.id, now);
-        if (!sample || !sample.moving) return false;
-        var start = actor.move_points[sample.segmentIndex];
-        var end = actor.move_points[sample.segmentIndex + 1];
-        if (!start || !end) return false;
-        var doorZ = room.layout.z[0];
-        var dz = end[2] - start[2];
-        if (Math.abs(dz) < 0.000001 || (start[2] - doorZ) * (end[2] - doorZ) > 0) return false;
-        var fraction = (doorZ - start[2]) / dz;
-        if (fraction < 0 || fraction > 1) return false;
-        var crossingX = start[0] + (end[0] - start[0]) * fraction;
-        var crossingY = start[1] + (end[1] - start[1]) * fraction;
-        if (Math.abs(crossingX - room.doorX) > room.doorHalfWidth || crossingY < room.layout.height || crossingY > room.layout.height + room.layout.doorHeight) return false;
-        return Math.hypot(sample.position[0] - crossingX, sample.position[2] - doorZ) < 1.15;
-      });
+      return worldHomeDoorRoutePasses(room, worldHomeTimeline, currentTime());
     }
 
     function updateHallwayLabel(resident, position, opacity) {
@@ -2202,6 +2235,13 @@
 
   global.createHouseScene = createHouseScene;
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { floorStateFor: floorStateFor, floorOpacityFor: floorOpacityFor, worldResidentOpacityFor: worldResidentOpacityFor };
+    module.exports = {
+      atticWindowOccupied: atticWindowOccupied,
+      floorStateFor: floorStateFor,
+      floorOpacityFor: floorOpacityFor,
+      upperRoomIdFor: upperRoomIdFor,
+      worldHomeDoorRoutePasses: worldHomeDoorRoutePasses,
+      worldResidentOpacityFor: worldResidentOpacityFor
+    };
   }
 })(typeof window !== "undefined" ? window : globalThis);
