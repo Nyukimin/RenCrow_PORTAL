@@ -48,7 +48,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #dfc58f; outline-offs
   gap: 12px;
   padding: 0 7px;
   border-bottom: 1px solid var(--gold);
-  background: linear-gradient(110deg, #292437 0%, #49343d 58%, #332b3b 100%);
+  background: linear-gradient(110deg, #583839, #2a2336);
 }
 
 .brand {
@@ -121,7 +121,6 @@ button:focus-visible, a:focus-visible { outline: 2px solid #dfc58f; outline-offs
   min-width: 0;
   justify-self: stretch;
   padding: 3px 10px;
-  border: 1px solid var(--line);
   color: #fff8ef;
   font-size: clamp(13px, 1.9vw, 21px);
   font-variant-numeric: tabular-nums;
