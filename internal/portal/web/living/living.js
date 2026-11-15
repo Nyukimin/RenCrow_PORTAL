@@ -4,9 +4,11 @@
   const living = document.querySelector(".living");
   const worldHome = window.houseWorldHome;
   const canvas = document.getElementById("scene");
+  const jstClock = document.getElementById("jst-clock");
   const frame = document.getElementById("scene-frame");
   const houseTab = document.getElementById("house-tab");
   const livingTab = document.getElementById("living-tab");
+  const boardTab = document.getElementById("board-tab");
   const viewMotionToggle = document.getElementById("view-motion-toggle");
   const viewMotionState = document.getElementById("view-motion-state");
   const livingBoard = document.getElementById("living-board");
@@ -24,21 +26,18 @@
   const worldHomeObservedAt = document.getElementById("world-home-observed-at");
   const worldHomeBoardNote = document.getElementById("world-home-board-note");
   const livingJump = document.getElementById("living-jump");
-  const boardPeople = Array.from(document.querySelectorAll("[data-person]"));
   const cards = Array.from(document.querySelectorAll("[data-card]"));
   const groups = Array.from(document.querySelectorAll(".resident-group"));
   const filters = Array.from(document.querySelectorAll("[data-filter]"));
-  const openBoard = document.getElementById("open-board");
   const motionPreview = document.getElementById("motion-preview");
   const motionPreviewForm = document.getElementById("motion-preview-form");
   const motionPreviewStatus = document.getElementById("motion-preview-status");
-  const names = new Map(cards.map((card) => [
-    card.dataset.card,
-    card.querySelector(".resident-name")?.textContent.trim() || card.dataset.card,
-  ]));
+  const names = new Map([
+    ["mio", "Mio"], ["shiro", "Shiro"], ["kuro", "Kuro"], ["midori", "Midori"],
+    ["aka", "Aka"], ["ao", "Ao"], ["kin", "Kin"], ["gin", "Gin"],
+  ]);
   const systemMotionPreference = window.matchMedia?.("(prefers-reduced-motion: reduce)") || null;
   const viewMotionPreferenceKey = "rencrow-living-view-motion-v1";
-  const scrollKey = "rencrow-living-scroll";
   const validViews = new Set(["lcp", "workplace"]);
   const motionPreviewEnabled = new URLSearchParams(window.location.search).get("motion") === "preview";
   const worldHomeEnabled = living?.dataset.worldHomeEnabled === "true";
@@ -63,7 +62,6 @@
 
   let activeView = "lcp";
   let selectedResidentId = null;
-  let boardPerson = boardPeople[0] || null;
   let isPaused = false;
   let markerVisible = false;
   let scene = null;
@@ -78,6 +76,29 @@
   let heartbeatGeneration = 0;
   let explicitViewMotion = null;
   let viewMotionEnabled = true;
+
+  function formatJST(date) {
+    const parts = new Map(new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date).map((part) => [part.type, part.value]));
+    return `${parts.get("year")}/${parts.get("month")}/${parts.get("day")} ${parts.get("hour")}:${parts.get("minute")}`;
+  }
+
+  function updateJSTClock() {
+    if (!jstClock) return;
+    const now = new Date();
+    jstClock.textContent = formatJST(now);
+    jstClock.dateTime = now.toISOString();
+    window.setTimeout(updateJSTClock, 60_000 - Date.now() % 60_000);
+  }
+
+  updateJSTClock();
 
   try {
     const saved = window.localStorage.getItem(viewMotionPreferenceKey);
@@ -196,23 +217,27 @@
   }
 
   function updateBoardLink() {
-    boardPeople.forEach((button) => {
-      button.setAttribute("aria-pressed", String(button === boardPerson));
-    });
-    if (!openBoard || !boardPerson || !living?.dataset.boardUrl) return;
+    if (!boardTab) return;
+    const configuredUrl = living?.dataset.boardUrl;
+    if (!configuredUrl) {
+      boardTab.removeAttribute("href");
+      boardTab.setAttribute("aria-disabled", "true");
+      boardTab.classList?.add("is-disabled");
+      return;
+    }
 
     try {
-      const target = new URL(living.dataset.boardUrl);
-      target.searchParams.set("agent", boardPerson.dataset.participant);
+      const target = new URL(configuredUrl);
       target.searchParams.set("from", "living");
-      target.searchParams.set("person", boardPerson.dataset.person);
       target.searchParams.set("view", activeView);
-      openBoard.href = target.href;
-      openBoard.textContent = `${boardPerson.querySelector(".person-name")?.textContent.trim() || "選択中の参加者"} の会話をBOARDで開く`;
+      boardTab.href = target.href;
+      boardTab.removeAttribute("aria-disabled");
+      boardTab.classList?.remove("is-disabled");
     } catch (error) {
       console.error("BOARD URL could not be prepared", error);
-      openBoard.removeAttribute("href");
-      openBoard.setAttribute("aria-disabled", "true");
+      boardTab.removeAttribute("href");
+      boardTab.setAttribute("aria-disabled", "true");
+      boardTab.classList?.add("is-disabled");
     }
   }
 
@@ -397,7 +422,6 @@
 
   function saveSelection() {
     const url = new URL(window.location.href);
-    if (boardPerson) url.searchParams.set("person", boardPerson.dataset.person);
     url.searchParams.set("view", activeView);
     history.replaceState(history.state, "", url);
     updateBoardLink();
@@ -405,18 +429,7 @@
 
   function restoreSelection() {
     const params = new URLSearchParams(window.location.search);
-    const person = params.get("person");
-    boardPerson = boardPeople.find((button) => button.dataset.person === person) || boardPeople[0] || null;
     setView(validViews.has(params.get("view")) ? params.get("view") : "lcp", false);
-
-    if (!person || !boardPerson) return;
-    boardPerson.focus({ preventScroll: true });
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(scrollKey));
-      if (saved?.person === boardPerson.dataset.person && saved.view === activeView && Number.isFinite(saved.y)) {
-        requestAnimationFrame(() => window.scrollTo(0, saved.y));
-      }
-    } catch {}
   }
 
   houseTab?.addEventListener("click", () => setView("lcp"));
@@ -428,12 +441,6 @@
   markerToggle?.addEventListener("click", () => setMarker(!markerVisible));
   worldHomeToggle?.addEventListener("click", () => setWorldHomeLive(!worldHomeLive));
   filters.forEach((button) => button.addEventListener("click", () => setFilter(button.dataset.filter)));
-  boardPeople.forEach((button) => {
-    button.addEventListener("click", () => {
-      boardPerson = button;
-      saveSelection();
-    });
-  });
   cards.forEach((card) => {
     if (card.dataset.selectable !== "true" && card.dataset.card !== "lumina") return;
     card.addEventListener("click", () => {
@@ -451,12 +458,6 @@
       image.closest(".portrait")?.classList.add("portrait--loaded");
     }, { once: true });
   });
-  openBoard?.addEventListener("click", () => {
-    try {
-      sessionStorage.setItem(scrollKey, JSON.stringify({ person: boardPerson?.dataset.person, view: activeView, y: window.scrollY }));
-    } catch {}
-  });
-
   restoreSelection();
   if (worldHomeToggle) worldHomeToggle.hidden = !worldHomeEnabled;
   setViewMotion(viewMotionEnabled);

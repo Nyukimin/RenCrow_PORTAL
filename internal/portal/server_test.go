@@ -150,7 +150,6 @@ func TestLivingPageEnablesWorldHomeOnlyAfterExplicitConfig(t *testing.T) {
 		`data-world-home-enabled="true"`,
 		`data-house-asset-verified="true"`,
 		`data-house-sha256="602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e"`,
-		`id="world-home-toggle"`,
 		`/assets/living/world-home.js?`,
 	} {
 		if !strings.Contains(rec.Body.String(), marker) {

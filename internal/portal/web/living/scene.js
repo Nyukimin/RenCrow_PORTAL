@@ -58,7 +58,6 @@
       throw new Error("WebGLを利用できないため、HOUSE_105を表示できません。");
     }
 
-    setStatus("HOUSE_105を読み込んでいます…");
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
@@ -1603,7 +1602,17 @@
           registerSeats(groundNodes);
         }
         var secondNodes = arrangeFloor(secondRoot, metadata.secondLayout);
-        arrangeFloor(atticRoot, metadata.atticLayout);
+        var atticNodes = arrangeFloor(atticRoot, metadata.atticLayout);
+        [
+          "Attic_Roof_Beam_v4",
+          "Attic_Roof_Beam.001_v4",
+          "Attic_Roof_Beam.002_v4",
+          "Attic_Roof_Beam.003_v4"
+        ].forEach(function (name) {
+          var beam = atticNodes.get(name);
+          if (!beam) throw new Error("HOUSE_105の屋根梁が見つかりません: " + name);
+          beam.removeFromParent();
+        });
         if (metadata.stairTrip) connectStairLanding(groundRoot);
         if (metadata.atticTrip) connectAtticLanding(secondRoot, atticRoot, secondNodes.get("Attic stair step.016_v4"));
         (metadata.upperHallways || []).forEach(function (layout) {
@@ -1737,7 +1746,6 @@
           var walkDistance = resident.walking ? resident.walkDistance : null;
           updateSpriteTexture(resident, resident.direction, walkDistance);
         }
-        updateHallwayLabel(resident, position, opacity);
       });
     }
 
