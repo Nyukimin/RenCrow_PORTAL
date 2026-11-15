@@ -15,7 +15,7 @@ Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $runtimeRoot = Join-Path $repoRoot "Tmp\test-runtime"
 $runsRoot = Join-Path $runtimeRoot "r"
-$cacheRoot = Join-Path $runtimeRoot "cache"
+$cacheRoot = Join-Path $runtimeRoot "_cache"
 $runName = "{0}-{1}" -f $PID, ([Guid]::NewGuid().ToString("N").Substring(0, 8))
 $runRoot = Join-Path $runsRoot $runName
 
@@ -217,7 +217,7 @@ $paths = @{
     TMPDIR                = $runRoot
     GOTMPDIR              = (Join-Path $runRoot "go-build")
     GOCACHE               = (Join-Path $cacheRoot "go-build")
-    GOMODCACHE            = (Join-Path $cacheRoot "go-mod")
+    GOMODCACHE            = (Join-Path $cacheRoot "_go-mod")
     PYTHONPYCACHEPREFIX   = (Join-Path $cacheRoot "python-bytecode")
     PYTEST_DEBUG_TEMPROOT = (Join-Path $runRoot "pytest")
     UV_CACHE_DIR          = (Join-Path $cacheRoot "uv")

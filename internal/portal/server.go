@@ -456,7 +456,7 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 	allowedStates := map[string]bool{"waiting": true, "checking": true, "running": true, "stopping": true}
 	allowedActivities := map[string]bool{"board": true, "private": true, "game": true, "foreground": true, "routine": true}
 	allowedRoutineAvailability := map[string]bool{"available": true, "disabled": true, "unavailable": true}
-	allowedOngoingActivity := map[string]bool{"rest": true, "sleep_window": true, "waiting": true}
+	allowedOngoingActivity := map[string]bool{"rest": true, "sleep_window": true, "waiting": true, "moving_home": true}
 	projected := livingHeartbeatResponse{
 		ObservedAt: observedAt.UTC().Format(time.RFC3339Nano),
 		Agents:     make([]livingHeartbeatAgent, 0, len(*received.Agents)),
@@ -470,10 +470,13 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 		if agent.ActivityKind != nil && !allowedActivities[*agent.ActivityKind] {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat activity")
 		}
-		if agent.RoutineAvailability != nil && (!allowedRoutineAvailability[*agent.RoutineAvailability] || agent.State != "waiting") {
+		runningRoutine := agent.State == "running" && agent.ActivityKind != nil && *agent.ActivityKind == "routine"
+		if agent.RoutineAvailability != nil && (!allowedRoutineAvailability[*agent.RoutineAvailability] || (agent.State != "waiting" && !runningRoutine)) {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat routine availability")
 		}
-		if agent.OngoingActivity != nil && (!allowedOngoingActivity[*agent.OngoingActivity] || agent.State != "waiting" || agent.RoutineAvailability == nil || *agent.RoutineAvailability != "available") {
+		waitingRoutineActivity := agent.State == "waiting" && agent.RoutineAvailability != nil && *agent.RoutineAvailability == "available"
+		runningRoutineMove := runningRoutine && agent.RoutineAvailability != nil && *agent.RoutineAvailability == "available" && agent.OngoingActivity != nil && *agent.OngoingActivity == "moving_home"
+		if agent.OngoingActivity != nil && (!allowedOngoingActivity[*agent.OngoingActivity] || (!waitingRoutineActivity && !runningRoutineMove)) {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat ongoing activity")
 		}
 		if agent.RoutineAvailability != nil && *agent.RoutineAvailability == "available" && agent.OngoingActivity == nil {

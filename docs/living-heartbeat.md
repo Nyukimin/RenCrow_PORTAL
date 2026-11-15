@@ -1,0 +1,7 @@
+# PORTAL LIVING heartbeat activity contract
+
+`GET /api/living/heartbeat` is the authenticated PORTAL relay for CORE's read-only `GET /viewer/living/heartbeat`. The LIVING scene polls it while the workplace view is visible and renders the approved activity label in each actor's heartbeat bubble.
+
+CORE may add `routine_availability: "available"` and `ongoing_activity: "moving_home"` to an actor whose scheduler is `waiting`, or whose active lease is `running` with `activity_kind: "routine"`. CORE requires a persisted pending routine move with a committed, event-verified WORLD receipt and a fresh WORLD snapshot matching the mapped actor, activity ID, private-room target, route ID, and scene hash. The move remains visible after its due time while the exact move is still active and has no verified finish/stop receipt. A missing or failed fresh WORLD read does not project movement.
+
+The PORTAL relay accepts this annotation for an available waiting routine actor, and for a running actor only when `activity_kind: "routine"` and `ongoing_activity: "moving_home"`; the browser displays it as **自室に移動中**. `waiting`, `rest`, and `sleep_window` remain waiting-state activities. BOARD, private, game, foreground, stopping, and other non-routine scheduler states keep their scheduler label and never inherit the routine annotation. Receipt IDs, route IDs, scene hashes, room IDs, and raw WORLD details are not exposed by the public heartbeat contract.

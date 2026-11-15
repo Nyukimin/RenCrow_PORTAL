@@ -202,10 +202,10 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
     heartbeatStates: new Set(["waiting", "checking", "running", "stopping"]),
     heartbeatActivities: new Set(["board", "private", "game", "foreground", "routine"]),
     heartbeatRoutineAvailability: new Set(["available", "disabled", "unavailable"]),
-    heartbeatOngoingActivities: new Set(["rest", "sleep_window", "waiting"]),
+    heartbeatOngoingActivities: new Set(["rest", "sleep_window", "waiting", "moving_home"]),
     heartbeatActivityLabels: { board: "BOARD対応中", private: "個別タスク中", game: "ゲーム中", foreground: "会話対応中", routine: "日課中" },
     heartbeatStateLabels: { waiting: "待機中", checking: "確認中", running: "実行中", stopping: "停止中" },
-    heartbeatOngoingActivityLabels: { rest: "休憩中", sleep_window: "就寝時間", waiting: "次の活動を確認中" },
+    heartbeatOngoingActivityLabels: { rest: "休憩中", sleep_window: "就寝時間", waiting: "次の活動を確認中", moving_home: "自室に移動中" },
     names: new Map(),
   };
   const agents = [
@@ -216,16 +216,22 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
     { actor_id: "aka", state: "waiting", routine_availability: "unavailable" },
     { actor_id: "ao", state: "checking" },
     { actor_id: "kin", state: "stopping" },
-    { actor_id: "gin", state: "running", activity_kind: "game" },
+    { actor_id: "gin", state: "running", activity_kind: "routine", routine_availability: "available", ongoing_activity: "moving_home" },
   ];
   const mapped = vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents });
-  assert.deepEqual(Array.from(mapped, item => item.label), ["休憩中", "就寝時間", "次の活動を確認中", "日課停止中", "日課状態を取得できません", "確認中", "停止中", "ゲーム中"]);
+  assert.deepEqual(Array.from(mapped, item => item.label), ["休憩中", "就寝時間", "次の活動を確認中", "日課停止中", "日課状態を取得できません", "確認中", "停止中", "自室に移動中"]);
+  const waitingMoveAgents = agents.slice();
+  waitingMoveAgents[0] = { ...agents[0], ongoing_activity: "moving_home" };
+  const waitingMove = vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents: waitingMoveAgents });
+  assert.equal(waitingMove[0].label, "自室に移動中", "fresh WORLD movement must remain visible while the scheduler is waiting");
 
   for (const invalid of [
     { ...agents[0], routine_availability: "maybe" },
     { ...agents[0], ongoing_activity: "unknown" },
     { ...agents[0], ongoing_activity: "rest", routine_availability: "disabled" },
     { ...agents[0], state: "running", routine_availability: "available" },
+    { ...agents[0], state: "running", activity_kind: "board", ongoing_activity: "moving_home" },
+    { ...agents[0], state: "checking", ongoing_activity: "moving_home" },
   ]) {
     const changed = agents.slice();
     changed[0] = invalid;
