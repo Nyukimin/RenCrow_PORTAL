@@ -28,7 +28,14 @@
         {{else}}<span class="view-tab board-tab is-disabled" id="board-tab" role="link" aria-disabled="true" title="BOARDの接続先が未設定です">BOARD</span>{{end}}
       </nav>
 
-      <time class="portal-clock" id="jst-clock" aria-label="日本標準時">----/--/-- --:--</time>
+      <time class="portal-clock" id="jst-clock" aria-label="日本標準時">
+        <svg class="portal-clock-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 7v5l3 2"></path>
+        </svg>
+        <span class="portal-clock-date" id="jst-clock-date">--月--日(--)</span>
+        <strong class="portal-clock-time" id="jst-clock-time">--:--</strong>
+      </time>
     </header>
 
     <main id="top" class="portal-main">

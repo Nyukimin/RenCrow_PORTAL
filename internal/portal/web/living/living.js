@@ -5,6 +5,8 @@
   const worldHome = window.houseWorldHome;
   const canvas = document.getElementById("scene");
   const jstClock = document.getElementById("jst-clock");
+  const jstClockDate = document.getElementById("jst-clock-date");
+  const jstClockTime = document.getElementById("jst-clock-time");
   const frame = document.getElementById("scene-frame");
   const houseTab = document.getElementById("house-tab");
   const livingTab = document.getElementById("living-tab");
@@ -78,24 +80,32 @@
   let viewMotionEnabled = true;
 
   function formatJST(date) {
-    const parts = new Map(new Intl.DateTimeFormat("en-US", {
+    const formattedDate = new Intl.DateTimeFormat("ja-JP", {
       timeZone: "Asia/Tokyo",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+    }).format(date);
+    const parts = new Map(new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Tokyo",
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
     }).formatToParts(date).map((part) => [part.type, part.value]));
-    return `${parts.get("year")}/${parts.get("month")}/${parts.get("day")} ${parts.get("hour")}:${parts.get("minute")}`;
+    return {
+      date: formattedDate,
+      time: `${parts.get("hour")}:${parts.get("minute")}`,
+    };
   }
 
   function updateJSTClock() {
-    if (!jstClock) return;
+    if (!jstClock || !jstClockDate || !jstClockTime) return;
     const now = new Date();
-    jstClock.textContent = formatJST(now);
+    const formatted = formatJST(now);
+    jstClockDate.textContent = formatted.date;
+    jstClockTime.textContent = formatted.time;
     jstClock.dateTime = now.toISOString();
-    window.setTimeout(updateJSTClock, 60_000 - Date.now() % 60_000);
+    window.setTimeout(updateJSTClock, 60_000 - now.getTime() % 60_000);
   }
 
   updateJSTClock();

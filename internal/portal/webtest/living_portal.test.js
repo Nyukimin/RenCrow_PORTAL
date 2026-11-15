@@ -25,7 +25,10 @@ function testPortalShellMatchesHouseReference() {
   assert.match(header[1], /RenCrow PORTAL/);
   assert.match(header[1], /<nav[^>]*class="view-switch"/);
   assert.match(header[1], /HOUSE[\s\S]*LIVING[\s\S]*BOARD/);
-  assert.match(header[1], /id="jst-clock"[^>]*aria-label="日本標準時"/);
+  assert.match(header[1], /<time class="portal-clock" id="jst-clock"[^>]*aria-label="日本標準時"/);
+  assert.match(header[1], /<svg class="portal-clock-icon"[^>]*aria-hidden="true"/);
+  assert.match(header[1], /<span class="portal-clock-date" id="jst-clock-date">/);
+  assert.match(header[1], /<strong class="portal-clock-time" id="jst-clock-time">/);
   assert.match(header[1], /id="board-tab"[^>]*href="\{\{\.BoardURL\}\}"/);
   assert.match(header[1], /aria-disabled="true"[^>]*>BOARD<\/span>/);
   assert.doesNotMatch(html, /scene-topline|scene-bottomline|living-section|board-link-panel|site-footer|resident-card|data-person=|data-filter=|motion-preview|world-home-toggle|marker-toggle|scene-heartbeat-bubbles/);
@@ -50,15 +53,72 @@ function testMobileHeaderKeepsBrandTabsAndClockInOneRow() {
   assert.match(mobileHeader, /\.brand-name\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.8vw,\s*12px\);/);
   assert.match(mobileHeader, /\.portal-clock\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.55vw,\s*12px\);/);
   assert.match(mobileHeader, /\.portal-clock\s*\{[^}]*padding:\s*3px 2px;/);
+  assert.match(mobileHeader, /\.portal-clock-date\s*\{[^}]*font-size:\s*clamp\(9px,\s*2\.55vw,\s*12px\);/);
+  assert.match(mobileHeader, /\.portal-clock-time\s*\{[^}]*font-size:\s*clamp\(12px,\s*3\.2vw,\s*15px\);/);
   assert.match(css, /\.site-header\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\);/s);
+  const compactHeader = extract(css, "@media (max-width: 380px) {", "\n}");
+  assert.match(compactHeader, /\.portal-clock\s*\{[^}]*gap:\s*1px;/);
+  assert.match(compactHeader, /\.portal-clock-date\s*\{[^}]*font-size:\s*8px;/);
+  assert.match(compactHeader, /\.portal-clock-icon\s*\{[^}]*width:\s*10px;/);
+  assert.match(compactHeader, /\.portal-clock-time\s*\{[^}]*font-size:\s*12px;/);
+}
+
+function testClockMatchesBoardVisualHierarchyWithoutFrame() {
+  const clockRule = css.match(/\.portal-clock\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(clockRule, /display:\s*flex;/);
+  assert.match(clockRule, /align-items:\s*center;/);
+  assert.match(clockRule, /gap:\s*6px;/);
+  assert.match(clockRule, /font-size:\s*12px;/);
+  assert.doesNotMatch(clockRule, /border\s*:/);
+  const timeRule = css.match(/\.portal-clock-time\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(timeRule, /font-size:\s*20px;/);
+  assert.match(timeRule, /font-weight:\s*700;/);
 }
 
 function testJstClockFormatting() {
   const formatter = extract(livingSource, "  function formatJST(date) {", "\n  function updateJSTClock");
   const sandbox = { Intl, Date };
-  vm.runInNewContext(`${formatter}\nresult = formatJST(new Date("2026-11-15T00:24:00Z"));`, sandbox);
-  assert.equal(sandbox.result, "2026/11/15 09:24");
-  assert.match(formatter, /timeZone:\s*["']Asia\/Tokyo["']/);
+  vm.runInNewContext(`${formatter}\nresult = [formatJST(new Date("2026-11-15T11:29:00Z")), formatJST(new Date("2026-11-14T14:59:00Z")), formatJST(new Date("2026-11-14T15:00:00Z"))];`, sandbox);
+  assert.equal(JSON.stringify(sandbox.result), JSON.stringify([
+    { date: "11月15日(日)", time: "20:29" },
+    { date: "11月14日(土)", time: "23:59" },
+    { date: "11月15日(日)", time: "00:00" },
+  ]));
+  assert.equal((formatter.match(/timeZone:\s*["']Asia\/Tokyo["']/g) || []).length, 2);
+}
+
+function testJstClockUpdatesAtMinuteBoundaryAndKeepsDatetime() {
+  const formatter = extract(livingSource, "  function formatJST(date) {", "\n  function updateJSTClock");
+  const updater = extract(livingSource, "  function updateJSTClock() {", "\n  updateJSTClock();");
+  let now = Date.parse("2026-11-14T14:59:37Z");
+  const timers = [];
+  class ClockDate extends Date {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+    static now() { return now + 50; }
+  }
+  const clock = { dateTime: "" };
+  const dateLabel = { textContent: "" };
+  const timeLabel = { textContent: "" };
+  const sandbox = {
+    Date: ClockDate,
+    Intl,
+    jstClock: clock,
+    jstClockDate: dateLabel,
+    jstClockTime: timeLabel,
+    window: { setTimeout(callback, delay) { timers.push({ callback, delay }); } },
+  };
+  vm.runInNewContext(`${formatter}\n${updater}\nupdateJSTClock();`, sandbox);
+  assert.equal(dateLabel.textContent, "11月14日(土)");
+  assert.equal(timeLabel.textContent, "23:59");
+  assert.equal(clock.dateTime, "2026-11-14T14:59:37.000Z");
+  assert.equal(timers[0].delay, 60_000 - (now % 60_000));
+
+  now = Date.parse("2026-11-14T15:00:05Z");
+  timers[0].callback();
+  assert.equal(dateLabel.textContent, "11月15日(日)", "the weekday and date must roll over at JST midnight");
+  assert.equal(timeLabel.textContent, "00:00");
+  assert.equal(clock.dateTime, "2026-11-14T15:00:05.000Z");
+  assert.equal(timers[1].delay, 60_000 - (now % 60_000));
 }
 
 function testHeaderTabsSwitchTheRealHouseCameras() {
@@ -153,6 +213,8 @@ function testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom() {
   const frame = element();
   const boardTab = element();
   const clock = element();
+  const clockDate = element();
+  const clockTime = element();
   const canvas = element();
   const sceneStatus = element();
   const page = element({
@@ -163,7 +225,7 @@ function testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom() {
     houseSha256: "",
   });
   const dom = new Map([
-    ["scene", canvas], ["jst-clock", clock], ["scene-frame", frame],
+    ["scene", canvas], ["jst-clock", clock], ["jst-clock-date", clockDate], ["jst-clock-time", clockTime], ["scene-frame", frame],
     ["house-tab", houseTab], ["living-tab", livingTab], ["board-tab", boardTab],
     ["scene-load-status", sceneStatus],
   ]);
@@ -192,7 +254,9 @@ function testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom() {
     history: { state: null, replaceState(_state, _title, url) { window.location.href = String(url); window.location.search = new URL(url).search; } },
   };
   vm.runInNewContext(livingSource, sandbox, { filename: "living.js" });
-  assert.match(clock.textContent, /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/);
+  assert.match(clockDate.textContent, /^\d{1,2}月\d{1,2}日\([^)]\)$/);
+  assert.match(clockTime.textContent, /^\d{2}:\d{2}$/);
+  assert.match(clock.dateTime, /^\d{4}-\d\d-\d\dT.*Z$/);
   assert.ok(sceneCalls.includes("house"), "initial camera should be HOUSE");
   assert.ok(sceneCalls.includes("world-live"), "WORLD mode should initialize from configuration without its removed toggle");
   livingTab.listeners.click();
@@ -224,7 +288,9 @@ function testAtticMarkingBeamsAreRemovedBeforeMeshBatching() {
 testPortalShellMatchesHouseReference();
 testHouseSceneUsesViewportAndResponsiveFullFrame();
 testMobileHeaderKeepsBrandTabsAndClockInOneRow();
+testClockMatchesBoardVisualHierarchyWithoutFrame();
 testJstClockFormatting();
+testJstClockUpdatesAtMinuteBoundaryAndKeepsDatetime();
 testHeaderTabsSwitchTheRealHouseCameras();
 testBoardTabUsesConfiguredUrlAndFailsClosedWithoutIt();
 testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom();
