@@ -19,6 +19,35 @@
     return Math.max(minimum, Math.min(maximum, value));
   }
 
+  function heartbeatBubblePlacement(anchor, size, bounds, lift) {
+    var margin = 6;
+    var halfWidth = size.width / 2;
+    var minimumLeft = margin + halfWidth;
+    var maximumLeft = bounds.width - margin - halfWidth;
+    var left = minimumLeft <= maximumLeft ? clamp(anchor.x, minimumLeft, maximumLeft) : bounds.width / 2;
+    var arrowLimit = Math.max(0, halfWidth - 8);
+    var arrowOffset = clamp(anchor.x - left, -arrowLimit, arrowLimit);
+    var placement = "above";
+    var top = anchor.y - lift;
+    var stem = lift ? lift + 8 : 0;
+    var rect = {
+      left: left - halfWidth,
+      top: top - size.height - 8,
+      right: left + halfWidth,
+      bottom: top - 8
+    };
+
+    if (rect.top < margin) {
+      placement = "below";
+      top = Math.min(anchor.y, bounds.height - size.height - 8 - margin);
+      stem = 0;
+      rect.top = top + 8;
+      rect.bottom = rect.top + size.height;
+    }
+
+    return { left: left, top: top, placement: placement, arrowOffset: arrowOffset, stem: stem, rect: rect };
+  }
+
   function smooth(value) {
     var t = clamp(value, 0, 1);
     return t * t * (3 - 2 * t);
@@ -1853,12 +1882,16 @@
           return;
         }
         bubble.root.hidden = false;
+        var width = bubble.root.offsetWidth || 104;
+        var height = bubble.root.offsetHeight || 28;
+        var horizontalPlacement = heartbeatBubblePlacement({ x: left, y: top }, { width: width, height: height }, bounds, 0);
         candidates.push({
           bubble: bubble,
-          left: left,
+          anchorLeft: left,
+          left: horizontalPlacement.left,
           top: top,
-          width: bubble.root.offsetWidth || 104,
-          height: bubble.root.offsetHeight || 28
+          width: width,
+          height: height
         });
       });
       candidates.sort(function (a, b) { return a.top - b.top || a.left - b.left; });
@@ -1882,14 +1915,22 @@
           top = candidate.top;
           lift = 0;
         }
-        candidate.bubble.root.style.left = candidate.left + "px";
-        candidate.bubble.root.style.top = top + "px";
-        candidate.bubble.root.style.setProperty("--scene-heartbeat-bubble-stem", lift ? (lift + 8) + "px" : "0px");
+        var placement = heartbeatBubblePlacement(
+          { x: candidate.anchorLeft, y: top + lift },
+          { width: candidate.width, height: candidate.height },
+          bounds,
+          lift
+        );
+        candidate.bubble.root.style.left = placement.left + "px";
+        candidate.bubble.root.style.top = placement.top + "px";
+        candidate.bubble.root.dataset.placement = placement.placement;
+        candidate.bubble.root.style.setProperty("--scene-heartbeat-bubble-stem", placement.stem + "px");
+        candidate.bubble.root.style.setProperty("--scene-heartbeat-bubble-arrow-offset", placement.arrowOffset + "px");
         placed.push({
-          left: candidate.left - candidate.width / 2,
-          right: candidate.left + candidate.width / 2,
-          top: top - candidate.height - 8,
-          bottom: top - 8
+          left: placement.rect.left,
+          right: placement.rect.right,
+          top: placement.rect.top,
+          bottom: placement.rect.bottom
         });
       });
     }

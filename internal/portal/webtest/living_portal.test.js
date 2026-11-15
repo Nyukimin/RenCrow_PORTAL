@@ -31,7 +31,7 @@ function testPortalShellMatchesHouseReference() {
   assert.match(header[1], /<strong class="portal-clock-time" id="jst-clock-time">/);
   assert.match(header[1], /id="board-tab"[^>]*href="\{\{\.BoardURL\}\}"/);
   assert.match(header[1], /aria-disabled="true"[^>]*>BOARD<\/span>/);
-  assert.doesNotMatch(html, /scene-topline|scene-bottomline|living-section|board-link-panel|site-footer|resident-card|data-person=|data-filter=|motion-preview|world-home-toggle|marker-toggle|scene-heartbeat-bubbles/);
+  assert.doesNotMatch(html, /scene-topline|scene-bottomline|living-section|board-link-panel|site-footer|resident-card|data-person=|data-filter=|motion-preview|world-home-toggle|marker-toggle/);
   assert.match(html, /<canvas id="scene"/);
   assert.match(html, /id="scene-load-status"[^>]*role="status"/);
 }
@@ -239,6 +239,59 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
   }
 }
 
+function testHeartbeatBubblesHaveAReadableOverlayAndKeepTheCurrentFloorGate() {
+  assert.match(html, /<div id="scene-heartbeat-bubbles" class="scene-heartbeat-bubbles" aria-live="off"><\/div>/,
+    "the real LIVING page must mount the scene heartbeat overlay");
+  const overlayRule = css.match(/\.scene-heartbeat-bubbles\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(overlayRule, /position:\s*absolute;/);
+  assert.match(overlayRule, /z-index:\s*2;/);
+  assert.match(overlayRule, /inset:\s*0;/);
+  assert.match(overlayRule, /pointer-events:\s*none;/);
+
+  const bubbleRule = css.match(/\.scene-heartbeat-bubble\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(bubbleRule, /max-width:\s*min\(176px,\s*42vw\);/);
+  assert.match(bubbleRule, /border:\s*1px solid rgba\(255,\s*226,\s*170,\s*\.92\);/);
+  assert.match(bubbleRule, /background:\s*rgba\(20,\s*31,\s*48,\s*\.94\);/);
+  assert.match(bubbleRule, /color:\s*#fff1d9;/);
+  assert.match(bubbleRule, /font-size:\s*clamp\(11px,\s*1\.05vw,\s*14px\);/);
+  assert.match(bubbleRule, /line-height:\s*1\.25;/);
+  assert.match(css, /\.scene-heartbeat-bubble\[hidden\][^{]*\{\s*display:\s*none;/);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*?\.scene-heartbeat-bubble\s*\{[^}]*font-size:\s*9px;/);
+
+  const positionUpdate = extract(sceneSource, "    function updateHeartbeatBubblePositions() {", "\n    function setHeartbeatBubbles(items) {");
+  assert.match(positionUpdate, /view !== "living"/);
+  assert.match(positionUpdate, /!resident\.group\.visible/);
+  assert.match(positionUpdate, /resident\.mesh\.material\.opacity < 0\.5/);
+}
+
+function testHeartbeatBubblePlacementStaysInsideViewportAtEdges() {
+  const helpers = extract(sceneSource, "  function clamp(value, minimum, maximum) {", "\n  function smooth(value) {");
+  const placement = extract(sceneSource, "  function heartbeatBubblePlacement(anchor, size, bounds, lift) {", "\n  function smooth(value) {");
+  const sandbox = {};
+  vm.runInNewContext(`${helpers}\n${placement}\nresult = [\n  heartbeatBubblePlacement({ x: 2, y: 9 }, { width: 104, height: 32 }, { width: 300, height: 180 }, 20),\n  heartbeatBubblePlacement({ x: 299, y: 100 }, { width: 104, height: 32 }, { width: 300, height: 180 }, 0),\n];`, sandbox);
+  const placements = JSON.parse(JSON.stringify(sandbox.result));
+  assert.deepEqual(placements[0], {
+    left: 58,
+    top: 9,
+    placement: "below",
+    arrowOffset: -44,
+    stem: 0,
+    rect: { left: 6, top: 17, right: 110, bottom: 49 },
+  }, "a lifted bubble near the upper-left edge must flip below and clamp its body and tail");
+  assert.deepEqual(placements[1], {
+    left: 242,
+    top: 100,
+    placement: "above",
+    arrowOffset: 44,
+    stem: 0,
+    rect: { left: 190, top: 60, right: 294, bottom: 92 },
+  }, "a bubble near the right edge must clamp its body and keep the tail aimed at its actor");
+  for (const item of placements) {
+    assert.ok(item.rect.left >= 6 && item.rect.top >= 6);
+    assert.ok(item.rect.right <= 294 && item.rect.bottom <= 174);
+  }
+}
+
 function testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom() {
   const sceneCalls = [];
   function element(dataset = {}) {
@@ -338,6 +391,8 @@ testJstClockUpdatesAtMinuteBoundaryAndKeepsDatetime();
 testHeaderTabsSwitchTheRealHouseCameras();
 testBoardTabUsesConfiguredUrlAndFailsClosedWithoutIt();
 testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection();
+testHeartbeatBubblesHaveAReadableOverlayAndKeepTheCurrentFloorGate();
+testHeartbeatBubblePlacementStaysInsideViewportAtEdges();
 testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom();
 testAtticMarkingBeamsAreRemovedBeforeMeshBatching();
 
