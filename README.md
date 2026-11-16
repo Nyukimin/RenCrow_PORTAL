@@ -43,6 +43,8 @@ Workplaceでは同一originの`GET /api/living/heartbeat`だけを通じ、CORE�
 
 実行枠がwaitingのときは、COREが返す`routine_availability`と`ongoing_activity`から「休憩中」「就寝時間」「次の活動を確認中」を表示します。就寝時間は保存済みの予定上の状態であり、WORLDで実際に就寝したことの確認には使いません。日課の無効設定と取得失敗も区別し、実行中・確認中・停止中の仕事を日課表示で上書きしません。継続する活動の判断と保存はCOREが所有し、PORTALは行動やTaskを生成しません。旧COREがこれらのfieldを返さない場合は従来の実行枠表示を維持します。
 
+座った休憩活動は、COREが実際の開始checkpointとfreshなWORLD座席snapshotを確認して投影した`sofa_reading`、`sofa_chat`、`dining_tea`、`dining_tea_chat`だけを表示します。待機中または実行中の日課で`routine_availability: "available"`の時に限り、「ソファで読書中」「ソファで会話中」「ダイニングでお茶中」「ダイニングでお茶・会話中」と表示します。Go relayも同じenumと状態の組み合わせを検証し、未知値や不整合値をgeneric 503で遮断します。座席だけから活動を推測せず、`dining_tea`はWORLD上の飲用確認を意味しません。
+
 既存のBOARD参加者リンクとqueryは維持し、`agent`、`from=living`、`person`、`view`を引き継ぎます。BOARDから戻ると、室内の選択中personとviewを復元します。モデルは`internal/portal/web/living/assets/house-105.glb`に固定し、`HOUSE_105_review.blend`由来のprototypeをPORTAL向けに変換したものです（SHA-256: `602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e`）。PORTAL用GLBではLIVING正面の支柱2本と、正面・階段脇のivy cluster／vineを削除し、4つのワークデスクに既存椅子部品を再配置・複製して各2席（計8席）を設けています。階段、手すり、その他の植物は保持しています。人物表示には既存のLiving2D spritesを使います。
 
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。

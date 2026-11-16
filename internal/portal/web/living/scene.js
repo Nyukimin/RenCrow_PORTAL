@@ -92,6 +92,20 @@
     return lerp(floorOpacityFor(0, value), floorOpacityFor(1, value), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
   }
 
+  var heartbeatSeatActivityPoses = {
+    sofa_reading: { room: "living", seats: ["sofa", "sofa-guest"], action: "read" },
+    sofa_chat: { room: "living", seats: ["sofa", "sofa-guest"], action: "talk" },
+    dining_tea: { room: "dining", seats: ["dining", "dining-guest", "dining-aisle-north", "dining-aisle-south", "dining-window-north", "dining-window-south"], action: "tea" },
+    dining_tea_chat: { room: "dining", seats: ["dining", "dining-guest", "dining-aisle-north", "dining-aisle-south", "dining-window-north", "dining-window-south"], action: "talk" }
+  };
+
+  function heartbeatSeatAction(actorID, actor, activity) {
+    if (!Object.hasOwn(heartbeatSeatActivityPoses, activity)) return null;
+    var pose = heartbeatSeatActivityPoses[activity];
+    if (!pose || !actor || actor.id !== actorID || actor.active_kind || actor.room_id !== pose.room || !pose.seats.includes(actor.seat_id)) return null;
+    return pose.action;
+  }
+
   function upperRoomIdFor(layout, index, room) {
     return room && typeof room.roomId === "string" && room.roomId ? room.roomId :
       "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
@@ -238,6 +252,7 @@
     var heartbeatBubbleLayer = global.document && global.document.getElementById("scene-heartbeat-bubbles");
     var heartbeatBubbleNodes = new Map();
     var heartbeatBubbleContent = new Map();
+    var heartbeatSeatActivities = new Map();
     var upperRooms = new Map();
 
     var residents = metadata.residents.map(function (resident, index) {
@@ -440,6 +455,7 @@
     var markerOn = false;
     var worldHomeMode = false;
     var worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
+    var worldHomeSnapshotCurrent = false;
     var houseAssetVerified = false;
     var selectedId = null;
     var cameraMotionEnabled = options.cameraMotionEnabled === undefined ? !options.reducedMotion : Boolean(options.cameraMotionEnabled);
@@ -918,6 +934,10 @@
       }
       register("dining", "Seat.010_v4", -Math.PI / 2);
       register("dining-guest", "Seat.007_v4", Math.PI / 2);
+      register("dining-aisle-north", "Seat.006_v4", Math.PI / 2);
+      register("dining-aisle-south", "Seat.008_v4", Math.PI / 2);
+      register("dining-window-north", "Seat.009_v4", -Math.PI / 2);
+      register("dining-window-south", "Seat.011_v4", -Math.PI / 2);
       register("sofa", "Main seat cushion.001_v4", 0);
       register("sofa-guest", "Main seat cushion.002_v4", 0);
       desks.forEach(function (desk, index) { register("desk-" + desk.residentId, office[index], Math.PI); });
@@ -1148,7 +1168,10 @@
         }).catch(function () { resident.livingArtPending = false; });
       }
       if (!resident.livingArt) return false;
-      var action = actor.seat_action || "sit";
+      var heartbeatAction = worldHomeSnapshotCurrent && worldHomeTimeline && worldHomeTimeline.isFresh(currentTime())
+        ? heartbeatSeatAction(resident.id, actor, heartbeatSeatActivities.get(resident.id))
+        : null;
+      var action = heartbeatAction || actor.seat_action || "sit";
       var kind = actor.seat_id.split("-")[0];
       var time = currentTime() / 1000;
       var state = { position:actor.position, heading:seat.heading, stage:"activity", mix:1, time:time, seatY:seat.y, seatKind:kind };
@@ -1937,10 +1960,12 @@
 
     function setHeartbeatBubbles(items) {
       heartbeatBubbleContent.clear();
+      heartbeatSeatActivities.clear();
       hideHeartbeatBubbles();
       if (!Array.isArray(items)) return;
       items.forEach(function (item) {
         if (!item || typeof item.actor_id !== "string" || !RESIDENT_IDS.includes(item.actor_id) || typeof item.label !== "string") return;
+        if (Object.hasOwn(heartbeatSeatActivityPoses, item.ongoing_activity)) heartbeatSeatActivities.set(item.actor_id, item.ongoing_activity);
         var bubble = heartbeatBubbleNodes.get(item.actor_id);
         if (!bubble) return;
         var label = item.label.slice(0, 48);
@@ -2219,6 +2244,7 @@
       var enabled = Boolean(value);
       if (enabled === worldHomeMode) return true;
       worldHomeMode = enabled;
+      worldHomeSnapshotCurrent = false;
       if (enabled) {
         if (demonstration) stopMotionPreview();
         worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
@@ -2238,6 +2264,16 @@
       } catch (error) {
         return false;
       }
+      worldHomeSnapshotCurrent = true;
+      updateResidentWorldPositions();
+      return true;
+    }
+
+    function setWorldHomeSnapshotFresh(value) {
+      if (!worldHomeMode || !worldHomeTimeline) return false;
+      var fresh = Boolean(value) && worldHomeTimeline.isFresh(currentTime());
+      if (fresh === worldHomeSnapshotCurrent) return true;
+      worldHomeSnapshotCurrent = fresh;
       updateResidentWorldPositions();
       return true;
     }
@@ -2270,6 +2306,7 @@
       motionPreviewState: motionPreviewState,
       setWorldHomeMode: setWorldHomeMode,
       setWorldHomeSnapshot: setWorldHomeSnapshot,
+      setWorldHomeSnapshotFresh: setWorldHomeSnapshotFresh,
       worldHomeReady: worldHomeReady,
       snapshot: snapshot
     };
@@ -2283,7 +2320,8 @@
       floorOpacityFor: floorOpacityFor,
       upperRoomIdFor: upperRoomIdFor,
       worldHomeDoorRoutePasses: worldHomeDoorRoutePasses,
-      worldResidentOpacityFor: worldResidentOpacityFor
+      worldResidentOpacityFor: worldResidentOpacityFor,
+      heartbeatSeatAction: heartbeatSeatAction
     };
   }
 })(typeof window !== "undefined" ? window : globalThis);
