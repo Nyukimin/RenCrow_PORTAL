@@ -176,6 +176,9 @@
       if (agent.activity_kind !== undefined && !heartbeatActivities.has(agent.activity_kind)) {
         throw new TypeError("invalid living heartbeat activity");
       }
+      if (agent.game_id !== undefined && typeof agent.game_id !== "string") {
+        throw new TypeError("invalid living heartbeat game id");
+      }
       const runningRoutine = agent.state === "running" && agent.activity_kind === "routine";
       if (agent.routine_availability !== undefined && (!heartbeatRoutineAvailability.has(agent.routine_availability) || (agent.state !== "waiting" && !runningRoutine))) {
         throw new TypeError("invalid living heartbeat routine availability");
@@ -201,7 +204,9 @@
           : agent.state === "waiting" && agent.routine_availability === "unavailable"
             ? "日課状態を取得できません"
             : agent.state === "running"
-              ? (heartbeatActivityLabels[agent.activity_kind] || heartbeatStateLabels.running)
+              ? agent.activity_kind === "game"
+                ? (agent.game_id === "nethack" ? "Nethackで遊んでる" : "ゲームで遊んでる")
+                : (heartbeatActivityLabels[agent.activity_kind] || heartbeatStateLabels.running)
               : heartbeatStateLabels[agent.state];
       const titleIsPublic = agent.activity_kind === "private" && (agent.state === "running" || agent.state === "stopping");
       const title = titleIsPublic && typeof agent.title === "string"

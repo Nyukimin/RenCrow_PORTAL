@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"net/http"
@@ -1365,6 +1366,31 @@ func TestLivingHeartbeatRelayUsesExactAuthorizedBoundedProjection(t *testing.T) 
 	}
 	if calls.Load() != 1 {
 		t.Fatalf("non-exact or unauthenticated requests reached CORE: calls=%d, want 1", calls.Load())
+	}
+}
+
+func TestLivingHeartbeatGameIDMustBeAStringAndIsProjected(t *testing.T) {
+	base := `{"observed_at":"2026-11-14T01:02:03Z","agents":[{"actor_id":"mio","state":"running","activity_kind":"game","game_id":%s},{"actor_id":"shiro","state":"waiting"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"waiting"},{"actor_id":"aka","state":"waiting"},{"actor_id":"ao","state":"waiting"},{"actor_id":"kin","state":"waiting"},{"actor_id":"gin","state":"waiting"}]}`
+	projected, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, `"nethack"`)))
+	if err != nil {
+		t.Fatalf("valid game_id rejected: %v", err)
+	}
+	if got := string(projected.Agents[0].GameID); got != `"nethack"` {
+		t.Fatalf("projected game_id = %s, want string nethack", got)
+	}
+	unknown, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, `"other-game"`)))
+	if err != nil {
+		t.Fatalf("unknown string game_id rejected: %v", err)
+	}
+	if len(unknown.Agents[0].GameID) != 0 {
+		t.Fatalf("unknown game_id should project only the game category, got %s", unknown.Agents[0].GameID)
+	}
+	for _, invalid := range []string{`null`, `1`, `true`, `{}`, `[]`} {
+		t.Run(invalid, func(t *testing.T) {
+			if _, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, invalid))); err == nil {
+				t.Fatalf("game_id %s was accepted", invalid)
+			}
+		})
 	}
 }
 

@@ -239,6 +239,42 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
   }
 }
 
+function testHeartbeatGameLabelsRequireRunningNethackIdentity() {
+  const mapper = extract(livingSource, "  function presentHeartbeatResponse(payload) {", "\n  async function pollLivingHeartbeat");
+  const sandbox = {
+    heartbeatActors: new Set(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]),
+    heartbeatStates: new Set(["waiting", "checking", "running", "stopping"]),
+    heartbeatActivities: new Set(["board", "private", "game", "foreground", "routine"]),
+    heartbeatRoutineAvailability: new Set(["available", "disabled", "unavailable"]),
+    heartbeatOngoingActivities: new Set(["rest", "sleep_window", "waiting", "moving_home"]),
+    heartbeatActivityLabels: { board: "BOARD対応中", private: "個別タスク中", game: "ゲーム中", foreground: "会話対応中", routine: "日課中" },
+    heartbeatStateLabels: { waiting: "待機中", checking: "確認中", running: "実行中", stopping: "停止中" },
+    heartbeatOngoingActivityLabels: { rest: "休憩中", sleep_window: "就寝時間", waiting: "次の活動を確認中", moving_home: "自室に移動中" },
+    names: new Map(),
+  };
+  const agents = [
+    { actor_id: "mio", state: "running", activity_kind: "game", game_id: "nethack" },
+    { actor_id: "shiro", state: "running", activity_kind: "game", game_id: "other-game" },
+    { actor_id: "kuro", state: "running", activity_kind: "game" },
+    { actor_id: "midori", state: "running", activity_kind: "foreground", game_id: "nethack" },
+    { actor_id: "aka", state: "stopping", activity_kind: "game", game_id: "nethack" },
+    { actor_id: "ao", state: "running", activity_kind: "private", title: "Private title", game_id: "nethack" },
+    { actor_id: "kin", state: "running", activity_kind: "board" },
+    { actor_id: "gin", state: "waiting" },
+  ];
+  const present = (input) => vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents: input });
+  const mapped = present(agents);
+  assert.deepEqual(Array.from(mapped, item => item.label), ["Nethackで遊んでる", "ゲームで遊んでる", "ゲームで遊んでる", "会話対応中", "停止中", "個別タスク中", "BOARD対応中", "待機中"]);
+  assert.equal(mapped[5].title, "Private title", "private task title remains available under its existing visibility policy");
+  assert.equal(mapped[0].title, "", "game title must not become public");
+
+  for (const invalid of [null, 1, true, {}, []]) {
+    const changed = agents.slice();
+    changed[0] = { ...agents[0], game_id: invalid };
+    assert.throws(() => present(changed), /invalid living heartbeat game id/);
+  }
+}
+
 function testHeartbeatBubblesHaveAReadableOverlayAndKeepTheCurrentFloorGate() {
   assert.match(html, /<div id="scene-heartbeat-bubbles" class="scene-heartbeat-bubbles" aria-live="off"><\/div>/,
     "the real LIVING page must mount the scene heartbeat overlay");
@@ -391,6 +427,7 @@ testJstClockUpdatesAtMinuteBoundaryAndKeepsDatetime();
 testHeaderTabsSwitchTheRealHouseCameras();
 testBoardTabUsesConfiguredUrlAndFailsClosedWithoutIt();
 testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection();
+testHeartbeatGameLabelsRequireRunningNethackIdentity();
 testHeartbeatBubblesHaveAReadableOverlayAndKeepTheCurrentFloorGate();
 testHeartbeatBubblePlacementStaysInsideViewportAtEdges();
 testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom();

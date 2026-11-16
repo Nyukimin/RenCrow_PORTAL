@@ -361,12 +361,13 @@ func worldHomeHouseAssetMatches() (bool, error) {
 }
 
 type livingHeartbeatAgent struct {
-	ActorID             string  `json:"actor_id"`
-	State               string  `json:"state"`
-	ActivityKind        *string `json:"activity_kind,omitempty"`
-	Title               *string `json:"title,omitempty"`
-	RoutineAvailability *string `json:"routine_availability,omitempty"`
-	OngoingActivity     *string `json:"ongoing_activity,omitempty"`
+	ActorID             string          `json:"actor_id"`
+	State               string          `json:"state"`
+	ActivityKind        *string         `json:"activity_kind,omitempty"`
+	GameID              json.RawMessage `json:"game_id,omitempty"`
+	Title               *string         `json:"title,omitempty"`
+	RoutineAvailability *string         `json:"routine_availability,omitempty"`
+	OngoingActivity     *string         `json:"ongoing_activity,omitempty"`
 }
 
 type livingHeartbeatResponse struct {
@@ -469,6 +470,15 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 		seen[agent.ActorID] = true
 		if agent.ActivityKind != nil && !allowedActivities[*agent.ActivityKind] {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat activity")
+		}
+		if len(agent.GameID) > 0 {
+			var gameID string
+			if agent.GameID[0] != '"' || json.Unmarshal(agent.GameID, &gameID) != nil {
+				return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat game id")
+			}
+			if gameID != "nethack" {
+				agent.GameID = nil
+			}
 		}
 		runningRoutine := agent.State == "running" && agent.ActivityKind != nil && *agent.ActivityKind == "routine"
 		if agent.RoutineAvailability != nil && (!allowedRoutineAvailability[*agent.RoutineAvailability] || (agent.State != "waiting" && !runningRoutine)) {
