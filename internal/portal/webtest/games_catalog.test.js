@@ -19,6 +19,7 @@ function extract(start, end) {
 
 const catalogDeclaration = extract("  const gameCatalog = [", "  const actorNames =");
 const supportedGameIDs = extract("  function supportedGameIDs(", "  function updateCatalog(");
+const launchGame = extract("  async function launchGame(", "\n  async function runSessionAction");
 
 function catalog() {
   const context = {};
@@ -77,4 +78,50 @@ test("catalog launch capability requires Agent mode and an exact registered ID f
     supported_games: ["nethack", "Unknown_Game"],
   }), ["nethack"]);
   assert.deepEqual(resolveSupportedGameIDs({ decision_mode: "agent", supported_games: "nethack" }), []);
+});
+
+test("Agent Play launch sends all four titles without overriding GAMES mode defaults", async () => {
+  for (const gameID of ["nethack", "survival_garden", "territory_commander", "herzog_zwei"]) {
+    const requests = [];
+    const selectedSessions = [];
+    const context = {
+      state: {
+        presenceReady: true,
+        launchBusy: false,
+        supportedGames: new Set([gameID]),
+        gameID,
+        sessions: [],
+      },
+      actorNames: { mio: "Mio" },
+      titleNames: Object.fromEntries(catalog().map(game => [game.id, game.title])),
+      agentSelect: { value: "mio" },
+      turnsInput: { value: "24" },
+      reasonInput: { value: "  Test launch reason  " },
+      requestJSON: async (url, options) => {
+        requests.push({ url, options });
+        return { session_id: `session-${gameID}`, game_id: gameID, status: "launching" };
+      },
+      updateCatalog() {},
+      setOperation() {},
+      setOverlayAgent() {},
+      refreshSessions: async () => {},
+      selectSession(session) { selectedSessions.push(session); },
+    };
+    vm.createContext(context);
+    vm.runInContext(`${launchGame}\nthis.launchGame = launchGame;`, context);
+    await context.launchGame({ preventDefault() {} });
+
+    assert.equal(requests.length, 1, `${gameID} should make one launch request`);
+    assert.equal(requests[0].url, "/api/games/viewer/games/launch");
+    assert.equal(requests[0].options.method, "POST");
+    const body = JSON.parse(requests[0].options.body);
+    assert.equal(body.game_id, gameID);
+    assert.deepEqual(body.personas, ["mio"]);
+    assert.equal(body.turns, 24);
+    assert.equal(body.reason, "Test launch reason");
+    assert.equal(Object.hasOwn(body, "mode"), false, `${gameID} must leave mode selection to GAMES`);
+    assert.equal(selectedSessions.length, 1);
+    assert.equal(selectedSessions[0].game_id, gameID);
+    assert.equal(context.state.launchBusy, false);
+  }
 });

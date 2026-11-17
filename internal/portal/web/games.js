@@ -320,7 +320,6 @@
           game_id: state.gameID,
           personas: [agentSelect.value],
           turns,
-          mode: 'auto',
           reason: reasonInput.value.trim(),
         }),
       });
