@@ -206,7 +206,7 @@
     refreshSelectedFrames();
   }
 
-  function requestedActiveSession(payload) {
+  function requestedGameSession(payload) {
     if (!hasRequestedSession) return { state: 'none' };
     if (!requestedSession || !requestedGame || !requestedPersona || payload?.ok !== true ||
         payload?.source !== 'local_observer' || !Array.isArray(payload?.active_agent_sessions)) {
@@ -221,22 +221,34 @@
       (session.status === 'launching' || session.status === 'running')
     );
     if (!activeSessionsValid) return { state: 'invalid' };
-    const matches = payload.active_agent_sessions.filter(session =>
+    const activeMatches = payload.active_agent_sessions.filter(session =>
       session && session.session_id === requestedSession && session.game_id === requestedGame &&
       Array.isArray(session.personas) && session.personas.includes(requestedPersona) &&
       (session.status === 'launching' || session.status === 'running')
     );
-    if (matches.length !== 1) return { state: 'invalid' };
-    return {
-      state: 'active',
-      session: {
-        game_id: matches[0].game_id,
-        session_id: matches[0].session_id,
-        persona: requestedPersona,
-        status: matches[0].status,
-        turn: 0,
-      },
-    };
+    if (activeMatches.length === 1) {
+      return {
+        state: 'active',
+        session: {
+          game_id: activeMatches[0].game_id,
+          session_id: activeMatches[0].session_id,
+          persona: requestedPersona,
+          status: activeMatches[0].status,
+          turn: 0,
+        },
+      };
+    }
+    if (activeMatches.length > 1 || payload.active_agent_sessions.some(session =>
+      session?.session_id === requestedSession)) return { state: 'invalid' };
+
+    const summaries = Array.isArray(payload.sessions) ? payload.sessions.filter(session =>
+      session && session.session_id === requestedSession) : [];
+    if (summaries.length !== 1) return { state: 'invalid' };
+    const summary = summaries[0];
+    if (summary.game_id !== requestedGame || summary.persona !== requestedPersona || summary.status !== 'completed') {
+      return { state: 'invalid' };
+    }
+    return { state: 'completed', session: summary };
   }
 
   async function refreshSessions(preferredSessionID = '') {
@@ -245,8 +257,8 @@
       state.sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
       if (hasRequestedSession && !requestedSessionHandled) {
         requestedSessionHandled = true;
-        const requested = requestedActiveSession(payload);
-        if (requested.state === 'active') {
+        const requested = requestedGameSession(payload);
+        if (requested.state === 'active' || requested.state === 'completed') {
           selectSession(requested.session);
           stagePanel?.scrollIntoView({ behavior: 'auto', block: 'start' });
         } else {

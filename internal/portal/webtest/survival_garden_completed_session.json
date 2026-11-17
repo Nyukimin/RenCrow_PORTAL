@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "source": "local_observer",
+  "sessions": [
+    {
+      "game_id": "survival_garden",
+      "session_id": "survival_garden_20261117_230808.438803000_10",
+      "persona": "mio",
+      "title": "SurvivalGarden",
+      "status": "completed",
+      "turn": 17,
+      "started_at": "2026-11-17T23:08:09.871346Z",
+      "updated_at": "2026-11-17T23:08:38.529147Z",
+      "latest_event_id": "game:survival_garden:survival_garden_20261117_230808_438803000_10:turn_17:persona_mio"
+    }
+  ],
+  "active_agent_sessions": []
+}
