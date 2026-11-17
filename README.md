@@ -46,7 +46,7 @@ Workplaceでは同一originの`GET /api/living/heartbeat`だけを通じ、CORE�
 既存のBOARD参加者リンクとqueryは維持し、`agent`、`from=living`、`person`、`view`を引き継ぎます。BOARDから戻ると、室内の選択中personとviewを復元します。モデルは`internal/portal/web/living/assets/house-105.glb`に固定し、`HOUSE_105_review.blend`由来のprototypeをPORTAL向けに変換したものです（SHA-256: `602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e`）。PORTAL用GLBではLIVING正面の支柱2本と、正面・階段脇のivy cluster／vineを削除し、4つのワークデスクに既存椅子部品を再配置・複製して各2席（計8席）を設けています。階段、手すり、その他の植物は保持しています。人物表示には既存のLiving2D spritesを使います。
 
 Chatでは会話対象のMio／Shiro／Kuro／Midoriを1体だけ中央表示します。IdleChatは切替buttonを持たず、画面表示直後からMioとShiroをChatと同じキャラクターサイズで同時表示します。画面幅を縦に4等分した左1/4をMioの中心、右1/4をShiroの中心とします。Chatのキャラチップは会話送信先と単独表示キャラを選択します。
-GamesではCOREの`supported_games`に含まれるタイトルだけを起動できます。現在のAgent E2E対象はNetHackです。盤面とturn結果はGAMES Observer、Agent identityと判断はCOREを正本とし、PORTALは利用者向けの選択・session・観戦UIだけを持ちます。
+Gamesの公開catalogにはNetHack、Survival Garden、Territory Commander、Herzog Zweiを登録しています。起動できるのはCOREのGames statusが`decision_mode=agent`を返し、かつ`supported_games`に含めたタイトルだけです。起動フォームでは1 Agentを選択し、ゲーム名に合わせた理由の入力例を表示します。COREはAgent identityと判断の正本、GAMES Observerは盤面とturn結果の正本です。PORTALは利用者向けの選択・session・観戦UIだけを持ちます。
 
 Debug、Ops、Repair、設定変更などの管理APIは中継しません。
 

@@ -168,10 +168,10 @@
             <section>
               <div class="games-section-title">
                 <span>1</span>
-                <div><strong>ゲーム選択</strong><small>Agent E2E対応タイトルのみ起動できます</small></div>
+                <div><strong>ゲーム選択</strong><small>ゲームを選んでキャラクターに遊んでもらえます</small></div>
               </div>
               <div id="gamesCatalog" class="games-catalog" role="list">
-                <button class="games-card is-selected" type="button" data-game-id="nethack" aria-pressed="true">
+                <button class="games-card is-selected" type="button" data-game-id="nethack" aria-pressed="true" disabled>
                   <strong>NetHack</strong>
                   <span>Dungeon exploration</span>
                   <small data-game-capability="nethack">対応状況を確認中</small>
@@ -179,17 +179,17 @@
                 <button class="games-card" type="button" data-game-id="survival_garden" aria-pressed="false" disabled>
                   <strong>Survival Garden</strong>
                   <span>Survival simulation</span>
-                  <small>Agent E2E対応待ち</small>
+                  <small data-game-capability="survival_garden">対応状況を確認中</small>
+                </button>
+                <button class="games-card" type="button" data-game-id="territory_commander" aria-pressed="false" disabled>
+                  <strong>Territory Commander</strong>
+                  <span>Territory strategy</span>
+                  <small data-game-capability="territory_commander">対応状況を確認中</small>
                 </button>
                 <button class="games-card" type="button" data-game-id="herzog_zwei" aria-pressed="false" disabled>
                   <strong>Herzog Zwei</strong>
                   <span>Realtime strategy</span>
-                  <small>Agent E2E対応待ち</small>
-                </button>
-                <button class="games-card" type="button" data-game-id="falling_blocks" aria-pressed="false" disabled>
-                  <strong>Falling Blocks</strong>
-                  <span>Puzzle</span>
-                  <small>Agent E2E対応待ち</small>
+                  <small data-game-capability="herzog_zwei">対応状況を確認中</small>
                 </button>
               </div>
             </section>
@@ -197,7 +197,7 @@
             <form id="gamesLaunchForm" class="games-launch-form">
               <div class="games-section-title">
                 <span>2</span>
-                <div><strong>Agent</strong><small>NetHackは1 Agentで遊びます</small></div>
+                <div><strong>Agent</strong><small>1 Agentで遊びます</small></div>
               </div>
               <label>
                 操作するAgent
@@ -214,7 +214,7 @@
               </label>
               <label>
                 起動理由
-                <textarea id="gamesReason" name="reason" rows="2" maxlength="500" placeholder="NetHackを探索して"></textarea>
+                <textarea id="gamesReason" name="reason" rows="2" maxlength="500" placeholder="NetHackを遊んでください"></textarea>
               </label>
               <button id="gamesLaunchButton" class="games-primary-button" type="submit">Agentに遊んでもらう</button>
               <p id="gamesOperationStatus" class="games-operation-status" aria-live="polite"></p>
@@ -246,7 +246,7 @@
             <div class="games-screen-shell">
               <div id="gamesScreenEmpty" class="games-screen-empty">
                 <strong>Agentのゲーム画面</strong>
-                <span>NetHackとAgentを選択して起動してください。</span>
+                <span>ゲームとAgentを選択して起動してください。</span>
               </div>
               <iframe id="gamesObserverFrame" title="RenCrow Games Observer" loading="eager"></iframe>
               <div id="gamesAgentOverlay" class="games-agent-overlay" data-games-agent-overlay aria-live="polite">

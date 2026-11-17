@@ -555,6 +555,9 @@ func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 		`id="midoriAvatar" character="midori"`,
 		`id="gamesCatalog"`,
 		`data-game-id="nethack"`,
+		`data-game-id="survival_garden"`,
+		`data-game-id="territory_commander"`,
+		`data-game-id="herzog_zwei"`,
 		`id="gamesLaunchForm"`,
 		`id="gamesAgentSelect"`,
 		`id="gamesObserverFrame"`,
@@ -564,6 +567,9 @@ func TestPortalGamesRendersAgentOwnedGameDesk(t *testing.T) {
 		if !strings.Contains(body, marker) {
 			t.Errorf("Games marker %q is missing", marker)
 		}
+	}
+	if strings.Contains(body, `data-game-id="falling_blocks"`) {
+		t.Fatal("Games catalog must not render the obsolete Falling Blocks placeholder")
 	}
 	if strings.Contains(body, `portal-surface-nav`) {
 		t.Fatal("Games should not render a mode selector")
@@ -1706,9 +1712,11 @@ func TestPortalSurfacePresenceUsesModeProfile(t *testing.T) {
 
 func TestPortalGamesUsesDedicatedProfileAndAllowlist(t *testing.T) {
 	var gotProfile, gotPath string
+	var gotBody []byte
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotProfile = r.Header.Get("X-RenCrow-Interaction-Profile")
 		gotPath = r.URL.Path
+		gotBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer core.Close()
@@ -1720,15 +1728,21 @@ func TestPortalGamesUsesDedicatedProfileAndAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/games/viewer/games/launch", strings.NewReader(`{"game_id":"nethack","personas":["mio"],"turns":8,"mode":"auto"}`))
-	req.Header.Set("Origin", "http://portal.example")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("launch status = %d, want 202 body=%s", rec.Code, rec.Body.String())
-	}
-	if gotProfile != "portal-games" || gotPath != "/viewer/games/launch" {
-		t.Fatalf("profile=%q path=%q", gotProfile, gotPath)
+	for _, gameID := range []string{"nethack", "survival_garden", "territory_commander", "herzog_zwei"} {
+		body := `{"game_id":"` + gameID + `","personas":["mio"],"turns":8,"mode":"auto","reason":"Agent Play test"}`
+		req := httptest.NewRequest(http.MethodPost, "http://portal.example/api/games/viewer/games/launch", strings.NewReader(body))
+		req.Header.Set("Origin", "http://portal.example")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("%s launch status = %d, want 202 body=%s", gameID, rec.Code, rec.Body.String())
+		}
+		if gotProfile != "portal-games" || gotPath != "/viewer/games/launch" {
+			t.Fatalf("%s profile=%q path=%q", gameID, gotProfile, gotPath)
+		}
+		if string(gotBody) != body {
+			t.Errorf("%s launch body = %s, want unchanged body %s", gameID, gotBody, body)
+		}
 	}
 
 	for _, blocked := range []string{

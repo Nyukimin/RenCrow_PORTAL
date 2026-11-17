@@ -21,6 +21,7 @@ func TestLivingGamesNavigationWebLifecycle(t *testing.T) {
 	}
 
 	testFiles := []string{
+		"games_catalog.test.js",
 		"living_games_navigation.test.js",
 		"living_portal.test.js",
 		"living_world_home.test.js",

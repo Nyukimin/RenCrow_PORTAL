@@ -3,12 +3,29 @@
 
   if (String(document.body.dataset.mode || '').toLowerCase() !== 'games') return;
 
-  const titleNames = {
-    nethack: 'NetHack',
-    survival_garden: 'Survival Garden',
-    herzog_zwei: 'Herzog Zwei',
-    falling_blocks: 'Falling Blocks',
-  };
+  const gameCatalog = [
+    {
+      id: 'nethack',
+      title: 'NetHack',
+      reasonPlaceholder: 'NetHackを遊んでください',
+    },
+    {
+      id: 'survival_garden',
+      title: 'Survival Garden',
+      reasonPlaceholder: 'Survival Gardenを遊んでください',
+    },
+    {
+      id: 'territory_commander',
+      title: 'Territory Commander',
+      reasonPlaceholder: 'Territory Commanderを遊んでください',
+    },
+    {
+      id: 'herzog_zwei',
+      title: 'Herzog Zwei',
+      reasonPlaceholder: 'Herzog Zweiを遊んでください',
+    },
+  ];
+  const titleNames = Object.fromEntries(gameCatalog.map(game => [game.id, game.title]));
   const actorNames = {mio: 'Mio', shiro: 'Shiro', kuro: 'Kuro', midori: 'Midori'};
   const state = {
     gameID: 'nethack',
@@ -50,6 +67,21 @@
     operationStatus.classList.toggle('is-error', Boolean(isError));
   }
 
+  function supportedGameIDs(payload) {
+    if (payload?.decision_mode !== 'agent' || !Array.isArray(payload.supported_games)) return new Set();
+    const reported = new Set(
+      payload.supported_games
+        .filter(value => typeof value === 'string')
+        .map(value => value.trim().toLowerCase()),
+    );
+    return new Set(gameCatalog.filter(game => reported.has(game.id)).map(game => game.id));
+  }
+
+  function updateGameGuidance() {
+    const game = gameCatalog.find(item => item.id === state.gameID);
+    if (game) reasonInput.placeholder = game.reasonPlaceholder;
+  }
+
   async function requestJSON(path, options = {}) {
     const response = await fetch(path, {
       credentials: 'same-origin',
@@ -84,7 +116,7 @@
       card.classList.toggle('is-selected', supported && gameID === state.gameID);
       card.setAttribute('aria-pressed', supported && gameID === state.gameID ? 'true' : 'false');
       const capability = card.querySelector('[data-game-capability]');
-      if (capability) capability.textContent = supported ? 'Agent E2E対応' : 'Agent E2E対応待ち';
+      if (capability) capability.textContent = supported ? 'プレイできます' : '現在はプレイできません';
     });
     launchButton.disabled = state.launchBusy || !state.presenceReady || !state.supportedGames.has(state.gameID);
     updateSessionActions();
@@ -113,16 +145,14 @@
   async function refreshBridgeStatus() {
     try {
       const payload = await requestJSON('/api/games/viewer/games/status');
-      state.supportedGames = new Set(
-        (Array.isArray(payload.supported_games) ? payload.supported_games : [])
-          .map(value => String(value || '').trim().toLowerCase())
-          .filter(Boolean),
-      );
+      state.supportedGames = supportedGameIDs(payload);
       if (!state.supportedGames.has(state.gameID)) {
-        state.gameID = state.supportedGames.values().next().value || 'nethack';
+        state.gameID = gameCatalog.find(game => state.supportedGames.has(game.id))?.id || 'nethack';
       }
+      if (!state.selectedSessionID) stageTitle.textContent = titleNames[state.gameID] || state.gameID;
+      updateGameGuidance();
       bridgeStatus.textContent = payload.decision_mode === 'agent'
-        ? `Agent bridge ready · ${state.supportedGames.size} title`
+        ? `Agent bridge ready · ${state.supportedGames.size} title${state.supportedGames.size === 1 ? '' : 's'}`
         : 'Agent bridgeを確認できません';
       bridgeStatus.classList.toggle('is-ready', payload.decision_mode === 'agent');
       bridgeStatus.classList.toggle('is-error', payload.decision_mode !== 'agent');
@@ -352,6 +382,7 @@
     if (!card || card.disabled) return;
     state.gameID = card.dataset.gameId;
     stageTitle.textContent = titleNames[state.gameID] || state.gameID;
+    updateGameGuidance();
     updateCatalog();
   });
   agentSelect.addEventListener('change', () => setOverlayAgent(agentSelect.value));
@@ -366,6 +397,7 @@
     updatePresenceReady(false);
   }
 
+  updateGameGuidance();
   setOverlayAgent(agentSelect.value);
   refreshBridgeStatus();
   refreshSessions();

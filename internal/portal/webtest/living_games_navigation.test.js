@@ -21,6 +21,7 @@ function extract(source, start, end) {
 const activeGamesForResident = extract(livingSource, "  function activeGamesForResident(", "\n  function showGameStatus");
 const requestedActiveSession = extract(gamesSource, "  function requestedActiveSession(", "\n  async function refreshSessions");
 const activateResident = extract(livingSource, "  async function activateResident(", "\n  function setPaused");
+const gamesURL = extract(livingSource, "  function gamesURL(", "\n  function navigateToActiveGame");
 
 function activePayload(entries) {
   return { ok: true, source: "local_observer", active_agent_sessions: entries };
@@ -76,6 +77,78 @@ test("deep link accepts only the exact active session, game, and participating p
   vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, completedContext);
   assert.equal(completedContext.result.state, "invalid");
   assert.equal(resolve({ session: "missing", game: "nethack", persona: "mio" }).state, "invalid");
+});
+
+test("all four registered games keep exact sprite-to-game links for launching and running sessions", async () => {
+  const gameIDs = ["nethack", "survival_garden", "territory_commander", "herzog_zwei"];
+  for (const gameID of gameIDs) {
+    for (const status of ["launching", "running"]) {
+      const sessionID = `${gameID}-${status}`;
+      const payload = activePayload([{ game_id: gameID, session_id: sessionID, personas: ["mio"], status }]);
+      const context = {
+        hasRequestedSession: true,
+        requestedSession: sessionID,
+        requestedGame: gameID,
+        requestedPersona: "mio",
+        payload,
+      };
+      vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, context);
+      assert.equal(context.result.state, "active", `${gameID} ${status} exact link should resolve`);
+      assert.equal(context.result.session.game_id, gameID);
+      assert.equal(context.result.session.session_id, sessionID);
+      assert.equal(context.result.session.persona, "mio");
+
+      for (const mismatch of [
+        { requestedSession: "other-session" },
+        { requestedGame: "other-game" },
+        { requestedPersona: "shiro" },
+      ]) {
+        const invalid = { ...context, ...mismatch };
+        vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, invalid);
+        assert.equal(invalid.result.state, "invalid", `${gameID} ${status} rejects mismatched deep-link identity`);
+      }
+
+      const livingContext = {
+        heartbeatActors: new Set(["mio"]),
+        payload,
+      };
+      vm.runInNewContext(`${activeGamesForResident}\nresult = activeGamesForResident(payload, "mio");`, livingContext);
+      assert.deepEqual(JSON.parse(JSON.stringify(livingContext.result)).map(session => session.session_id), [sessionID]);
+
+      const navigations = [];
+      const livingSandbox = {
+        heartbeatActors: new Set(["mio"]),
+        selectResident() {},
+        showGameStatus() {},
+        activeGameDialog: null,
+        activeView: "workplace",
+        gameActivationSequence: 0,
+        window: {
+          location: { origin: "https://portal.example" },
+          fetch: async () => ({ ok: true, json: async () => payload }),
+        },
+        URL,
+        activeGamesForResident: makeActiveGamesForResident(["mio"]),
+        navigateToActiveGame: (session, persona) => {
+          const context = {
+            session,
+            actorID: persona,
+            window: { location: { origin: "https://portal.example" } },
+            URL,
+          };
+          vm.runInNewContext(`${gamesURL}\nresult = gamesURL(session, actorID);`, context);
+          navigations.push(context.result);
+        },
+        showActiveGameChoices() { throw new Error("one active session must navigate directly"); },
+      };
+      vm.createContext(livingSandbox);
+      vm.runInContext(activateResident, livingSandbox);
+      await vm.runInContext("activateResident('mio')", livingSandbox);
+      assert.deepEqual(navigations, [
+        `https://portal.example/games?session=${encodeURIComponent(sessionID)}&game=${encodeURIComponent(gameID)}&persona=mio`,
+      ]);
+    }
+  }
 });
 
 test("a slower earlier activation cannot navigate after a newer resident tap", async () => {
