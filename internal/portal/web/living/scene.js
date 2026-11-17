@@ -92,6 +92,12 @@
     return lerp(floorOpacityFor(0, value), floorOpacityFor(1, value), smooth((TOP_TREAD_EDGE - position.z) / (TOP_TREAD_EDGE - UPPER_LANDING_EDGE)));
   }
 
+  function isResidentSpriteInteractive(view, resident) {
+    var material = resident && resident.mesh && resident.mesh.material;
+    return view === "living" && Boolean(resident && resident.group && resident.group.visible && resident.mesh &&
+      resident.mesh.visible && material && material.visible !== false && material.opacity >= 0.5);
+  }
+
   function upperRoomIdFor(layout, index, room) {
     return room && typeof room.roomId === "string" && room.roomId ? room.roomId :
       "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
@@ -194,6 +200,7 @@
     var scene = new THREE.Scene();
     scene.background = new THREE.Color(NAVY);
     var camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 1000);
+    var spriteRaycaster = new THREE.Raycaster();
     camera.up.set(0, 1, 0);
     // The mesh pivots at the feet when it tilts toward the camera.
     var residentGeometry = new THREE.PlaneGeometry(1, 1).translate(0, 0.5 - SPRITE_FOOT_INSET, 0);
@@ -442,6 +449,7 @@
     var worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
     var houseAssetVerified = false;
     var selectedId = null;
+    var pointerStart = null;
     var cameraMotionEnabled = options.cameraMotionEnabled === undefined ? !options.reducedMotion : Boolean(options.cameraMotionEnabled);
     var view = options.initialView === "living" ? "living" : "house";
     var progress = view === "living" ? 1 : 0;
@@ -2206,6 +2214,38 @@
       refreshMarkers();
     }
 
+    function residentAtPointer(event) {
+      if (view !== "living" || !modelLoaded || loadFailed) return null;
+      var bounds = canvas.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return null;
+      var point = new THREE.Vector2(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1
+      );
+      spriteRaycaster.setFromCamera(point, camera);
+      var visibleMeshes = residents.filter(function (resident) {
+        return isResidentSpriteInteractive(view, resident);
+      }).map(function (resident) { return resident.mesh; });
+      var intersections = spriteRaycaster.intersectObjects(visibleMeshes, false);
+      if (!intersections.length) return null;
+      var mesh = intersections[0].object;
+      var resident = residents.find(function (entry) { return entry.mesh === mesh; });
+      return resident ? resident.id : null;
+    }
+
+    canvas.addEventListener("pointerdown", function (event) {
+      if (event.button !== undefined && event.button !== 0) return;
+      pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    });
+    canvas.addEventListener("pointercancel", function () { pointerStart = null; });
+    canvas.addEventListener("pointerup", function (event) {
+      var start = pointerStart;
+      pointerStart = null;
+      if (!start || start.id !== event.pointerId || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 9) return;
+      var residentID = residentAtPointer(event);
+      if (residentID && typeof options.onResidentActivate === "function") options.onResidentActivate(residentID);
+    });
+
     function setPaused(value) {
       paused = Boolean(value);
     }
@@ -2278,6 +2318,7 @@
   global.createHouseScene = createHouseScene;
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+      isResidentSpriteInteractive: isResidentSpriteInteractive,
       atticWindowOccupied: atticWindowOccupied,
       floorStateFor: floorStateFor,
       floorOpacityFor: floorOpacityFor,

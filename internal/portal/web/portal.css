@@ -3158,6 +3158,8 @@ body.portal-games-mode .games-desk-panel{display:block}
   color:var(--t2);background:rgba(255,255,255,.05);font-size:10px;cursor:pointer;
 }
 .games-session-actions button:disabled{opacity:.38;cursor:not-allowed}
+.games-session-actions .games-return-living{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:8px 11px;border:1px solid rgba(255,255,255,.2);border-radius:9px;color:var(--t1);text-decoration:none;font-size:11px;white-space:nowrap}
+.games-session-actions .games-return-living:hover,.games-session-actions .games-return-living:focus-visible{background:rgba(255,255,255,.08);outline:2px solid var(--accent,#9ad9ff);outline-offset:2px}
 .games-screen-shell{
   position:relative;
   min-height:clamp(480px,70vh,900px);

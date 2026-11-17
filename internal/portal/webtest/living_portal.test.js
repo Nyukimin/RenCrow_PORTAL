@@ -130,6 +130,7 @@ function testHeaderTabsSwitchTheRealHouseCameras() {
   }
   const sandbox = {
     activeView: "lcp",
+    gameActivationSequence: 0,
     houseTab: button(),
     livingTab: button(),
     frame: { dataset: {} },
@@ -149,6 +150,7 @@ function testHeaderTabsSwitchTheRealHouseCameras() {
   };
   vm.runInNewContext(`${setView}\nsetView("workplace", false);`, sandbox);
   assert.equal(sandbox.activeView, "workplace");
+  assert.equal(sandbox.gameActivationSequence, 1, "changing views must invalidate pending sprite activation");
   assert.equal(sandbox.houseTab.attributes["aria-pressed"], "false");
   assert.equal(sandbox.livingTab.attributes["aria-pressed"], "true");
   assert.equal(sandbox.frame.dataset.view, "living");
@@ -158,6 +160,7 @@ function testHeaderTabsSwitchTheRealHouseCameras() {
   sceneCalls.length = 0;
   vm.runInNewContext(`${setView}\nsetView("lcp", false);`, sandbox);
   assert.equal(sandbox.frame.dataset.view, "house");
+  assert.equal(sandbox.gameActivationSequence, 2);
   assert.deepEqual(sceneCalls[0], ["setView", "house"]);
 }
 

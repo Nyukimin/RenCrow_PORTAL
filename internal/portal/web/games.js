@@ -37,6 +37,13 @@
   const retryButton = document.getElementById('gamesRetryButton');
   const startOverButton = document.getElementById('gamesStartOverButton');
   const agentSpeech = document.getElementById('gamesAgentSpeech');
+  const stagePanel = document.querySelector('.games-stage-panel');
+  const routeParams = new URLSearchParams(window.location.search);
+  const requestedSession = routeParams.get('session');
+  const requestedGame = routeParams.get('game');
+  const requestedPersona = routeParams.get('persona');
+  const hasRequestedSession = requestedSession !== null || requestedGame !== null || requestedPersona !== null;
+  let requestedSessionHandled = false;
 
   function setOperation(message, isError = false) {
     operationStatus.textContent = message || '';
@@ -169,10 +176,53 @@
     refreshSelectedFrames();
   }
 
+  function requestedActiveSession(payload) {
+    if (!hasRequestedSession) return { state: 'none' };
+    if (!requestedSession || !requestedGame || !requestedPersona || payload?.ok !== true ||
+        payload?.source !== 'local_observer' || !Array.isArray(payload?.active_agent_sessions)) {
+      return { state: 'invalid' };
+    }
+    const activeSessionsValid = payload.active_agent_sessions.every(session =>
+      session && typeof session.session_id === 'string' && session.session_id.trim() &&
+      typeof session.game_id === 'string' && session.game_id.trim() &&
+      Array.isArray(session.personas) && session.personas.length > 0 &&
+      session.personas.every(persona => typeof persona === 'string' && persona.trim()) &&
+      new Set(session.personas).size === session.personas.length &&
+      (session.status === 'launching' || session.status === 'running')
+    );
+    if (!activeSessionsValid) return { state: 'invalid' };
+    const matches = payload.active_agent_sessions.filter(session =>
+      session && session.session_id === requestedSession && session.game_id === requestedGame &&
+      Array.isArray(session.personas) && session.personas.includes(requestedPersona) &&
+      (session.status === 'launching' || session.status === 'running')
+    );
+    if (matches.length !== 1) return { state: 'invalid' };
+    return {
+      state: 'active',
+      session: {
+        game_id: matches[0].game_id,
+        session_id: matches[0].session_id,
+        persona: requestedPersona,
+        status: matches[0].status,
+        turn: 0,
+      },
+    };
+  }
+
   async function refreshSessions(preferredSessionID = '') {
     try {
       const payload = await requestJSON('/viewer/games/observer-api/games/sessions?limit=30');
       state.sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+      if (hasRequestedSession && !requestedSessionHandled) {
+        requestedSessionHandled = true;
+        const requested = requestedActiveSession(payload);
+        if (requested.state === 'active') {
+          selectSession(requested.session);
+          stagePanel?.scrollIntoView({ behavior: 'auto', block: 'start' });
+        } else {
+          setOperation('指定されたゲームsessionは進行中ではないか、参加Agentが一致しません。', true);
+        }
+      }
       const wanted = preferredSessionID || state.selectedSessionID;
       if (wanted) {
         const updated = state.sessions.find(session => String(session.session_id) === String(wanted));
@@ -183,6 +233,7 @@
       }
       renderSessions();
     } catch (error) {
+      if (hasRequestedSession && !requestedSessionHandled) setOperation(`指定ゲームsessionを確認できません: ${error.message}`, true);
       if (!state.sessions.length) {
         sessionList.innerHTML = '';
         const message = document.createElement('p');

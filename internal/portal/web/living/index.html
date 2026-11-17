@@ -44,11 +44,30 @@
           <div class="scene-viewport">
             <canvas id="scene" aria-label="RenCrow House のHOUSE_105 3Dシーン" role="img"></canvas>
             <div id="scene-heartbeat-bubbles" class="scene-heartbeat-bubbles" aria-live="off"></div>
+            <p id="living-game-status" class="scene-game-status" role="status" aria-live="polite" hidden></p>
             <p class="scene-load-status" id="scene-load-status" role="status" aria-live="polite"></p>
           </div>
         </div>
+        <div class="living-game-keyboard-actions" role="group" aria-label="ゲーム中の住人を開く">
+          <button type="button" data-game-actor="mio">ゲーム中のMioを開く</button>
+          <button type="button" data-game-actor="shiro">ゲーム中のShiroを開く</button>
+          <button type="button" data-game-actor="kuro">ゲーム中のKuroを開く</button>
+          <button type="button" data-game-actor="midori">ゲーム中のMidoriを開く</button>
+          <button type="button" data-game-actor="aka">ゲーム中のAkaを開く</button>
+          <button type="button" data-game-actor="ao">ゲーム中のAoを開く</button>
+          <button type="button" data-game-actor="kin">ゲーム中のKinを開く</button>
+          <button type="button" data-game-actor="gin">ゲーム中のGinを開く</button>
+        </div>
       </section>
     </main>
+    <dialog id="living-active-game-dialog" aria-labelledby="living-active-game-title">
+      <form method="dialog" class="living-active-game-dialog__content">
+        <h2 id="living-active-game-title">観戦するゲームを選択</h2>
+        <p id="living-active-game-description"></p>
+        <div id="living-active-game-options" class="living-active-game-options"></div>
+        <button type="submit" class="living-active-game-cancel">キャンセル</button>
+      </form>
+    </dialog>
   </div>
 </body>
 </html>

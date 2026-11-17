@@ -18,6 +18,10 @@
   const sceneContext = document.getElementById("scene-context-label");
   const selectedLabel = document.getElementById("selected-resident");
   const sceneStatus = document.getElementById("scene-load-status");
+  const gameStatus = document.getElementById("living-game-status");
+  const activeGameDialog = document.getElementById("living-active-game-dialog");
+  const activeGameDialogDescription = document.getElementById("living-active-game-description");
+  const activeGameOptions = document.getElementById("living-active-game-options");
   const motionToggle = document.getElementById("motion-toggle");
   const motionLabel = document.getElementById("motion-label");
   const markerToggle = document.getElementById("marker-toggle");
@@ -86,6 +90,8 @@
   let heartbeatGeneration = 0;
   let explicitViewMotion = null;
   let viewMotionEnabled = true;
+  let gameActivationSequence = 0;
+  let activeGameChoices = [];
 
   function formatJST(date) {
     const formattedDate = new Intl.DateTimeFormat("ja-JP", {
@@ -285,7 +291,9 @@
   }
 
   function setView(view, persist = true) {
-    activeView = portalView(view);
+    const nextView = portalView(view);
+    if (nextView !== activeView) gameActivationSequence += 1;
+    activeView = nextView;
     const isWorkplace = activeView === "workplace";
     houseTab?.setAttribute("aria-pressed", String(!isWorkplace));
     livingTab?.setAttribute("aria-pressed", String(isWorkplace));
@@ -308,7 +316,8 @@
 
   function selectResident(id) {
     const candidate = id ? cards.find((card) => card.dataset.card === id && card.dataset.selectable === "true") : null;
-    selectedResidentId = candidate ? id : null;
+    const hasSelectableResidents = cards.some((card) => heartbeatActors.has(card.dataset.card) && card.dataset.selectable === "true");
+    selectedResidentId = id && heartbeatActors.has(id) && (!hasSelectableResidents || candidate) ? id : null;
     cards.forEach((card) => {
       if (card.dataset.selectable !== "true") return;
       card.setAttribute("aria-pressed", String(card.dataset.card === selectedResidentId));
@@ -322,6 +331,91 @@
     if (character && id && Array.from(character.options).some(option => option.value === id)) {
       character.value = id;
       if (!motionPreview.hidden) motionPreview.open = true;
+    }
+  }
+
+  function activeGamesForResident(payload, actorID) {
+    if (!payload || payload.ok !== true || payload.source !== "local_observer" || !Array.isArray(payload.active_agent_sessions)) {
+      throw new TypeError("active game registry unavailable");
+    }
+    if (!payload.active_agent_sessions.every((session) =>
+      session && typeof session.game_id === "string" && session.game_id.trim() &&
+      typeof session.session_id === "string" && session.session_id.trim() &&
+      Array.isArray(session.personas) && session.personas.length > 0 &&
+      session.personas.every((persona) => typeof persona === "string" && heartbeatActors.has(persona)) &&
+      new Set(session.personas).size === session.personas.length &&
+      (session.status === "launching" || session.status === "running")
+    )) throw new TypeError("active game registry is malformed");
+    return payload.active_agent_sessions.filter((session) => session.personas.includes(actorID));
+  }
+
+  function showGameStatus(message, isError = false) {
+    if (!gameStatus) return;
+    gameStatus.textContent = message;
+    gameStatus.hidden = !message;
+    gameStatus.dataset.error = String(Boolean(isError));
+  }
+
+  function gamesURL(session, actorID) {
+    const url = new URL("/games", window.location.origin);
+    url.searchParams.set("session", session.session_id);
+    url.searchParams.set("game", session.game_id);
+    url.searchParams.set("persona", actorID);
+    return url.href;
+  }
+
+  function navigateToActiveGame(session, actorID) {
+    window.location.assign(gamesURL(session, actorID));
+  }
+
+  function showActiveGameChoices(actorID, sessions) {
+    activeGameChoices = sessions.slice();
+    if (!activeGameDialog || !activeGameOptions || typeof activeGameDialog.showModal !== "function") {
+      showGameStatus("複数のゲームが進行中です。ゲーム画面からsessionを選択してください。", true);
+      return;
+    }
+    activeGameOptions.replaceChildren();
+    if (activeGameDialogDescription) activeGameDialogDescription.textContent = `${names.get(actorID) || actorID}が参加中のゲームを選んでください。`;
+    activeGameChoices.forEach((session) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${session.game_id} · ${session.session_id} · ${session.status}`;
+      button.addEventListener("click", () => {
+        if (!activeGameChoices.includes(session)) return;
+        activeGameDialog.close();
+        navigateToActiveGame(session, actorID);
+      });
+      activeGameOptions.append(button);
+    });
+    if (!activeGameDialog.open) activeGameDialog.showModal();
+  }
+
+  async function activateResident(id, toggleSelection = false) {
+    if (!heartbeatActors.has(id)) return;
+    selectResident(toggleSelection && selectedResidentId === id ? null : id);
+    showGameStatus("");
+    if (activeGameDialog?.open) activeGameDialog.close();
+    const sequence = ++gameActivationSequence;
+    if (activeView !== "workplace") return;
+    try {
+      const response = await window.fetch("/viewer/games/observer-api/games/sessions?limit=30", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error("active game registry unavailable");
+      const sessions = activeGamesForResident(await response.json(), id);
+      if (sequence !== gameActivationSequence || activeView !== "workplace") return;
+      if (sessions.length === 1) {
+        navigateToActiveGame(sessions[0], id);
+      } else if (sessions.length > 1) {
+        showActiveGameChoices(id, sessions);
+      } else {
+        showGameStatus(`${names.get(id) || id}の進行中のゲームはありません。`);
+      }
+    } catch {
+      if (sequence === gameActivationSequence) showGameStatus("進行中のゲームを確認できませんでした。もう一度お試しください。", true);
     }
   }
 
@@ -487,7 +581,8 @@
   cards.forEach((card) => {
     if (card.dataset.selectable !== "true" && card.dataset.card !== "lumina") return;
     card.addEventListener("click", () => {
-      selectResident(selectedResidentId === card.dataset.card ? null : card.dataset.card);
+      if (heartbeatActors.has(card.dataset.card)) void activateResident(card.dataset.card, true);
+      else selectResident(selectedResidentId === card.dataset.card ? null : card.dataset.card);
     });
   });
   cards.forEach((card) => {
@@ -517,7 +612,7 @@
 
   if (canvas && typeof window.createHouseScene === "function") {
     try {
-      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled, manualMotion: true, houseAssetVerified, houseSha256: living.dataset.houseSha256 });
+      scene = window.createHouseScene(canvas, { cameraMotionEnabled: viewMotionEnabled, initialView: internalView(activeView), assetVersion: living.dataset.assetVersion, motionPreview: motionPreviewEnabled, manualMotion: true, houseAssetVerified, houseSha256: living.dataset.houseSha256, onResidentActivate: id => { void activateResident(id); } });
       window.housePreview = scene;
       callScene("setView", internalView(activeView));
       callScene("setPaused", isPaused);
@@ -534,6 +629,10 @@
     if (sceneStatus) sceneStatus.textContent = "WebGLシーンを読み込めません。BOARDの参加者選択は利用できます。";
     window.housePreview = null;
   }
+
+  document.querySelectorAll("[data-game-actor]").forEach((button) => {
+    button.addEventListener("click", () => { void activateResident(button.dataset.gameActor); });
+  });
 
   if (scene && motionPreviewForm && window.houseSDMotion) {
     const character = motionPreviewForm.elements.namedItem("character");
@@ -592,6 +691,9 @@
   }
 
   window.housePreviewUI = Object.freeze({ setView, selectResident, setPaused, setMarker, setWorldHomeLive });
-  if (worldHomeEnabled && scene) setWorldHomeLive(true);
+  if (worldHomeEnabled && scene) {
+    setWorldHomeLive(true);
+    restoreSelection();
+  }
   window.addEventListener("pageshow", restoreSelection);
 })();
