@@ -3,6 +3,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+const threeContext = { window: {} };
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../web/living/vendor/three-kit.js"), "utf8"), threeContext);
+const THREE = threeContext.window.THREE;
 const houseContext = { window: {} };
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../web/living/assets/house-data.js"), "utf8"), houseContext);
 const sceneContext = { module: { exports: {} } };
@@ -27,6 +30,59 @@ test("defines the fourth attic facade with Gin's WORLD room id", () => {
   assert.equal(attic.rooms[3].roomId, "attic-window");
   assert.equal(scene.upperRoomIdFor(attic, 3, attic.rooms[3]), "attic-window");
   assert.equal(scene.upperRoomIdFor(attic, 2, attic.rooms[2]), "upper-room-3-3");
+});
+
+test("turns the middle bookcase toward the room without blocking Kuro or the stair route", () => {
+  const bookcase = house.secondLayout.find((layout) => layout.name === "middle-bookcase");
+  assert.ok(bookcase, "the measured middle bookcase layout exists");
+  assert.deepEqual(Array.from(bookcase.offset), [2, 0, 3.84]);
+  assert.equal(bookcase.rotation_y, -Math.PI / 2, "the bookcase faces into the room from the right wall");
+  assert.deepEqual(Array.from(bookcase.rotation_center), [3.5, -3.64]);
+
+  const node = new THREE.Object3D();
+  node.position.set(3.5, 4.2, -3.64);
+  node.rotation.set(0.2, 0.3, -0.4);
+  const startingRotation = node.quaternion.clone();
+  const expectedRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), bookcase.rotation_y).multiply(startingRotation);
+  scene.transformHouseLayoutNode(node, bookcase, THREE);
+  assert.ok(Math.abs(node.position.x - 5.5) < 1e-9);
+  assert.ok(Math.abs(node.position.y - 4.2) < 1e-9);
+  assert.ok(Math.abs(node.position.z - 0.2) < 1e-9);
+  assert.ok(Math.abs(Math.abs(node.quaternion.dot(expectedRotation)) - 1) < 1e-9);
+
+  // These bounds were measured from all 152 named GLB meshes, then transformed around their measured center.
+  const sourceBounds = { minX: 2.83, maxX: 4.17, minZ: -3.87, maxZ: -3.41 };
+  const rotatedCorners = [
+    [sourceBounds.minX, sourceBounds.minZ], [sourceBounds.minX, sourceBounds.maxZ],
+    [sourceBounds.maxX, sourceBounds.minZ], [sourceBounds.maxX, sourceBounds.maxZ],
+  ].map(([x, z]) => {
+    const corner = new THREE.Object3D();
+    corner.position.set(x, 4, z);
+    scene.transformHouseLayoutNode(corner, bookcase, THREE);
+    return [corner.position.x, corner.position.z];
+  });
+  const bounds = {
+    minX: Math.min(...rotatedCorners.map(([x]) => x)),
+    maxX: Math.max(...rotatedCorners.map(([x]) => x)),
+    minZ: Math.min(...rotatedCorners.map(([, z]) => z)),
+    maxZ: Math.max(...rotatedCorners.map(([, z]) => z)),
+  };
+  assert.ok(Math.abs(bounds.minX - 5.27) < 0.01 && Math.abs(bounds.maxX - 5.73) < 0.01);
+  assert.ok(Math.abs(bounds.minZ + 0.47) < 0.01 && Math.abs(bounds.maxZ - 0.87) < 0.01);
+  const roomBack = house.upperHallways.find((layout) => layout.floor === 1).roomBack;
+
+  assert.ok(bounds.minX > 5.05, "the shelf clears the mirror frame's measured x extent");
+  assert.ok(bounds.maxX < 6, "the shelf stays in the right-side room");
+  assert.ok(bounds.minZ > roomBack, "the shelf stays inside the second-floor room");
+  assert.ok(bounds.minZ > -2.225, "the shelf clears the measured bed bounds");
+  assert.ok(bounds.minZ > -1.37, "the shelf clears Kuro's mirror station depth");
+
+  const stairPoints = [...house.stairTrip.landing, ...house.stairTrip.roomVisit].map(([x, , z]) => [x, z]);
+  const distanceFromPathPoint = ([x, z]) => Math.hypot(
+    Math.max(0, bounds.minX - x, x - bounds.maxX),
+    Math.max(0, bounds.minZ - z, z - bounds.maxZ)
+  );
+  assert.ok(Math.min(...stairPoints.map(distanceFromPathPoint)) > 0.6, "the shelf clears the measured stair and room-visit paths");
 });
 
 test("attic-window opacity follows sampled 3F position and ignores stale room labels", () => {

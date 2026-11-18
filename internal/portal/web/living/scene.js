@@ -103,6 +103,18 @@
       "upper-room-" + (layout.floor + 1) + "-" + (index + 1);
   }
 
+  function transformHouseLayoutNode(node, group, THREE) {
+    if (Number.isFinite(group.rotation_y) && Array.isArray(group.rotation_center) && group.rotation_center.length === 2) {
+      var axis = new THREE.Vector3(0, 1, 0);
+      var center = new THREE.Vector3(group.rotation_center[0], node.position.y, group.rotation_center[1]);
+      node.position.sub(center).applyAxisAngle(axis, group.rotation_y).add(center);
+      node.rotateOnWorldAxis(axis, group.rotation_y);
+    }
+    node.position.x += group.offset[0];
+    node.position.y += group.offset[1];
+    node.position.z += group.offset[2];
+  }
+
   function atticWindowOccupied(timeline, now, metadata) {
     if (!timeline || typeof timeline.snapshot !== "function" || typeof timeline.sample !== "function") return false;
     var snapshot = timeline.snapshot();
@@ -1519,9 +1531,7 @@
           if (!node || node.parent !== floor) {
             throw new Error("HOUSE_105の家具を配置できません: " + name);
           }
-          node.position.x += group.offset[0];
-          node.position.y += group.offset[1];
-          node.position.z += group.offset[2];
+          transformHouseLayoutNode(node, group, THREE);
         });
       });
 
@@ -2425,6 +2435,7 @@
       floorStateFor: floorStateFor,
       floorOpacityFor: floorOpacityFor,
       upperRoomIdFor: upperRoomIdFor,
+      transformHouseLayoutNode: transformHouseLayoutNode,
       worldHomeDoorRoutePasses: worldHomeDoorRoutePasses,
       worldResidentOpacityFor: worldResidentOpacityFor
     };

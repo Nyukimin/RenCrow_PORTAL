@@ -95,7 +95,7 @@ window.housePreviewData = {
       "Attic stair step.012_v4", "Attic stair step.013_v4", "Attic stair step.014_v4",
       "Attic stair step.015_v4", "Attic stair step.016_v4", "Attic stair step_v4"
     ] },
-    { "name": "middle-bookcase", "offset": [0.72,0,4.78], "objects": [
+    { "name": "middle-bookcase", "offset": [2,0,3.84], "rotation_y": -1.5707963267948966, "rotation_center": [3.5,-3.64], "objects": [
       "Shelf back.004_v4", "Shelf board.020_v4", "Shelf board.021_v4",
       "Shelf board.022_v4", "Shelf board.023_v4", "Shelf board.024_v4",
       "Shelf upright.008_v4", "Shelf upright.009_v4"
