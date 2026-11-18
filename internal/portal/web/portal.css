@@ -3211,6 +3211,8 @@ body.portal-games-mode .purupuru-avatar.games-overlay-active{
   .games-layout{gap:10px}
   .games-launch-panel{display:flex;padding:13px;border-radius:16px}
   .games-stage-panel{padding:8px;border-radius:16px}
+  .games-stage-toolbar>div:first-child{flex:1;min-width:0}
+  .games-stage-toolbar>div:first-child strong,.games-stage-toolbar>div:first-child span{overflow-wrap:anywhere}
   .games-screen-shell,#gamesObserverFrame{min-height:540px;height:64dvh}
   .games-stage-toolbar{align-items:flex-start}
   .games-session-actions{flex-direction:column}
