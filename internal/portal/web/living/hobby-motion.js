@@ -191,6 +191,27 @@
     return true;
   }
 
+  function clearWorldHobbyFrame(resident, nearestAvailableTexture, setTexture) {
+    if (!resident) return false;
+    var hasHobbyFrame = Boolean(resident.hobbyKey || resident.hobbyAssetId || resident.hobbyActivityKey || resident.hobbyTexture);
+    if (!hasHobbyFrame) return false;
+    if (resident.hobbyLoadState && typeof resident.hobbyLoadState.clear === "function") resident.hobbyLoadState.clear();
+    resident.hobbyKey = null;
+    resident.hobbyAssetId = null;
+    if (!resident.mesh) {
+      resident.hobbyActivityKey = null;
+      resident.hobbyFrameKey = null;
+      resident.hobbyTexture = null;
+      return false;
+    }
+    var direction = typeof resident.direction === "string" && resident.direction ? resident.direction : "front";
+    var fallback = typeof nearestAvailableTexture === "function"
+      ? nearestAvailableTexture(resident.id, direction)
+      : null;
+    applyFrame(resident, null, null, null, fallback, setTexture);
+    return true;
+  }
+
   var api = Object.freeze({
     startSeconds: START_SECONDS,
     frameSeconds: FRAME_SECONDS,
@@ -201,7 +222,8 @@
     selectAsset: selectAsset,
     createLoadState: createLoadState,
     createCatalogLoader: createCatalogLoader,
-    applyFrame: applyFrame
+    applyFrame: applyFrame,
+    clearWorldHobbyFrame: clearWorldHobbyFrame
   });
   global.houseHobbyMotion = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

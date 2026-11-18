@@ -890,11 +890,8 @@
     }
 
     function clearWorldHobby(resident) {
-      if (resident.hobbyLoadState) resident.hobbyLoadState.clear();
-      resident.hobbyKey = null;
-      resident.hobbyAssetId = null;
-      if (global.houseHobbyMotion) global.houseHobbyMotion.applyFrame(resident, null, null, null,
-        nearestAvailableTexture(resident.id, resident.direction), setSpriteTexture);
+      if (!global.houseHobbyMotion) return false;
+      return global.houseHobbyMotion.clearWorldHobbyFrame(resident, nearestAvailableTexture, setSpriteTexture);
     }
 
     function motionCanvas(resident, width, height) {

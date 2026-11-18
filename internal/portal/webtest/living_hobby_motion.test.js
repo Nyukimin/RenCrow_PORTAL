@@ -109,6 +109,41 @@ test("renderer keeps the previous hobby frame during a pending frame and applies
   assert.equal(material.map, normal, "leaving hobby activity clears the retained hobby texture");
 });
 
+test("WORLD clear path skips texture lookup for ordinary or uninitialized residents", () => {
+  let lookups = 0;
+  const normal = { id: "normal" };
+  const hobby = { id: "hobby" };
+  const nearest = (id, direction) => {
+    lookups += 1;
+    assert.equal(id, "mio");
+    assert.equal(direction, "front", "an active sprite with no heading uses the normal initialized fallback");
+    return normal;
+  };
+  const setTexture = (resident, texture) => { resident.mesh.material.map = texture; };
+
+  const notReady = { id: "mio", direction: undefined };
+  assert.equal(motion.clearWorldHobbyFrame(notReady, nearest, setTexture), false);
+  assert.equal(lookups, 0, "an ordinary resident without a mesh is ignored");
+
+  const ordinary = { id: "mio", direction: undefined, mesh: { material: { map: normal } } };
+  assert.equal(motion.clearWorldHobbyFrame(ordinary, nearest, setTexture), false);
+  assert.equal(lookups, 0, "an ordinary resident with a mesh does not inspect undefined direction");
+  assert.equal(ordinary.mesh.material.map, normal);
+
+  let cleared = 0;
+  const pending = { id: "mio", direction: undefined, hobbyKey: "mio|fashion_show|pending", hobbyLoadState: { clear() { cleared += 1; } } };
+  assert.equal(motion.clearWorldHobbyFrame(pending, nearest, setTexture), false);
+  assert.equal(cleared, 1);
+  assert.equal(pending.hobbyKey, null);
+  assert.equal(lookups, 0, "a pending hobby without a mesh is invalidated without resolving a sprite");
+
+  const active = { id: "mio", direction: undefined, hobbyActivityKey: "mio|fashion_show|start", hobbyFrameKey: "mio-frame", hobbyTexture: hobby,
+    mesh: { material: { map: hobby } } };
+  assert.equal(motion.clearWorldHobbyFrame(active, nearest, setTexture), true);
+  assert.equal(active.mesh.material.map, normal, "an active hobby mesh returns to the resident sprite");
+  assert.equal(lookups, 1);
+});
+
 test("catalog paths resolve to the unmodified 320px PNG assets", () => {
   const root = path.join(__dirname, "../web/living/assets/hobbies");
   const entries = motion.catalogIndex(catalog);
