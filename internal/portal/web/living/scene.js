@@ -834,60 +834,67 @@
 
     function hobbyTexture(asset) {
       if (!asset || typeof asset.id !== "string" || typeof asset.image_path !== "string") return null;
-      if ((hobbyTextureFailures.get(asset.id) || 0) >= 2) return null;
+      if ((hobbyTextureFailures.get(asset.id) || 0) >= 2) return { texture: null, promise: null, failed: true };
       if (!hobbyTextureCache.has(asset.id)) {
         var image = new global.Image();
         var version = options.assetVersion ? "?v=" + encodeURIComponent(options.assetVersion) : "";
         image.src = ASSET_ROOT + "hobbies/" + asset.image_path + version;
-        var pending = image.decode().then(function () { return textureFrom(image); }).catch(function () {
+        var entry = { texture: null, promise: null, failed: false };
+        entry.promise = image.decode().then(function () {
+          entry.texture = textureFrom(image);
+          return entry.texture;
+        }).catch(function () {
           hobbyTextureCache.delete(asset.id);
-          hobbyTextureFailures.set(asset.id, (hobbyTextureFailures.get(asset.id) || 0) + 1);
+          var failures = (hobbyTextureFailures.get(asset.id) || 0) + 1;
+          hobbyTextureFailures.set(asset.id, failures);
+          entry.failed = failures >= 2;
           return null;
         });
-        hobbyTextureCache.set(asset.id, pending);
+        hobbyTextureCache.set(asset.id, entry);
       }
       return hobbyTextureCache.get(asset.id);
     }
 
     function setWorldHobbyTexture(resident, actor, asset) {
       if (!asset || !global.houseHobbyMotion || !hobbyCatalog) return false;
-      var key = [asset.id, actor.activity_started_at || "", actor.active_pose || ""].join("|");
-      if (resident.hobbyKey === key) return true;
-      if (!resident.hobbyLoadState) resident.hobbyLoadState = global.houseHobbyMotion.createLoadState(2);
-      var token = resident.hobbyLoadState.begin(key);
-      if (!token) return false;
-      resident.hobbyKey = key;
-      resident.hobbyAssetId = asset.id;
-      updateSpriteTexture(resident, resident.direction, null);
-      var pending = hobbyTexture(asset);
-      if (!pending) {
-        resident.hobbyLoadState.fail(token);
-        resident.hobbyKey = null;
-        resident.hobbyAssetId = null;
+      var activityKey = [actor.id, actor.active_kind, actor.activity_started_at || "", actor.active_pose || ""].join("|");
+      var key = activityKey + "|" + asset.id;
+      var entry = hobbyTexture(asset);
+      if (!entry) return false;
+      if (entry.failed) {
+        clearWorldHobby(resident);
         return false;
       }
-      Promise.resolve(pending).then(function (texture) {
-        if (!worldHomeMode || !resident.hobbyLoadState.isCurrent(token) || !resident.mesh) return;
-        var sample = worldHomeTimeline && worldHomeTimeline.sample(resident.id, currentTime());
-        if (!sample || sample.actor.active_kind !== actor.active_kind ||
-            sample.actor.activity_started_at !== actor.activity_started_at ||
-            (actor.active_kind === "mirror_pose" && sample.actor.active_pose !== actor.active_pose)) return;
-        if (!texture) {
-          resident.hobbyLoadState.fail(token);
-          resident.hobbyKey = null;
-          resident.hobbyAssetId = null;
-          updateSpriteTexture(resident, resident.direction, null);
-          return;
+      if (!resident.hobbyLoadState) resident.hobbyLoadState = global.houseHobbyMotion.createLoadState(2);
+      if (resident.hobbyKey !== key) {
+        var token = resident.hobbyLoadState.begin(key);
+        if (token) {
+          resident.hobbyKey = key;
+          resident.hobbyAssetId = asset.id;
+          Promise.resolve(entry.promise).then(function (texture) {
+            if (!worldHomeMode || !resident.hobbyLoadState.isCurrent(token) || !resident.mesh) return;
+            var sample = worldHomeTimeline && worldHomeTimeline.sample(resident.id, currentTime());
+            if (!sample || sample.actor.active_kind !== actor.active_kind ||
+                sample.actor.activity_started_at !== actor.activity_started_at ||
+                (actor.active_kind === "mirror_pose" && sample.actor.active_pose !== actor.active_pose)) return;
+            if (!texture) {
+              resident.hobbyLoadState.fail(token);
+              resident.hobbyKey = null;
+              resident.hobbyAssetId = null;
+            }
+          });
         }
-        setSpriteTexture(resident, texture);
-      });
-      return true;
+      }
+      var fallback = nearestAvailableTexture(resident.id, resident.direction);
+      return global.houseHobbyMotion.applyFrame(resident, activityKey, key, entry.texture, fallback, setSpriteTexture);
     }
 
     function clearWorldHobby(resident) {
-      if (resident.hobbyKey && resident.hobbyLoadState) resident.hobbyLoadState.clear();
+      if (resident.hobbyLoadState) resident.hobbyLoadState.clear();
       resident.hobbyKey = null;
       resident.hobbyAssetId = null;
+      if (global.houseHobbyMotion) global.houseHobbyMotion.applyFrame(resident, null, null, null,
+        nearestAvailableTexture(resident.id, resident.direction), setSpriteTexture);
     }
 
     function motionCanvas(resident, width, height) {

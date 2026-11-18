@@ -85,6 +85,30 @@ test("catalog fetch retries after failure on demand and stops at its configured 
   assert.equal(calls, 4, "no timer or unbounded retry is scheduled");
 });
 
+test("renderer keeps the previous hobby frame during a pending frame and applies ready maps before draw", async () => {
+  const normal = { id: "normal" };
+  const first = { id: "mio-present" };
+  const next = { id: "mio-blink" };
+  const material = { map: normal };
+  const resident = { mesh: { material } };
+  const setTexture = (target, texture) => { target.mesh.material.map = texture; };
+
+  assert.equal(motion.applyFrame(resident, "mio|fashion_show|start", "mio-present", first, normal, setTexture), true);
+  assert.equal(material.map, first, "a ready hobby texture is applied to the rendered material synchronously");
+  assert.equal(motion.applyFrame(resident, "mio|fashion_show|start", "mio-blink", null, normal, setTexture), true);
+  assert.equal(material.map, first, "a pending frame retains the last valid texture for the same WORLD activity");
+
+  let cached = null;
+  await Promise.resolve().then(() => { cached = next; });
+  assert.equal(motion.applyFrame(resident, "mio|fashion_show|start", "mio-blink", cached, normal, setTexture), true);
+  assert.equal(material.map, next, "a cache hit is bound before this render pass, even after a slow frame interval");
+
+  assert.equal(motion.applyFrame(resident, "mio|fashion_show|replacement", "new-start", null, normal, setTexture), true);
+  assert.equal(material.map, normal, "a new WORLD activity starts on the normal sprite while its first image loads");
+  assert.equal(motion.applyFrame(resident, null, null, null, normal, setTexture), false);
+  assert.equal(material.map, normal, "leaving hobby activity clears the retained hobby texture");
+});
+
 test("catalog paths resolve to the unmodified 320px PNG assets", () => {
   const root = path.join(__dirname, "../web/living/assets/hobbies");
   const entries = motion.catalogIndex(catalog);
