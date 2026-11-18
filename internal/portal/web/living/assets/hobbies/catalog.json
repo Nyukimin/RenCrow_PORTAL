@@ -1,0 +1,1292 @@
+{
+  "version": 1,
+  "characters": [
+    {
+      "character": "Mio",
+      "assets": [
+        {
+          "id": "mio-prepare-start-01",
+          "character": "Mio",
+          "activity": "fashion_show",
+          "outfit": "existing_navy_white_gold_floral",
+          "pose": "prepare-start-01",
+          "phase": "start",
+          "display_order": 1,
+          "image_path": "Mio/sprites/mio-fashion-existing-prepare-start-01.png",
+          "original_image_path": "Mio/originals/mio-fashion-existing-prepare-start-01.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            45,
+            18,
+            275,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              628,
+              1054
+            ],
+            "uniform_scale": 0.3393665158371041,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "mio-present-active-01",
+          "character": "Mio",
+          "activity": "fashion_show",
+          "outfit": "existing_navy_white_gold_floral",
+          "pose": "present-active-01",
+          "phase": "active",
+          "display_order": 2,
+          "image_path": "Mio/sprites/mio-fashion-existing-present-active-01.png",
+          "original_image_path": "Mio/originals/mio-fashion-existing-present-active-01.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            45,
+            18,
+            275,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              627,
+              1053
+            ],
+            "uniform_scale": 0.340522133938706,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "mio-present-active-02-blink",
+          "character": "Mio",
+          "activity": "fashion_show",
+          "outfit": "existing_navy_white_gold_floral",
+          "pose": "present-active-02-blink",
+          "phase": "active",
+          "display_order": 3,
+          "image_path": "Mio/sprites/mio-fashion-existing-present-active-02-blink.png",
+          "original_image_path": "Mio/originals/mio-fashion-existing-present-active-02-blink.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            45,
+            18,
+            275,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              628,
+              1054
+            ],
+            "uniform_scale": 0.33975084937712347,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "mio-silhouette-active-01",
+          "character": "Mio",
+          "activity": "fashion_show",
+          "outfit": "existing_navy_white_gold_floral",
+          "pose": "silhouette-active-01",
+          "phase": "active",
+          "display_order": 4,
+          "image_path": "Mio/sprites/mio-fashion-existing-silhouette-active-01.png",
+          "original_image_path": "Mio/originals/mio-fashion-existing-silhouette-active-01.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            53,
+            18,
+            238,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              665,
+              1101
+            ],
+            "uniform_scale": 0.32051282051282054,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "mio-light-turn-active-01",
+          "character": "Mio",
+          "activity": "fashion_show",
+          "outfit": "existing_navy_white_gold_floral",
+          "pose": "light-turn-active-01",
+          "phase": "active",
+          "display_order": 5,
+          "image_path": "Mio/sprites/mio-fashion-existing-light-turn-active-01.png",
+          "original_image_path": "Mio/originals/mio-fashion-existing-light-turn-active-01.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            61,
+            18,
+            294,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              580,
+              1078
+            ],
+            "uniform_scale": 0.32858707557502737,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "mio-satisfied-end-01",
+          "character": "Mio",
+          "activity": "fashion_show",
+          "outfit": "existing_navy_white_gold_floral",
+          "pose": "satisfied-end-01",
+          "phase": "end",
+          "display_order": 6,
+          "image_path": "Mio/sprites/mio-fashion-existing-satisfied-end-01.png",
+          "original_image_path": "Mio/originals/mio-fashion-existing-satisfied-end-01.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            45,
+            18,
+            274,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              628,
+              1055
+            ],
+            "uniform_scale": 0.3382187147688839,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        }
+      ],
+      "playback": {
+        "suggested_order": [
+          "mio-prepare-start-01",
+          "mio-present-active-01",
+          "mio-present-active-02-blink",
+          "mio-present-active-01",
+          "mio-silhouette-active-01",
+          "mio-light-turn-active-01",
+          "mio-satisfied-end-01"
+        ],
+        "loops": [
+          {
+            "name": "present-blink",
+            "asset_ids": [
+              "mio-present-active-01",
+              "mio-present-active-02-blink",
+              "mio-present-active-01"
+            ],
+            "repeat": true
+          }
+        ],
+        "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+      },
+      "previews": [
+        "Mio/previews/Mio_alignment_review_v2.png",
+        "Mio/previews/Mio_sequence_preview.gif"
+      ],
+      "editable_files": [
+        "Mio/editable/Mio_aligned_frame_layers.ora",
+        "Mio/editable/Mio_original_frame_layers.ora"
+      ]
+    },
+    {
+      "character": "Shiro",
+      "assets": [
+        {
+          "id": "shiro-dumbbell-low",
+          "character": "Shiro",
+          "activity": "exercise",
+          "outfit": "shirtless_existing_white_slacks_barefoot",
+          "pose": "dumbbell-low",
+          "phase": "start",
+          "display_order": 1,
+          "image_path": "Shiro/sprites/shiro-dumbbell-low.png",
+          "original_image_path": "Shiro/originals/shiro-dumbbell-low.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            82,
+            17,
+            241,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              623.5,
+              1205
+            ],
+            "uniform_scale": 0.2613240418118467,
+            "status": "visually_checked_nearest_contact_only"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+            "立位から床への移動・ダンベルを置く動作は未制作"
+          ]
+        },
+        {
+          "id": "shiro-double-biceps-reference",
+          "character": "Shiro",
+          "activity": "exercise",
+          "outfit": "shirtless_existing_white_slacks_barefoot",
+          "pose": "double-biceps-reference",
+          "phase": "active",
+          "display_order": 2,
+          "image_path": "Shiro/sprites/shiro-double-biceps-reference.png",
+          "original_image_path": "Shiro/originals/shiro-double-biceps-reference.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            81,
+            17,
+            242,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              623.0,
+              1205
+            ],
+            "uniform_scale": 0.2613240418118467,
+            "status": "visually_checked_nearest_contact_only"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+            "立位から床への移動・ダンベルを置く動作は未制作"
+          ]
+        },
+        {
+          "id": "shiro-dumbbell-high",
+          "character": "Shiro",
+          "activity": "exercise",
+          "outfit": "shirtless_existing_white_slacks_barefoot",
+          "pose": "dumbbell-high",
+          "phase": "active",
+          "display_order": 3,
+          "image_path": "Shiro/sprites/shiro-dumbbell-high.png",
+          "original_image_path": "Shiro/originals/shiro-dumbbell-high.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            81,
+            17,
+            241,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              624.5,
+              1205
+            ],
+            "uniform_scale": 0.2613240418118467,
+            "status": "visually_checked_nearest_contact_only"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+            "立位から床への移動・ダンベルを置く動作は未制作"
+          ]
+        },
+        {
+          "id": "shiro-pushup-up",
+          "character": "Shiro",
+          "activity": "exercise",
+          "outfit": "shirtless_existing_white_slacks_barefoot",
+          "pose": "pushup-up",
+          "phase": "active",
+          "display_order": 4,
+          "image_path": "Shiro/sprites/shiro-pushup-up.png",
+          "original_image_path": "Shiro/originals/shiro-pushup-up.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            26,
+            88,
+            283,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              627.0,
+              1103
+            ],
+            "uniform_scale": 0.225,
+            "status": "visually_checked_nearest_contact_only"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+            "立位から床への移動・ダンベルを置く動作は未制作"
+          ]
+        },
+        {
+          "id": "shiro-pushup-down",
+          "character": "Shiro",
+          "activity": "exercise",
+          "outfit": "shirtless_existing_white_slacks_barefoot",
+          "pose": "pushup-down",
+          "phase": "active",
+          "display_order": 5,
+          "image_path": "Shiro/sprites/shiro-pushup-down.png",
+          "original_image_path": "Shiro/originals/shiro-pushup-down.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            25,
+            148,
+            285,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              627.0,
+              1135
+            ],
+            "uniform_scale": 0.225,
+            "status": "visually_checked_nearest_contact_only"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+            "立位から床への移動・ダンベルを置く動作は未制作"
+          ]
+        },
+        {
+          "id": "shiro-end-relax",
+          "character": "Shiro",
+          "activity": "exercise",
+          "outfit": "shirtless_existing_white_slacks_barefoot",
+          "pose": "end-relax",
+          "phase": "end",
+          "display_order": 6,
+          "image_path": "Shiro/sprites/shiro-end-relax.png",
+          "original_image_path": "Shiro/originals/shiro-end-relax.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            82,
+            17,
+            241,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              623.5,
+              1205
+            ],
+            "uniform_scale": 0.2613240418118467,
+            "status": "visually_checked_nearest_contact_only"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+            "立位から床への移動・ダンベルを置く動作は未制作"
+          ]
+        }
+      ],
+      "playback": {
+        "suggested_order": [
+          "shiro-dumbbell-low",
+          "shiro-double-biceps-reference",
+          "shiro-dumbbell-high",
+          "shiro-pushup-up",
+          "shiro-pushup-down",
+          "shiro-end-relax"
+        ],
+        "loops": [
+          {
+            "name": "dumbbell",
+            "asset_ids": [
+              "shiro-dumbbell-low",
+              "shiro-dumbbell-high",
+              "shiro-dumbbell-low"
+            ],
+            "repeat": true
+          },
+          {
+            "name": "pushup",
+            "asset_ids": [
+              "shiro-pushup-up",
+              "shiro-pushup-down",
+              "shiro-pushup-up"
+            ],
+            "repeat": true
+          }
+        ],
+        "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+      },
+      "previews": [
+        "Shiro/previews/Shiro_dumbbell_progress.png",
+        "Shiro/previews/Shiro_exercise_review.png",
+        "Shiro/previews/Shiro_sequence_preview.gif"
+      ],
+      "editable_files": [
+        "Shiro/editable/Shiro_frame_layers.ora"
+      ]
+    },
+    {
+      "character": "Kuro",
+      "assets": [
+        {
+          "id": "kuro-check",
+          "character": "Kuro",
+          "activity": "mirror-pose",
+          "outfit": "existing_black_purple_gold",
+          "pose": "check",
+          "phase": "start",
+          "display_order": 1,
+          "image_path": "Kuro/sprites/kuro-mirror-check-start.png",
+          "original_image_path": "Kuro/originals/kuro-mirror-check-start.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            63,
+            18,
+            257,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              623.0,
+              1059
+            ],
+            "uniform_scale": 0.3409090909090909,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "kuro-crossed",
+          "character": "Kuro",
+          "activity": "mirror-pose",
+          "outfit": "existing_black_purple_gold",
+          "pose": "crossed",
+          "phase": "active",
+          "display_order": 2,
+          "image_path": "Kuro/sprites/kuro-crossed-arms.png",
+          "original_image_path": "Kuro/originals/kuro-crossed-arms.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            66,
+            18,
+            261,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              618.0,
+              1057
+            ],
+            "uniform_scale": 0.3412969283276451,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "kuro-hip",
+          "character": "Kuro",
+          "activity": "mirror-pose",
+          "outfit": "existing_black_purple_gold",
+          "pose": "hip",
+          "phase": "active",
+          "display_order": 3,
+          "image_path": "Kuro/sprites/kuro-mirror-hand-on-hip-active.png",
+          "original_image_path": "Kuro/originals/kuro-mirror-hand-on-hip-active.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            67,
+            18,
+            261,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              618.0,
+              1059
+            ],
+            "uniform_scale": 0.33975084937712347,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "kuro-face",
+          "character": "Kuro",
+          "activity": "mirror-pose",
+          "outfit": "existing_black_purple_gold",
+          "pose": "face",
+          "phase": "active",
+          "display_order": 4,
+          "image_path": "Kuro/sprites/kuro-mirror-hand-near-face-active.png",
+          "original_image_path": "Kuro/originals/kuro-mirror-hand-near-face-active.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            66,
+            19,
+            260,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              618.0,
+              1059
+            ],
+            "uniform_scale": 0.3393665158371041,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        },
+        {
+          "id": "kuro-satisfied",
+          "character": "Kuro",
+          "activity": "mirror-pose",
+          "outfit": "existing_black_purple_gold",
+          "pose": "satisfied",
+          "phase": "end",
+          "display_order": 5,
+          "image_path": "Kuro/sprites/kuro-mirror-satisfied-end.png",
+          "original_image_path": "Kuro/originals/kuro-mirror-satisfied-end.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            66,
+            18,
+            261,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              619.0,
+              1059
+            ],
+            "uniform_scale": 0.3401360544217687,
+            "status": "numerically_aligned_furniture_not_verified"
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用"
+          ]
+        }
+      ],
+      "playback": {
+        "suggested_order": [
+          "kuro-check",
+          "kuro-crossed",
+          "kuro-hip",
+          "kuro-face",
+          "kuro-satisfied"
+        ],
+        "loops": [
+          {
+            "name": "pose-switch",
+            "asset_ids": [
+              "kuro-crossed",
+              "kuro-hip",
+              "kuro-face"
+            ],
+            "repeat": true,
+            "note": "姿勢を保持して切替。滑らかな連続動作ではない"
+          }
+        ],
+        "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+      },
+      "previews": [
+        "Kuro/previews/Kuro_mirror_review.png",
+        "Kuro/previews/Kuro_start_progress.png"
+      ],
+      "editable_files": [
+        "Kuro/editable/Kuro_pose_layers.ora"
+      ]
+    },
+    {
+      "character": "Midori",
+      "assets": [
+        {
+          "id": "midori-open",
+          "character": "Midori",
+          "activity": "reading",
+          "outfit": "existing_white_green_floral",
+          "pose": "open",
+          "phase": "start",
+          "display_order": 1,
+          "image_path": "Midori/sprites/midori-reading-open-start.png",
+          "original_image_path": "Midori/originals/midori-reading-open-start.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            87,
+            18,
+            267,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              584.5,
+              1021
+            ],
+            "uniform_scale": 0.351288056206089,
+            "status": "feet_aligned_seat_requires_room_check",
+            "seat_estimate_px": [
+              180,
+              225
+            ]
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "座面基準は推定値。足元と座面の同時厳密固定は未達"
+          ]
+        },
+        {
+          "id": "midori-read",
+          "character": "Midori",
+          "activity": "reading",
+          "outfit": "existing_white_green_floral",
+          "pose": "read",
+          "phase": "active",
+          "display_order": 2,
+          "image_path": "Midori/sprites/midori-read-active.png",
+          "original_image_path": "Midori/originals/midori-read-active.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            89,
+            19,
+            269,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              580.5,
+              1018
+            ],
+            "uniform_scale": 0.352112676056338,
+            "status": "feet_aligned_seat_requires_room_check",
+            "seat_estimate_px": [
+              180,
+              225
+            ]
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "座面基準は推定値。足元と座面の同時厳密固定は未達"
+          ]
+        },
+        {
+          "id": "midori-page",
+          "character": "Midori",
+          "activity": "reading",
+          "outfit": "existing_white_green_floral",
+          "pose": "page",
+          "phase": "active",
+          "display_order": 3,
+          "image_path": "Midori/sprites/midori-reading-page-turn-active.png",
+          "original_image_path": "Midori/originals/midori-reading-page-turn-active.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            88,
+            18,
+            271,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              579.0,
+              1018
+            ],
+            "uniform_scale": 0.3525264394829612,
+            "status": "feet_aligned_seat_requires_room_check",
+            "seat_estimate_px": [
+              180,
+              225
+            ]
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "座面基準は推定値。足元と座面の同時厳密固定は未達"
+          ]
+        },
+        {
+          "id": "midori-smile",
+          "character": "Midori",
+          "activity": "reading",
+          "outfit": "existing_white_green_floral",
+          "pose": "smile",
+          "phase": "active",
+          "display_order": 4,
+          "image_path": "Midori/sprites/midori-smile-active.png",
+          "original_image_path": "Midori/originals/midori-smile-active.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            86,
+            18,
+            270,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              579.0,
+              1155
+            ],
+            "uniform_scale": 0.27958993476234856,
+            "status": "feet_aligned_seat_requires_room_check",
+            "seat_estimate_px": [
+              180,
+              225
+            ]
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "座面基準は推定値。足元と座面の同時厳密固定は未達"
+          ]
+        },
+        {
+          "id": "midori-hug",
+          "character": "Midori",
+          "activity": "reading",
+          "outfit": "existing_white_green_floral",
+          "pose": "hug",
+          "phase": "end",
+          "display_order": 5,
+          "image_path": "Midori/sprites/midori-reading-hug-book-end.png",
+          "original_image_path": "Midori/originals/midori-reading-hug-book-end.png",
+          "dimensions_px": [
+            320,
+            320
+          ],
+          "original_dimensions_px": [
+            1254,
+            1254
+          ],
+          "mode": "RGBA",
+          "alpha_range": [
+            0,
+            255
+          ],
+          "visible_bbox_alpha_gt32": [
+            89,
+            18,
+            270,
+            318
+          ],
+          "reference_position": {
+            "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+            "target_anchor_px": [
+              160,
+              318
+            ],
+            "source_anchor_px": [
+              580.0,
+              1018
+            ],
+            "uniform_scale": 0.351288056206089,
+            "status": "feet_aligned_seat_requires_room_check",
+            "seat_estimate_px": [
+              180,
+              225
+            ]
+          },
+          "constraints": [
+            "生成による装飾・輪郭・表情細部の差が残る",
+            "輪郭外に微小な半透明画素が残る",
+            "既存家具との配置・遮蔽・実表示縮尺は未検証",
+            "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+            "姿勢間の中割りは未制作。静止画切替用",
+            "座面基準は推定値。足元と座面の同時厳密固定は未達"
+          ]
+        }
+      ],
+      "playback": {
+        "suggested_order": [
+          "midori-open",
+          "midori-read",
+          "midori-page",
+          "midori-read",
+          "midori-smile",
+          "midori-read",
+          "midori-hug"
+        ],
+        "loops": [
+          {
+            "name": "read-page",
+            "asset_ids": [
+              "midori-read",
+              "midori-page",
+              "midori-read"
+            ],
+            "repeat": true
+          }
+        ],
+        "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+      },
+      "previews": [
+        "Midori/previews/Midori_reading_preview.gif",
+        "Midori/previews/Midori_reading_review.png",
+        "Midori/previews/Midori_start_progress.png"
+      ],
+      "editable_files": [
+        "Midori/editable/Midori_pose_layers.ora"
+      ]
+    }
+  ]
+}

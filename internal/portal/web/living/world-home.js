@@ -29,7 +29,9 @@
     "mirror-hands-on-hips": "腰に手",
     "mirror-over-shoulder": "振り返り",
     "mirror-open-arms": "両手を広げる",
-    "mirror-bow": "お辞儀"
+    "mirror-bow": "お辞儀",
+    "mirror-crossed-arms": "腕を組む",
+    "mirror-hand-near-face": "顔に手を添える"
   });
 
   function finiteVector(value) {
@@ -64,7 +66,7 @@
       if (actor.move_points !== undefined && (!Array.isArray(actor.move_points) || actor.move_points.length < 2 || actor.move_points.length > 256 || !actor.move_points.every(finiteVector))) {
         throw new Error("WORLD snapshot move_points are invalid");
       }
-      if (actor.active_kind !== undefined && !["move", "sleep", "exercise", "mirror_pose"].includes(actor.active_kind)) {
+      if (actor.active_kind !== undefined && !["move", "sleep", "exercise", "mirror_pose", "fashion_show", "reading"].includes(actor.active_kind)) {
         throw new Error("WORLD snapshot active_kind is invalid");
       }
       if (actor.active_pose !== undefined && !Object.hasOwn(MIRROR_POSES, actor.active_pose)) {
@@ -175,13 +177,13 @@
       if (actor.visit_until && serverNow >= Date.parse(actor.visit_until)) return null;
       var metrics = actorMetrics.get(actorId);
       if (!metrics || !metrics.total) {
-        return { position: actor.position.slice(), tangent: [0, 0, 0], distance: 0, segmentIndex: 0, moving: false, actor: actor };
+        return { position: actor.position.slice(), tangent: [0, 0, 0], distance: 0, segmentIndex: 0, moving: false, serverNow: serverNow, actor: actor };
       }
       var startedAt = Date.parse(actor.activity_started_at);
       var dueAt = Date.parse(actor.activity_due_at);
       var progress = Math.max(0, Math.min(1, (serverNow - startedAt) / (dueAt - startedAt)));
       var sample = samplePolyline(actor.move_points, metrics, progress);
-      return Object.assign(sample, { moving: progress < 1, progress: progress, actor: actor });
+      return Object.assign(sample, { moving: progress < 1, progress: progress, serverNow: serverNow, actor: actor });
     }
 
     return Object.freeze({ accept: accept, sample: sample, snapshot: function () { return current; } });
@@ -202,6 +204,10 @@
         return "運動中 · " + room;
       case "mirror_pose":
         return (MIRROR_POSES[actor.active_pose] || "ポーズ中") + " · " + (actor.mirror_pose_completions || 0) + "回 · " + room;
+      case "fashion_show":
+        return "ファッションショー中 · " + room;
+      case "reading":
+        return "読書中 · " + room;
       default:
         return "待機 · " + room;
     }

@@ -135,7 +135,20 @@ test("accepts only snapshots pinned to the shipped HOUSE and valid actor state",
   assert.throws(() => worldHome.validateSnapshot({ ...snapshot(valid), scene_sha256: "0".repeat(64) }), /HOUSE hash/);
   assert.throws(() => worldHome.validateSnapshot(snapshot({ ...valid, position: [0, NaN, 2] })), /location/);
   assert.throws(() => worldHome.validateSnapshot(snapshot({ ...valid, active_pose: "mirror-made-up" })), /active_pose/);
+  for (const active_pose of ["mirror-crossed-arms", "mirror-hand-near-face"]) {
+    assert.equal(worldHome.validateSnapshot(snapshot({ ...valid, active_pose })).actors[0].active_pose, active_pose);
+  }
   assert.throws(() => worldHome.validateSnapshot({ ...snapshot(valid), observed_at: "November 14, 2026" }), /observed_at/);
+  for (const [id, active_kind] of [["mio", "fashion_show"], ["midori", "reading"]]) {
+    assert.equal(worldHome.validateSnapshot(snapshot({ id, room_id: "living", position: [0, 0, 0], active_kind })).actors[0].active_kind, active_kind);
+  }
+});
+
+test("WORLD sample exposes server time derived from observed_at and monotonic receipt time", () => {
+  const timeline = worldHome.createTimeline();
+  timeline.accept(snapshot({ id: "mio", room_id: "living", position: [0, 0, 0], active_kind: "fashion_show" }), 1000);
+  assert.equal(timeline.sample("mio", 1000).serverNow, Date.parse(observedAt));
+  assert.equal(timeline.sample("mio", 2750).serverNow, Date.parse(observedAt) + 1750);
 });
 
 test("interpolates a moving actor by arc length on the measured path and holds its endpoint", () => {
@@ -161,6 +174,8 @@ test("interpolates a moving actor by arc length on the measured path and holds i
 test("keeps room and activity labels tied to the owner receipt, including mirror completion count", () => {
   assert.equal(worldHome.describeActor({ id: "mio", room_id: "upper-room-2-2", active_kind: "move", target_room_id: "upper-room-2-3" }), "移動中 → 2F 個室 3");
   assert.equal(worldHome.describeActor({ id: "shiro", room_id: "living", active_kind: "mirror_pose", active_pose: "mirror-greeting", mirror_pose_completions: 4 }), "挨拶 · 4回 · 1F リビング");
+  assert.equal(worldHome.describeActor({ id: "mio", room_id: "living", active_kind: "fashion_show" }), "ファッションショー中 · 1F リビング");
+  assert.equal(worldHome.describeActor({ id: "midori", room_id: "living", active_kind: "reading" }), "読書中 · 1F リビング");
   assert.equal(worldHome.describeActor({ id: "gin", room_id: "attic-window", active_kind: "sleep" }), "睡眠中 · 屋根裏 窓辺");
 });
 

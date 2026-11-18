@@ -423,6 +423,10 @@
     var expectedImages = RESIDENT_IDS.length * CARDINAL.length;
     var imageTextures = Object.create(null);
     var imageCache = new Map();
+    var hobbyTextureCache = new Map();
+    var hobbyTextureFailures = new Map();
+    var hobbyCatalogLoader = null;
+    var hobbyCatalog = null;
     var seats = new Map();
     var worktops = new Map();
     var demonstration = null;
@@ -807,6 +811,85 @@
       return imageCache.get(key);
     }
 
+    function loadHobbyCatalog() {
+      if (!global.houseHobbyMotion) return Promise.resolve(null);
+      if (!hobbyCatalogLoader) {
+        var version = options.assetVersion ? "?v=" + encodeURIComponent(options.assetVersion) : "";
+        hobbyCatalogLoader = global.houseHobbyMotion.createCatalogLoader(function () {
+          if (typeof global.fetch !== "function") throw new Error("Hobby catalog fetch unavailable");
+          return global.fetch(ASSET_ROOT + "hobbies/catalog.json" + version).then(function (response) {
+            if (!response.ok) throw new Error("Hobby catalog unavailable");
+            return response.json();
+          });
+        }, 2);
+      }
+      return hobbyCatalogLoader.load().then(function (catalog) {
+        if (catalog && hobbyCatalog !== catalog) {
+          hobbyCatalog = catalog;
+          if (worldHomeMode) updateResidentWorldPositions();
+        }
+        return catalog;
+      });
+    }
+
+    function hobbyTexture(asset) {
+      if (!asset || typeof asset.id !== "string" || typeof asset.image_path !== "string") return null;
+      if ((hobbyTextureFailures.get(asset.id) || 0) >= 2) return null;
+      if (!hobbyTextureCache.has(asset.id)) {
+        var image = new global.Image();
+        var version = options.assetVersion ? "?v=" + encodeURIComponent(options.assetVersion) : "";
+        image.src = ASSET_ROOT + "hobbies/" + asset.image_path + version;
+        var pending = image.decode().then(function () { return textureFrom(image); }).catch(function () {
+          hobbyTextureCache.delete(asset.id);
+          hobbyTextureFailures.set(asset.id, (hobbyTextureFailures.get(asset.id) || 0) + 1);
+          return null;
+        });
+        hobbyTextureCache.set(asset.id, pending);
+      }
+      return hobbyTextureCache.get(asset.id);
+    }
+
+    function setWorldHobbyTexture(resident, actor, asset) {
+      if (!asset || !global.houseHobbyMotion || !hobbyCatalog) return false;
+      var key = [asset.id, actor.activity_started_at || "", actor.active_pose || ""].join("|");
+      if (resident.hobbyKey === key) return true;
+      if (!resident.hobbyLoadState) resident.hobbyLoadState = global.houseHobbyMotion.createLoadState(2);
+      var token = resident.hobbyLoadState.begin(key);
+      if (!token) return false;
+      resident.hobbyKey = key;
+      resident.hobbyAssetId = asset.id;
+      updateSpriteTexture(resident, resident.direction, null);
+      var pending = hobbyTexture(asset);
+      if (!pending) {
+        resident.hobbyLoadState.fail(token);
+        resident.hobbyKey = null;
+        resident.hobbyAssetId = null;
+        return false;
+      }
+      Promise.resolve(pending).then(function (texture) {
+        if (!worldHomeMode || !resident.hobbyLoadState.isCurrent(token) || !resident.mesh) return;
+        var sample = worldHomeTimeline && worldHomeTimeline.sample(resident.id, currentTime());
+        if (!sample || sample.actor.active_kind !== actor.active_kind ||
+            sample.actor.activity_started_at !== actor.activity_started_at ||
+            (actor.active_kind === "mirror_pose" && sample.actor.active_pose !== actor.active_pose)) return;
+        if (!texture) {
+          resident.hobbyLoadState.fail(token);
+          resident.hobbyKey = null;
+          resident.hobbyAssetId = null;
+          updateSpriteTexture(resident, resident.direction, null);
+          return;
+        }
+        setSpriteTexture(resident, texture);
+      });
+      return true;
+    }
+
+    function clearWorldHobby(resident) {
+      if (resident.hobbyKey && resident.hobbyLoadState) resident.hobbyLoadState.clear();
+      resident.hobbyKey = null;
+      resident.hobbyAssetId = null;
+    }
+
     function motionCanvas(resident, width, height) {
       if (!resident.motionCanvas) {
         var surface = global.document.createElement("canvas");
@@ -875,6 +958,7 @@
     }
 
     function loadSprites() {
+      loadHobbyCatalog();
       if (typeof global.Image !== "function") {
         failedImageCount = expectedImages;
         return;
@@ -1796,6 +1880,7 @@
         worldResidents.forEach(function (resident) {
           var sample = worldHomeTimeline && worldHomeTimeline.sample(resident.id, currentTime());
           if (!sample || !modelLoaded || !houseAssetVerified) {
+            clearWorldHobby(resident);
             clearLivingProps(resident);
             resident.group.visible = false;
             if (resident.locationLabel) resident.locationLabel.visible = false;
@@ -1823,12 +1908,23 @@
             resident.mesh.position.set(0, 0, 0);
             resident.mesh.quaternion.copy(camera.quaternion);
             var seated = renderLivingSeat(resident, actor);
+            if (seated) clearWorldHobby(resident);
             if (!seated) clearLivingProps(resident);
+            var hobbyAsset = null;
+            if (!seated && actor.active_kind !== "move" && actor.active_kind !== "sleep" &&
+                global.houseHobbyMotion && hobbyCatalog && Number.isFinite(sample.serverNow)) {
+              hobbyAsset = global.houseHobbyMotion.selectAsset(hobbyCatalog, actor, sample.serverNow);
+            }
             if (!seated && actor.active_kind === "sleep" && imageTextures[resident.id] && imageTextures[resident.id].sleep) {
+              clearWorldHobby(resident);
               setSpriteTexture(resident, imageTextures[resident.id].sleep);
               resident.mesh.position.y = 0;
               resident.walking = false;
+            } else if (!seated && hobbyAsset && setWorldHobbyTexture(resident, actor, hobbyAsset)) {
+              resident.mesh.position.y = 0;
+              resident.walking = false;
             } else if (!seated) {
+              clearWorldHobby(resident);
               updateSpriteTexture(resident, resident.direction, sample.moving ? sample.distance : null);
               resident.walking = Boolean(sample.moving);
             }
@@ -2264,6 +2360,7 @@
         worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
         residents.forEach(function (resident) { resident.group.visible = false; });
       } else {
+        worldResidents.forEach(clearWorldHobby);
         worldHomeTimeline = global.houseWorldHome ? global.houseWorldHome.createTimeline() : null;
         updateResidentWorldPositions();
       }
@@ -2278,6 +2375,7 @@
       } catch (error) {
         return false;
       }
+      if (!hobbyCatalog) loadHobbyCatalog();
       updateResidentWorldPositions();
       return true;
     }

@@ -125,7 +125,7 @@ func TestLivingPageUsesVersionedAssetsAndConfiguredBoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "world-home.js", "scene.js", "living.js"} {
+	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "world-home.js", "hobby-motion.js", "scene.js", "living.js"} {
 		assetURL := "/assets/living/" + name + "?v=" + version
 		if !strings.Contains(page.Body.String(), `"`+assetURL+`"`) {
 			t.Errorf("living page is missing %q", assetURL)

@@ -1,0 +1,284 @@
+{
+  "character": "Kuro",
+  "assets": [
+    {
+      "id": "kuro-check",
+      "character": "Kuro",
+      "activity": "mirror-pose",
+      "outfit": "existing_black_purple_gold",
+      "pose": "check",
+      "phase": "start",
+      "display_order": 1,
+      "image_path": "Kuro/sprites/kuro-mirror-check-start.png",
+      "original_image_path": "Kuro/originals/kuro-mirror-check-start.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        63,
+        18,
+        257,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          623.0,
+          1059
+        ],
+        "uniform_scale": 0.3409090909090909,
+        "status": "numerically_aligned_furniture_not_verified"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用"
+      ]
+    },
+    {
+      "id": "kuro-crossed",
+      "character": "Kuro",
+      "activity": "mirror-pose",
+      "outfit": "existing_black_purple_gold",
+      "pose": "crossed",
+      "phase": "active",
+      "display_order": 2,
+      "image_path": "Kuro/sprites/kuro-crossed-arms.png",
+      "original_image_path": "Kuro/originals/kuro-crossed-arms.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        66,
+        18,
+        261,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          618.0,
+          1057
+        ],
+        "uniform_scale": 0.3412969283276451,
+        "status": "numerically_aligned_furniture_not_verified"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用"
+      ]
+    },
+    {
+      "id": "kuro-hip",
+      "character": "Kuro",
+      "activity": "mirror-pose",
+      "outfit": "existing_black_purple_gold",
+      "pose": "hip",
+      "phase": "active",
+      "display_order": 3,
+      "image_path": "Kuro/sprites/kuro-mirror-hand-on-hip-active.png",
+      "original_image_path": "Kuro/originals/kuro-mirror-hand-on-hip-active.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        67,
+        18,
+        261,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          618.0,
+          1059
+        ],
+        "uniform_scale": 0.33975084937712347,
+        "status": "numerically_aligned_furniture_not_verified"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用"
+      ]
+    },
+    {
+      "id": "kuro-face",
+      "character": "Kuro",
+      "activity": "mirror-pose",
+      "outfit": "existing_black_purple_gold",
+      "pose": "face",
+      "phase": "active",
+      "display_order": 4,
+      "image_path": "Kuro/sprites/kuro-mirror-hand-near-face-active.png",
+      "original_image_path": "Kuro/originals/kuro-mirror-hand-near-face-active.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        66,
+        19,
+        260,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          618.0,
+          1059
+        ],
+        "uniform_scale": 0.3393665158371041,
+        "status": "numerically_aligned_furniture_not_verified"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用"
+      ]
+    },
+    {
+      "id": "kuro-satisfied",
+      "character": "Kuro",
+      "activity": "mirror-pose",
+      "outfit": "existing_black_purple_gold",
+      "pose": "satisfied",
+      "phase": "end",
+      "display_order": 5,
+      "image_path": "Kuro/sprites/kuro-mirror-satisfied-end.png",
+      "original_image_path": "Kuro/originals/kuro-mirror-satisfied-end.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        66,
+        18,
+        261,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          619.0,
+          1059
+        ],
+        "uniform_scale": 0.3401360544217687,
+        "status": "numerically_aligned_furniture_not_verified"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用"
+      ]
+    }
+  ],
+  "playback": {
+    "suggested_order": [
+      "kuro-check",
+      "kuro-crossed",
+      "kuro-hip",
+      "kuro-face",
+      "kuro-satisfied"
+    ],
+    "loops": [
+      {
+        "name": "pose-switch",
+        "asset_ids": [
+          "kuro-crossed",
+          "kuro-hip",
+          "kuro-face"
+        ],
+        "repeat": true,
+        "note": "姿勢を保持して切替。滑らかな連続動作ではない"
+      }
+    ],
+    "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+  },
+  "previews": [
+    "Kuro/previews/Kuro_mirror_review.png",
+    "Kuro/previews/Kuro_start_progress.png"
+  ],
+  "editable_files": [
+    "Kuro/editable/Kuro_pose_layers.ora"
+  ]
+}

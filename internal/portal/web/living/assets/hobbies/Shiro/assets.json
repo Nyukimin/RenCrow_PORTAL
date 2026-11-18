@@ -1,0 +1,356 @@
+{
+  "character": "Shiro",
+  "assets": [
+    {
+      "id": "shiro-dumbbell-low",
+      "character": "Shiro",
+      "activity": "exercise",
+      "outfit": "shirtless_existing_white_slacks_barefoot",
+      "pose": "dumbbell-low",
+      "phase": "start",
+      "display_order": 1,
+      "image_path": "Shiro/sprites/shiro-dumbbell-low.png",
+      "original_image_path": "Shiro/originals/shiro-dumbbell-low.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        82,
+        17,
+        241,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          623.5,
+          1205
+        ],
+        "uniform_scale": 0.2613240418118467,
+        "status": "visually_checked_nearest_contact_only"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+        "立位から床への移動・ダンベルを置く動作は未制作"
+      ]
+    },
+    {
+      "id": "shiro-double-biceps-reference",
+      "character": "Shiro",
+      "activity": "exercise",
+      "outfit": "shirtless_existing_white_slacks_barefoot",
+      "pose": "double-biceps-reference",
+      "phase": "active",
+      "display_order": 2,
+      "image_path": "Shiro/sprites/shiro-double-biceps-reference.png",
+      "original_image_path": "Shiro/originals/shiro-double-biceps-reference.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        81,
+        17,
+        242,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          623.0,
+          1205
+        ],
+        "uniform_scale": 0.2613240418118467,
+        "status": "visually_checked_nearest_contact_only"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+        "立位から床への移動・ダンベルを置く動作は未制作"
+      ]
+    },
+    {
+      "id": "shiro-dumbbell-high",
+      "character": "Shiro",
+      "activity": "exercise",
+      "outfit": "shirtless_existing_white_slacks_barefoot",
+      "pose": "dumbbell-high",
+      "phase": "active",
+      "display_order": 3,
+      "image_path": "Shiro/sprites/shiro-dumbbell-high.png",
+      "original_image_path": "Shiro/originals/shiro-dumbbell-high.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        81,
+        17,
+        241,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          624.5,
+          1205
+        ],
+        "uniform_scale": 0.2613240418118467,
+        "status": "visually_checked_nearest_contact_only"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+        "立位から床への移動・ダンベルを置く動作は未制作"
+      ]
+    },
+    {
+      "id": "shiro-pushup-up",
+      "character": "Shiro",
+      "activity": "exercise",
+      "outfit": "shirtless_existing_white_slacks_barefoot",
+      "pose": "pushup-up",
+      "phase": "active",
+      "display_order": 4,
+      "image_path": "Shiro/sprites/shiro-pushup-up.png",
+      "original_image_path": "Shiro/originals/shiro-pushup-up.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        26,
+        88,
+        283,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          627.0,
+          1103
+        ],
+        "uniform_scale": 0.225,
+        "status": "visually_checked_nearest_contact_only"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+        "立位から床への移動・ダンベルを置く動作は未制作"
+      ]
+    },
+    {
+      "id": "shiro-pushup-down",
+      "character": "Shiro",
+      "activity": "exercise",
+      "outfit": "shirtless_existing_white_slacks_barefoot",
+      "pose": "pushup-down",
+      "phase": "active",
+      "display_order": 5,
+      "image_path": "Shiro/sprites/shiro-pushup-down.png",
+      "original_image_path": "Shiro/originals/shiro-pushup-down.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        25,
+        148,
+        285,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          627.0,
+          1135
+        ],
+        "uniform_scale": 0.225,
+        "status": "visually_checked_nearest_contact_only"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+        "立位から床への移動・ダンベルを置く動作は未制作"
+      ]
+    },
+    {
+      "id": "shiro-end-relax",
+      "character": "Shiro",
+      "activity": "exercise",
+      "outfit": "shirtless_existing_white_slacks_barefoot",
+      "pose": "end-relax",
+      "phase": "end",
+      "display_order": 6,
+      "image_path": "Shiro/sprites/shiro-end-relax.png",
+      "original_image_path": "Shiro/originals/shiro-end-relax.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        82,
+        17,
+        241,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          623.5,
+          1205
+        ],
+        "uniform_scale": 0.2613240418118467,
+        "status": "visually_checked_nearest_contact_only"
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "腕立ての全ての手・つま先支持点は完全固定でなく数pxの滑りが残る",
+        "立位から床への移動・ダンベルを置く動作は未制作"
+      ]
+    }
+  ],
+  "playback": {
+    "suggested_order": [
+      "shiro-dumbbell-low",
+      "shiro-double-biceps-reference",
+      "shiro-dumbbell-high",
+      "shiro-pushup-up",
+      "shiro-pushup-down",
+      "shiro-end-relax"
+    ],
+    "loops": [
+      {
+        "name": "dumbbell",
+        "asset_ids": [
+          "shiro-dumbbell-low",
+          "shiro-dumbbell-high",
+          "shiro-dumbbell-low"
+        ],
+        "repeat": true
+      },
+      {
+        "name": "pushup",
+        "asset_ids": [
+          "shiro-pushup-up",
+          "shiro-pushup-down",
+          "shiro-pushup-up"
+        ],
+        "repeat": true
+      }
+    ],
+    "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+  },
+  "previews": [
+    "Shiro/previews/Shiro_dumbbell_progress.png",
+    "Shiro/previews/Shiro_exercise_review.png",
+    "Shiro/previews/Shiro_sequence_preview.gif"
+  ],
+  "editable_files": [
+    "Shiro/editable/Shiro_frame_layers.ora"
+  ]
+}

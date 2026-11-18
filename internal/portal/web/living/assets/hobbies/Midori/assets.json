@@ -1,0 +1,311 @@
+{
+  "character": "Midori",
+  "assets": [
+    {
+      "id": "midori-open",
+      "character": "Midori",
+      "activity": "reading",
+      "outfit": "existing_white_green_floral",
+      "pose": "open",
+      "phase": "start",
+      "display_order": 1,
+      "image_path": "Midori/sprites/midori-reading-open-start.png",
+      "original_image_path": "Midori/originals/midori-reading-open-start.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        87,
+        18,
+        267,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          584.5,
+          1021
+        ],
+        "uniform_scale": 0.351288056206089,
+        "status": "feet_aligned_seat_requires_room_check",
+        "seat_estimate_px": [
+          180,
+          225
+        ]
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "座面基準は推定値。足元と座面の同時厳密固定は未達"
+      ]
+    },
+    {
+      "id": "midori-read",
+      "character": "Midori",
+      "activity": "reading",
+      "outfit": "existing_white_green_floral",
+      "pose": "read",
+      "phase": "active",
+      "display_order": 2,
+      "image_path": "Midori/sprites/midori-read-active.png",
+      "original_image_path": "Midori/originals/midori-read-active.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        89,
+        19,
+        269,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          580.5,
+          1018
+        ],
+        "uniform_scale": 0.352112676056338,
+        "status": "feet_aligned_seat_requires_room_check",
+        "seat_estimate_px": [
+          180,
+          225
+        ]
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "座面基準は推定値。足元と座面の同時厳密固定は未達"
+      ]
+    },
+    {
+      "id": "midori-page",
+      "character": "Midori",
+      "activity": "reading",
+      "outfit": "existing_white_green_floral",
+      "pose": "page",
+      "phase": "active",
+      "display_order": 3,
+      "image_path": "Midori/sprites/midori-reading-page-turn-active.png",
+      "original_image_path": "Midori/originals/midori-reading-page-turn-active.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        88,
+        18,
+        271,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          579.0,
+          1018
+        ],
+        "uniform_scale": 0.3525264394829612,
+        "status": "feet_aligned_seat_requires_room_check",
+        "seat_estimate_px": [
+          180,
+          225
+        ]
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "座面基準は推定値。足元と座面の同時厳密固定は未達"
+      ]
+    },
+    {
+      "id": "midori-smile",
+      "character": "Midori",
+      "activity": "reading",
+      "outfit": "existing_white_green_floral",
+      "pose": "smile",
+      "phase": "active",
+      "display_order": 4,
+      "image_path": "Midori/sprites/midori-smile-active.png",
+      "original_image_path": "Midori/originals/midori-smile-active.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        86,
+        18,
+        270,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          579.0,
+          1155
+        ],
+        "uniform_scale": 0.27958993476234856,
+        "status": "feet_aligned_seat_requires_room_check",
+        "seat_estimate_px": [
+          180,
+          225
+        ]
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "座面基準は推定値。足元と座面の同時厳密固定は未達"
+      ]
+    },
+    {
+      "id": "midori-hug",
+      "character": "Midori",
+      "activity": "reading",
+      "outfit": "existing_white_green_floral",
+      "pose": "hug",
+      "phase": "end",
+      "display_order": 5,
+      "image_path": "Midori/sprites/midori-reading-hug-book-end.png",
+      "original_image_path": "Midori/originals/midori-reading-hug-book-end.png",
+      "dimensions_px": [
+        320,
+        320
+      ],
+      "original_dimensions_px": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_range": [
+        0,
+        255
+      ],
+      "visible_bbox_alpha_gt32": [
+        89,
+        18,
+        270,
+        318
+      ],
+      "reference_position": {
+        "coordinate_system": "image pixels, origin top-left; x right, y down; bbox right/bottom exclusive",
+        "target_anchor_px": [
+          160,
+          318
+        ],
+        "source_anchor_px": [
+          580.0,
+          1018
+        ],
+        "uniform_scale": 0.351288056206089,
+        "status": "feet_aligned_seat_requires_room_check",
+        "seat_estimate_px": [
+          180,
+          225
+        ]
+      },
+      "constraints": [
+        "生成による装飾・輪郭・表情細部の差が残る",
+        "輪郭外に微小な半透明画素が残る",
+        "既存家具との配置・遮蔽・実表示縮尺は未検証",
+        "ORAはポーズ単位の統合ラスターレイヤー。線画・塗り・身体パーツ別ではない",
+        "姿勢間の中割りは未制作。静止画切替用",
+        "座面基準は推定値。足元と座面の同時厳密固定は未達"
+      ]
+    }
+  ],
+  "playback": {
+    "suggested_order": [
+      "midori-open",
+      "midori-read",
+      "midori-page",
+      "midori-read",
+      "midori-smile",
+      "midori-read",
+      "midori-hug"
+    ],
+    "loops": [
+      {
+        "name": "read-page",
+        "asset_ids": [
+          "midori-read",
+          "midori-page",
+          "midori-read"
+        ],
+        "repeat": true
+      }
+    ],
+    "timing_status": "実装用確定タイミングなし。GIFは確認用のみ"
+  },
+  "previews": [
+    "Midori/previews/Midori_reading_preview.gif",
+    "Midori/previews/Midori_reading_review.png",
+    "Midori/previews/Midori_start_progress.png"
+  ],
+  "editable_files": [
+    "Midori/editable/Midori_pose_layers.ora"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "archive": "1-LIVING_hobbies_Mio_Shiro_JSON_v1.zip",
+      "sha256": "85e113f2401893185ba9b63d008e109add0b0718d4ba45ad9a3b2ab22a60e455",
+      "entries_verified": 39
+    },
+    {
+      "archive": "2-LIVING_hobbies_Kuro_Midori_JSON_v1.zip",
+      "sha256": "98e7735eb49feed9add8c7a78e6f886c527829f83b312b8a2417c07e29616922",
+      "entries_verified": 34
+    }
+  ]
+}

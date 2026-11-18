@@ -172,12 +172,31 @@ func NewHandler(cfg Config) (http.Handler, error) {
 // Fingerprint the small assets that must update together on /living.
 func livingAssetVersion() (string, error) {
 	digest := sha256.New()
-	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "world-home.js", "scene.js", "living.js"} {
+	for _, name := range []string{"living.css", "assets/house-data.js", "sd-motion.js", "world-home.js", "hobby-motion.js", "scene.js", "living.js"} {
 		file, err := webFiles.ReadFile("web/living/" + name)
 		if err != nil {
 			return "", fmt.Errorf("リビングのアセット %s を読む: %w", name, err)
 		}
 		_, _ = digest.Write(file)
+	}
+	// Bind the catalog and its PNG frames to the same cache version as the
+	// renderer, including future wardrobe and pose additions.
+	if err := fs.WalkDir(webFiles, "web/living/assets/hobbies", func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		file, err := webFiles.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		_, _ = digest.Write([]byte(name))
+		_, _ = digest.Write(file)
+		return nil
+	}); err != nil {
+		return "", fmt.Errorf("趣味のアセットを読む: %w", err)
 	}
 	return hex.EncodeToString(digest.Sum(nil)[:12]), nil
 }
