@@ -26,7 +26,10 @@
     },
   ];
   const titleNames = Object.fromEntries(gameCatalog.map(game => [game.id, game.title]));
-  const actorNames = {mio: 'Mio', shiro: 'Shiro', kuro: 'Kuro', midori: 'Midori'};
+  const actorNames = {mio: 'Mio', shiro: 'Shiro', kuro: 'Kuro', midori: 'Midori', aka: 'Aka', ao: 'Ao', kin: 'Kin', gin: 'Gin'};
+  const knownActorIDs = new Set(Object.keys(actorNames));
+  const fourPlayerGameIDs = new Set(['survival_garden', 'herzog_zwei']);
+  const fourPlayerPersonas = ['aka', 'ao', 'kin', 'gin'];
   const state = {
     gameID: 'nethack',
     supportedGames: new Set(),
@@ -41,6 +44,9 @@
   const catalog = document.getElementById('gamesCatalog');
   const form = document.getElementById('gamesLaunchForm');
   const agentSelect = document.getElementById('gamesAgentSelect');
+  const singleAgentField = document.getElementById('gamesSingleAgentField');
+  const fourPlayerRoster = document.getElementById('gamesFourPlayerRoster');
+  const rosterGuidance = document.getElementById('gamesRosterGuidance');
   const turnsInput = document.getElementById('gamesTurns');
   const reasonInput = document.getElementById('gamesReason');
   const launchButton = document.getElementById('gamesLaunchButton');
@@ -55,12 +61,17 @@
   const startOverButton = document.getElementById('gamesStartOverButton');
   const agentSpeech = document.getElementById('gamesAgentSpeech');
   const stagePanel = document.querySelector('.games-stage-panel');
+  const returnLivingLink = document.getElementById('gamesReturnLiving');
   const routeParams = new URLSearchParams(window.location.search);
   const requestedSession = routeParams.get('session');
   const requestedGame = routeParams.get('game');
   const requestedPersona = routeParams.get('persona');
   const hasRequestedSession = requestedSession !== null || requestedGame !== null || requestedPersona !== null;
   let requestedSessionHandled = false;
+
+  function isKnownActor(actor) {
+    return typeof actor === 'string' && knownActorIDs.has(actor);
+  }
 
   function setOperation(message, isError = false) {
     operationStatus.textContent = message || '';
@@ -80,6 +91,34 @@
   function updateGameGuidance() {
     const game = gameCatalog.find(item => item.id === state.gameID);
     if (game) reasonInput.placeholder = game.reasonPlaceholder;
+    const fourPlayer = fourPlayerGameIDs.has(state.gameID);
+    if (singleAgentField) singleAgentField.hidden = fourPlayer;
+    if (fourPlayerRoster) fourPlayerRoster.hidden = !fourPlayer;
+    if (rosterGuidance) rosterGuidance.textContent = fourPlayer ? 'Aka・Ao・Kin・Ginの4 Agentで遊びます' : '1 Agentで遊びます';
+  }
+
+  function sessionPersonas(session) {
+    if (!session || typeof session !== 'object') return [];
+    if (Array.isArray(session.personas)) {
+      if (!session.personas.length || session.personas.some(persona => !isKnownActor(persona) || !persona.trim()) ||
+          new Set(session.personas).size !== session.personas.length ||
+          (session.persona !== undefined && (!isKnownActor(session.persona) || !session.personas.includes(session.persona)))) return [];
+      return session.personas.slice();
+    }
+    return isKnownActor(session.persona) ? [session.persona] : [];
+  }
+
+  function sessionActorLabel(session) {
+    const personas = sessionPersonas(session);
+    return personas.length ? personas.map(persona => actorNames[persona]).join('・') : 'Agent';
+  }
+
+  function updateLivingReturnLink(persona) {
+    if (!returnLivingLink) return;
+    const url = new URL('/living', window.location.origin);
+    url.searchParams.set('view', 'workplace');
+    if (isKnownActor(persona)) url.searchParams.set('person', persona);
+    returnLivingLink.href = `${url.pathname}${url.search}`;
   }
 
   async function requestJSON(path, options = {}) {
@@ -174,7 +213,7 @@
     const name = document.createElement('strong');
     name.textContent = titleNames[session.game_id] || session.title || session.game_id || 'Game';
     const detail = document.createElement('span');
-    detail.textContent = `${actorNames[session.persona] || session.persona || 'Agent'} · turn ${Number(session.turn || 0)} · ${session.status || 'unknown'}`;
+    detail.textContent = `${sessionActorLabel(session)} · turn ${Number(session.turn || 0)} · ${session.status || 'unknown'}`;
     button.append(name, detail);
     button.addEventListener('click', () => selectSession(session));
     return button;
@@ -197,10 +236,15 @@
     state.selectedSession = session;
     state.frameCount = 0;
     stageTitle.textContent = titleNames[session.game_id] || session.title || session.game_id || 'Game';
-    stageSession.textContent = `${state.selectedSessionID} · ${actorNames[session.persona] || session.persona || 'Agent'}`;
+    const personas = sessionPersonas(session);
+    const linkedPersona = requestedPersona && personas.includes(requestedPersona)
+      ? requestedPersona
+      : (session.persona && personas.includes(session.persona) ? session.persona : personas[0]);
+    stageSession.textContent = `${state.selectedSessionID} · ${sessionActorLabel(session)}`;
+    updateLivingReturnLink(linkedPersona);
     screenShell.classList.add('has-session');
     updateSessionActions();
-    setOverlayAgent(session.persona || agentSelect.value);
+    setOverlayAgent(linkedPersona || session.persona || agentSelect.value);
     observerFrame.src = `/viewer/games/observer?session=${encodeURIComponent(state.selectedSessionID)}&game=${encodeURIComponent(session.game_id || '')}`;
     renderSessions();
     refreshSelectedFrames();
@@ -208,7 +252,7 @@
 
   function requestedGameSession(payload) {
     if (!hasRequestedSession) return { state: 'none' };
-    if (!requestedSession || !requestedGame || !requestedPersona || payload?.ok !== true ||
+    if (!requestedSession || !requestedGame || !isKnownActor(requestedPersona) || payload?.ok !== true ||
         payload?.source !== 'local_observer' || !Array.isArray(payload?.active_agent_sessions)) {
       return { state: 'invalid' };
     }
@@ -218,6 +262,8 @@
       Array.isArray(session.personas) && session.personas.length > 0 &&
       session.personas.every(persona => typeof persona === 'string' && persona.trim()) &&
       new Set(session.personas).size === session.personas.length &&
+      session.personas.every(isKnownActor) &&
+      (session.persona === undefined || (isKnownActor(session.persona) && session.personas.includes(session.persona))) &&
       (session.status === 'launching' || session.status === 'running')
     );
     if (!activeSessionsValid) return { state: 'invalid' };
@@ -232,6 +278,7 @@
         session: {
           game_id: activeMatches[0].game_id,
           session_id: activeMatches[0].session_id,
+          personas: activeMatches[0].personas.slice(),
           persona: requestedPersona,
           status: activeMatches[0].status,
           turn: 0,
@@ -245,7 +292,7 @@
       session && session.session_id === requestedSession) : [];
     if (summaries.length !== 1) return { state: 'invalid' };
     const summary = summaries[0];
-    if (summary.game_id !== requestedGame || summary.persona !== requestedPersona || summary.status !== 'completed') {
+    if (summary.game_id !== requestedGame || !sessionPersonas(summary).includes(requestedPersona) || summary.status !== 'completed') {
       return { state: 'invalid' };
     }
     return { state: 'completed', session: summary };
@@ -270,7 +317,7 @@
         const updated = state.sessions.find(session => String(session.session_id) === String(wanted));
         if (updated) {
           state.selectedSession = updated;
-          stageSession.textContent = `${wanted} · ${actorNames[updated.persona] || updated.persona || 'Agent'} · turn ${Number(updated.turn || 0)}`;
+          stageSession.textContent = `${wanted} · ${sessionActorLabel(updated)} · turn ${Number(updated.turn || 0)}`;
         }
       }
       renderSessions();
@@ -322,15 +369,16 @@
     if (state.launchBusy || !state.supportedGames.has(state.gameID)) return;
     state.launchBusy = true;
     updateCatalog();
-    setOperation(`${actorNames[agentSelect.value]}が${titleNames[state.gameID] || state.gameID}を起動中`);
-    setOverlayAgent(agentSelect.value);
+    const personas = fourPlayerGameIDs.has(state.gameID) ? fourPlayerPersonas.slice() : [agentSelect.value];
+    setOperation(`${personas.map(persona => actorNames[persona]).join('・')}が${titleNames[state.gameID] || state.gameID}を起動中`);
+    setOverlayAgent(personas[0]);
     try {
       const turns = Math.max(1, Math.min(500, Number.parseInt(turnsInput.value, 10) || 32));
       const payload = await requestJSON('/api/games/viewer/games/launch', {
         method: 'POST',
         body: JSON.stringify({
           game_id: state.gameID,
-          personas: [agentSelect.value],
+          personas,
           turns,
           reason: reasonInput.value.trim(),
         }),
@@ -341,7 +389,7 @@
       const session = state.sessions.find(item => String(item.session_id) === String(payload.session_id)) || {
         game_id: payload.game_id || state.gameID,
         session_id: payload.session_id,
-        persona: agentSelect.value,
+        personas,
         status: payload.status || 'launching',
         turn: 0,
       };
@@ -377,7 +425,7 @@
       const session = state.sessions.find(item => String(item.session_id) === sessionID) || {
         game_id: state.selectedSession?.game_id || state.gameID,
         session_id: sessionID,
-        persona: state.selectedSession?.persona || agentSelect.value,
+        personas: sessionPersonas(state.selectedSession).length ? sessionPersonas(state.selectedSession) : [agentSelect.value],
         status: result.status || 'launching',
         turn: 0,
       };

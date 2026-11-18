@@ -567,6 +567,8 @@
   function restoreSelection() {
     const params = new URLSearchParams(window.location.search);
     setView(validViews.has(params.get("view")) ? params.get("view") : "lcp", false);
+    const residentID = params.get("person");
+    if (residentID && heartbeatActors.has(residentID)) selectResident(residentID);
   }
 
   houseTab?.addEventListener("click", () => setView("lcp"));

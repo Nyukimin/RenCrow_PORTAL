@@ -3129,6 +3129,10 @@ body.portal-games-mode .games-desk-panel{display:block}
   width:100%;border:1px solid var(--border);border-radius:10px;padding:9px 10px;
   background:rgba(4,10,24,.68);color:var(--t1);font:inherit;resize:vertical;
 }
+.games-four-player-roster{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:9px;border:1px solid var(--border);border-radius:10px;color:var(--t2);font-size:11px}
+.games-four-player-roster[hidden]{display:none}
+.games-four-player-roster legend{padding:0 4px;color:var(--t2);font-size:11px;font-weight:700}
+.games-four-player-roster span{padding:5px 8px;border-radius:8px;background:rgba(95,210,255,.12);color:var(--t1)}
 .games-primary-button{
   min-height:42px;border:1px solid rgba(113,213,255,.42);border-radius:12px;
   color:#fff;background:linear-gradient(135deg,#3f6de1,#1b9ab8);

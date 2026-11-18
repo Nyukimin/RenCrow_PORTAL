@@ -18,7 +18,9 @@ function extract(start, end) {
 }
 
 const catalogDeclaration = extract("  const gameCatalog = [", "  const actorNames =");
+const rosterDeclaration = extract("  const actorNames =", "  const state = {");
 const supportedGameIDs = extract("  function supportedGameIDs(", "  function updateCatalog(");
+const updateGameGuidance = extract("  function updateGameGuidance(", "\n  function sessionPersonas");
 const launchGame = extract("  async function launchGame(", "\n  async function runSessionAction");
 
 function catalog() {
@@ -80,6 +82,26 @@ test("catalog launch capability requires Agent mode and an exact registered ID f
   assert.deepEqual(resolveSupportedGameIDs({ decision_mode: "agent", supported_games: "nethack" }), []);
 });
 
+test("four-player titles expose the fixed four-agent roster while single-agent titles retain their selector", () => {
+  for (const gameID of ["nethack", "survival_garden", "territory_commander", "herzog_zwei"]) {
+    const context = {
+      gameCatalog: catalog(),
+      state: { gameID },
+      reasonInput: { placeholder: "" },
+      fourPlayerGameIDs: new Set(["survival_garden", "herzog_zwei"]),
+      singleAgentField: { hidden: false },
+      fourPlayerRoster: { hidden: true },
+      rosterGuidance: { textContent: "" },
+    };
+    vm.runInNewContext(`${updateGameGuidance}\nupdateGameGuidance();`, context);
+    const fourPlayer = gameID === "survival_garden" || gameID === "herzog_zwei";
+    assert.equal(context.singleAgentField.hidden, fourPlayer);
+    assert.equal(context.fourPlayerRoster.hidden, !fourPlayer);
+    assert.equal(context.rosterGuidance.textContent, fourPlayer
+      ? "Aka・Ao・Kin・Ginの4 Agentで遊びます" : "1 Agentで遊びます");
+  }
+});
+
 test("Agent Play launch sends all four titles without overriding GAMES mode defaults", async () => {
   for (const gameID of ["nethack", "survival_garden", "territory_commander", "herzog_zwei"]) {
     const requests = [];
@@ -92,9 +114,14 @@ test("Agent Play launch sends all four titles without overriding GAMES mode defa
         gameID,
         sessions: [],
       },
-      actorNames: { mio: "Mio" },
+      actorNames: { mio: "Mio", aka: "Aka", ao: "Ao", kin: "Kin", gin: "Gin" },
+      fourPlayerGameIDs: new Set(["survival_garden", "herzog_zwei"]),
+      fourPlayerPersonas: ["aka", "ao", "kin", "gin"],
       titleNames: Object.fromEntries(catalog().map(game => [game.id, game.title])),
       agentSelect: { value: "mio" },
+      singleAgentField: { hidden: false },
+      fourPlayerRoster: { hidden: true },
+      rosterGuidance: { textContent: "" },
       turnsInput: { value: "24" },
       reasonInput: { value: "  Test launch reason  " },
       requestJSON: async (url, options) => {
@@ -116,12 +143,25 @@ test("Agent Play launch sends all four titles without overriding GAMES mode defa
     assert.equal(requests[0].options.method, "POST");
     const body = JSON.parse(requests[0].options.body);
     assert.equal(body.game_id, gameID);
-    assert.deepEqual(body.personas, ["mio"]);
+    assert.deepEqual(body.personas, gameID === "survival_garden" || gameID === "herzog_zwei"
+      ? ["aka", "ao", "kin", "gin"] : ["mio"]);
     assert.equal(body.turns, 24);
     assert.equal(body.reason, "Test launch reason");
     assert.equal(Object.hasOwn(body, "mode"), false, `${gameID} must leave mode selection to GAMES`);
     assert.equal(selectedSessions.length, 1);
     assert.equal(selectedSessions[0].game_id, gameID);
     assert.equal(context.state.launchBusy, false);
+  }
+});
+
+test("Games actor labels include all existing LIVING residents without inventing portrait assets", () => {
+  const context = {};
+  vm.runInNewContext(`${rosterDeclaration}\nresult = actorNames;`, context);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.result)), {
+    mio: "Mio", shiro: "Shiro", kuro: "Kuro", midori: "Midori",
+    aka: "Aka", ao: "Ao", kin: "Kin", gin: "Gin",
+  });
+  for (const actor of ["aka", "ao", "kin", "gin"]) {
+    assert.match(html, new RegExp(`data-persona="${actor}"`));
   }
 });

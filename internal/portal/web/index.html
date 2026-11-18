@@ -197,9 +197,9 @@
             <form id="gamesLaunchForm" class="games-launch-form">
               <div class="games-section-title">
                 <span>2</span>
-                <div><strong>Agent</strong><small>1 Agentで遊びます</small></div>
+                <div><strong>Agent</strong><small id="gamesRosterGuidance">1 Agentで遊びます</small></div>
               </div>
-              <label>
+              <label id="gamesSingleAgentField">
                 操作するAgent
                 <select id="gamesAgentSelect" name="persona">
                   <option value="mio">Mio</option>
@@ -208,6 +208,13 @@
                   <option value="midori">Midori</option>
                 </select>
               </label>
+              <fieldset id="gamesFourPlayerRoster" class="games-four-player-roster" hidden>
+                <legend>参加Agent（固定ロスター）</legend>
+                <span data-persona="aka">Aka</span>
+                <span data-persona="ao">Ao</span>
+                <span data-persona="kin">Kin</span>
+                <span data-persona="gin">Gin</span>
+              </fieldset>
               <label>
                 最大turn
                 <input id="gamesTurns" name="turns" type="number" min="1" max="500" value="32">
@@ -240,7 +247,7 @@
               <div class="games-session-actions">
                 <button id="gamesRetryButton" type="button" disabled>Retry</button>
                 <button id="gamesStartOverButton" type="button" disabled>Start over</button>
-                <a class="games-return-living" href="/living?view=workplace">LIVINGに戻る</a>
+                <a id="gamesReturnLiving" class="games-return-living" href="/living?view=workplace">LIVINGに戻る</a>
               </div>
             </div>
             <div class="games-screen-shell">
