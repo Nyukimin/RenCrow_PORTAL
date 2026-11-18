@@ -19,12 +19,14 @@ function extract(source, start, end) {
 }
 
 const activeGamesForResident = extract(livingSource, "  function activeGamesForResident(", "\n  function showGameStatus");
-const requestedActiveSession = extract(gamesSource, "  function requestedActiveSession(", "\n  async function refreshSessions");
+const requestedGameSession = extract(gamesSource, "  function requestedGameSession(", "\n  async function refreshSessions");
+const selectGameSession = extract(gamesSource, "  function selectSession(", "\n  function requestedGameSession");
+const refreshGameSessions = extract(gamesSource, "  async function refreshSessions(", "\n  function validAgentSpeech");
 const activateResident = extract(livingSource, "  async function activateResident(", "\n  function setPaused");
 const gamesURL = extract(livingSource, "  function gamesURL(", "\n  function navigateToActiveGame");
 
-function activePayload(entries) {
-  return { ok: true, source: "local_observer", active_agent_sessions: entries };
+function activePayload(entries, sessions = []) {
+  return { ok: true, source: "local_observer", sessions, active_agent_sessions: entries };
 }
 
 function makeActiveGamesForResident(actors) {
@@ -55,14 +57,14 @@ test("no active match does not infer a game from heartbeat fields", () => {
   assert.deepEqual(JSON.parse(JSON.stringify(context.result)), []);
 });
 
-test("deep link accepts only the exact active session, game, and participating persona", () => {
+test("deep link keeps active-session identity exact and resolves matching completed history", () => {
   const payload = activePayload([
     { game_id: "nethack", session_id: "exact-1", personas: ["mio", "shiro"], status: "running" },
     { game_id: "survival_garden", session_id: "launch-2", personas: ["mio"], status: "launching" },
   ]);
-  function resolve(params) {
-    const context = { hasRequestedSession: true, requestedSession: params.session, requestedGame: params.game, requestedPersona: params.persona, payload };
-    vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, context);
+  function resolve(params, payloadForRoute = payload) {
+    const context = { hasRequestedSession: true, requestedSession: params.session, requestedGame: params.game, requestedPersona: params.persona, payload: payloadForRoute };
+    vm.runInNewContext(`${requestedGameSession}\nresult = requestedGameSession(payload);`, context);
     return JSON.parse(JSON.stringify(context.result));
   }
   assert.deepEqual(resolve({ session: "exact-1", game: "nethack", persona: "shiro" }), {
@@ -72,11 +74,65 @@ test("deep link accepts only the exact active session, game, and participating p
   assert.equal(resolve({ session: "launch-2", game: "survival_garden", persona: "mio" }).session.status, "launching");
   assert.equal(resolve({ session: "exact-1", game: "nethack", persona: "kuro" }).state, "invalid");
   assert.equal(resolve({ session: "exact-1", game: "wrong-game", persona: "mio" }).state, "invalid");
-  const completed = { ok: true, source: "local_observer", active_agent_sessions: [] };
-  const completedContext = { hasRequestedSession: true, requestedSession: "done-3", requestedGame: "nethack", requestedPersona: "mio", payload: completed };
-  vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, completedContext);
-  assert.equal(completedContext.result.state, "invalid");
+  const completedSummary = JSON.parse(fs.readFileSync(
+    path.join(__dirname, "survival_garden_completed_session.json"), "utf8")).sessions[0];
+  const completedPayload = activePayload([], [completedSummary]);
+  const exactCompleted = resolve({ session: completedSummary.session_id, game: "survival_garden", persona: "mio" }, completedPayload);
+  assert.deepEqual(exactCompleted, { state: "completed", session: completedSummary });
+  assert.equal(resolve({ session: completedSummary.session_id, game: "survival_garden", persona: "mio" },
+    activePayload([], [{ ...completedSummary, status: "failed" }])).state, "invalid",
+  "failed history remains an explicit nonmatch for the completed deeplink path");
+  assert.equal(resolve({ session: completedSummary.session_id, game: "wrong-game", persona: "mio" }, completedPayload).state, "invalid");
+  assert.equal(resolve({ session: completedSummary.session_id, game: "survival_garden", persona: "shiro" }, completedPayload).state, "invalid");
+  assert.equal(resolve({ session: "unknown", game: "survival_garden", persona: "mio" }, completedPayload).state, "invalid");
+  assert.equal(resolve({ session: completedSummary.session_id, game: "survival_garden", persona: "mio" },
+    activePayload([{ game_id: "nethack", session_id: completedSummary.session_id, personas: ["mio"], status: "running" }],
+      [completedSummary])).state, "invalid", "conflicting active identity must not fall through to history");
+  assert.equal(resolve({ session: completedSummary.session_id, game: "survival_garden", persona: "mio" },
+    activePayload([], [completedSummary, completedSummary])).state, "invalid", "duplicate exact summaries stay ambiguous");
   assert.equal(resolve({ session: "missing", game: "nethack", persona: "mio" }).state, "invalid");
+});
+
+test("exact completed deeplink selects its canonical summary and opens the matching Observer session", async () => {
+  const payload = JSON.parse(fs.readFileSync(path.join(__dirname, "survival_garden_completed_session.json"), "utf8"));
+  const summary = payload.sessions[0];
+  const state = { sessions: [], selectedSessionID: "", selectedSession: null, frameCount: 0 };
+  const observerFrame = { src: "" };
+  const stageTitle = { textContent: "" };
+  const stageSession = { textContent: "" };
+  const operationMessages = [];
+  const context = {
+    hasRequestedSession: true,
+    requestedSession: summary.session_id,
+    requestedGame: summary.game_id,
+    requestedPersona: summary.persona,
+    requestedSessionHandled: false,
+    state,
+    requestJSON: async () => payload,
+    stagePanel: { scrollIntoView() {} },
+    stageTitle,
+    stageSession,
+    screenShell: { classList: { add() {} } },
+    observerFrame,
+    titleNames: { survival_garden: "Survival Garden" },
+    actorNames: { mio: "Mio" },
+    updateSessionActions() {},
+    setOverlayAgent() {},
+    renderSessions() {},
+    refreshSelectedFrames() {},
+    setOperation: (...args) => operationMessages.push(args),
+  };
+  vm.createContext(context);
+  vm.runInContext(`${requestedGameSession}\n${selectGameSession}\n${refreshGameSessions}`, context);
+  await vm.runInContext("refreshSessions()", context);
+
+  assert.equal(state.selectedSessionID, summary.session_id);
+  assert.equal(state.selectedSession.status, "completed");
+  assert.equal(stageTitle.textContent, "Survival Garden");
+  assert.equal(stageSession.textContent, `${summary.session_id} · Mio · turn 17`);
+  assert.equal(observerFrame.src,
+    `/viewer/games/observer?session=${encodeURIComponent(summary.session_id)}&game=survival_garden`);
+  assert.deepEqual(operationMessages, []);
 });
 
 test("all four registered games keep exact sprite-to-game links for launching and running sessions", async () => {
@@ -92,7 +148,7 @@ test("all four registered games keep exact sprite-to-game links for launching an
         requestedPersona: "mio",
         payload,
       };
-      vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, context);
+      vm.runInNewContext(`${requestedGameSession}\nresult = requestedGameSession(payload);`, context);
       assert.equal(context.result.state, "active", `${gameID} ${status} exact link should resolve`);
       assert.equal(context.result.session.game_id, gameID);
       assert.equal(context.result.session.session_id, sessionID);
@@ -104,7 +160,7 @@ test("all four registered games keep exact sprite-to-game links for launching an
         { requestedPersona: "shiro" },
       ]) {
         const invalid = { ...context, ...mismatch };
-        vm.runInNewContext(`${requestedActiveSession}\nresult = requestedActiveSession(payload);`, invalid);
+        vm.runInNewContext(`${requestedGameSession}\nresult = requestedGameSession(payload);`, invalid);
         assert.equal(invalid.result.state, "invalid", `${gameID} ${status} rejects mismatched deep-link identity`);
       }
 
