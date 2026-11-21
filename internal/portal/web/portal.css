@@ -2241,6 +2241,7 @@ body.room-mode.room-stage .room-mode-switch{
   top:106px;
   right:calc(var(--room-edge) + 8px);
   z-index:38;
+  pointer-events:auto;
   display:flex;
   align-items:center;
   gap:3px;
