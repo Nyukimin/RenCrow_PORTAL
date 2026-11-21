@@ -1447,6 +1447,29 @@ func TestLivingHeartbeatProjectionPreservesOnlyCanonicalCurrentActivity(t *testi
 	}
 }
 
+func TestLivingCurrentActivityAcceptsCanonicalGamePreparationPhase(t *testing.T) {
+	for _, label := range []string{
+		"NetHackを準備中",
+		"Territory Commanderを準備中",
+		"Survival Gardenを準備中",
+		"ヘルツォーク・ツヴァイを準備中",
+		"ゲームを準備中",
+	} {
+		if !validLivingCurrentActivity(livingCurrentActivity{Kind: "game", Label: label, Phase: "preparing", Revision: 1}, "mio") {
+			t.Errorf("CORE GAME preparation descriptor rejected: %q", label)
+		}
+	}
+	for _, activity := range []livingCurrentActivity{
+		{Kind: "game", Label: "NetHackを準備中", Phase: "playing", Revision: 1},
+		{Kind: "game", Label: "NetHackをプレイ中", Phase: "preparing", Revision: 1},
+		{Kind: "game", Label: "未登録ゲームを準備中", Phase: "preparing", Revision: 1},
+	} {
+		if validLivingCurrentActivity(activity, "mio") {
+			t.Errorf("noncanonical GAME phase/label combination accepted: %+v", activity)
+		}
+	}
+}
+
 func TestLivingHeartbeatProjectionAcceptsCanonicalTaskWorkWithoutPrivateContent(t *testing.T) {
 	var body struct {
 		ObservedAt string           `json:"observed_at"`

@@ -609,7 +609,14 @@ func validLivingCurrentActivity(activity livingCurrentActivity, actorID string) 
 	case "moving":
 		return activity.Phase == "in_transit" && activity.Label == "移動中"
 	case "game":
-		return activity.Phase == "playing" && oneOfLivingCurrentActivityLabel(activity.Label, "NetHackをプレイ中", "Territory Commanderをプレイ中", "Survival Gardenをプレイ中", "ヘルツォーク・ツヴァイをプレイ中", "ゲーム中")
+		switch activity.Phase {
+		case "playing":
+			return oneOfLivingCurrentActivityLabel(activity.Label, "NetHackをプレイ中", "Territory Commanderをプレイ中", "Survival Gardenをプレイ中", "ヘルツォーク・ツヴァイをプレイ中", "ゲーム中")
+		case "preparing":
+			return oneOfLivingCurrentActivityLabel(activity.Label, "NetHackを準備中", "Territory Commanderを準備中", "Survival Gardenを準備中", "ヘルツォーク・ツヴァイを準備中", "ゲームを準備中")
+		default:
+			return false
+		}
 	case "evaluating":
 		return activity.Phase == "waiting" && activity.Label == "次の活動を選択中"
 	case "routine":

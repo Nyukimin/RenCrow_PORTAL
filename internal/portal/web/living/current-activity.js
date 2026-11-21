@@ -8,14 +8,14 @@
     rest: Object.freeze(["休憩中"]),
     sleep: Object.freeze(["就寝予定", "就寝中", "起床中", "就寝準備中"]),
     moving: Object.freeze(["移動中"]),
-    game: Object.freeze(["NetHackをプレイ中", "Territory Commanderをプレイ中", "Survival Gardenをプレイ中", "ヘルツォーク・ツヴァイをプレイ中", "ゲーム中"]),
+    game: Object.freeze(["NetHackをプレイ中", "Territory Commanderをプレイ中", "Survival Gardenをプレイ中", "ヘルツォーク・ツヴァイをプレイ中", "ゲーム中", "NetHackを準備中", "Territory Commanderを準備中", "Survival Gardenを準備中", "ヘルツォーク・ツヴァイを準備中", "ゲームを準備中"]),
     evaluating: Object.freeze(["次の活動を選択中"]),
     routine: Object.freeze(["活動中"])
   });
   var phasesByKind = Object.freeze({
     work: Object.freeze(["working"]), chat: Object.freeze(["talking"]), hobby: Object.freeze(["active"]),
     rest: Object.freeze(["resting"]), sleep: Object.freeze(["sleep_window", "sleeping", "waking", "preparing"]),
-    moving: Object.freeze(["in_transit"]), game: Object.freeze(["playing"]),
+    moving: Object.freeze(["in_transit"]), game: Object.freeze(["playing", "preparing"]),
     evaluating: Object.freeze(["waiting"]), routine: Object.freeze(["active"])
   });
   var actorsByName = Object.freeze({
@@ -47,6 +47,13 @@
     if (value.kind === "hobby" && value.label !== "趣味中" && actorID && !(hobbiesByActor[actorID] || []).includes(value.label)) return false;
     if (value.kind === "sleep") {
       return value.label === ({ sleep_window: "就寝予定", sleeping: "就寝中", waking: "起床中", preparing: "就寝準備中" })[value.phase];
+    }
+    if (value.kind === "game") {
+      var gameLabelsByPhase = {
+        playing: ["NetHackをプレイ中", "Territory Commanderをプレイ中", "Survival Gardenをプレイ中", "ヘルツォーク・ツヴァイをプレイ中", "ゲーム中"],
+        preparing: ["NetHackを準備中", "Territory Commanderを準備中", "Survival Gardenを準備中", "ヘルツォーク・ツヴァイを準備中", "ゲームを準備中"]
+      };
+      return gameLabelsByPhase[value.phase].includes(value.label);
     }
     return true;
   }

@@ -87,6 +87,21 @@ function testCanonicalActivityLabelAndWORLDProjectionAreCurated() {
   actors[0].current_activity = currentActivity;
   const activitySandbox = { window: {} };
   vm.runInNewContext(currentActivitySource, activitySandbox);
+  const validCurrentActivity = activitySandbox.window.RenCrowCurrentActivity.isValid;
+  for (const label of [
+    "NetHackを準備中", "Territory Commanderを準備中", "Survival Gardenを準備中",
+    "ヘルツォーク・ツヴァイを準備中", "ゲームを準備中",
+  ]) {
+    assert.equal(validCurrentActivity({ kind: "game", label, phase: "preparing", revision: 1 }, "mio"), true,
+      `CORE preparation descriptor ${label} must be accepted`);
+  }
+  for (const invalid of [
+    { kind: "game", label: "NetHackを準備中", phase: "playing", revision: 1 },
+    { kind: "game", label: "NetHackをプレイ中", phase: "preparing", revision: 1 },
+    { kind: "game", label: "未登録ゲームを準備中", phase: "preparing", revision: 1 },
+  ]) {
+    assert.equal(validCurrentActivity(invalid, "mio"), false, "GAME label must match its canonical phase");
+  }
   const result = vm.runInNewContext(
     `${policy}\n${mapper}\npresentHeartbeatResponse({observed_at:"2026-11-21T00:00:00Z",agents});`,
     { agents: actors, names: new Map(), window: activitySandbox.window },
