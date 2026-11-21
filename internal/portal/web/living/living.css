@@ -251,6 +251,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #dfc58f; outline-offs
   .brand-name { font-size: clamp(10px, 2.8vw, 12px); }
   .view-switch { gap: 1px; padding: 1px; }
   .view-tab { min-width: clamp(46px, 12vw, 68px); height: 28px; padding-inline: 5px; font-size: 10px; }
+  #board-tab, #board-tasks-tab { min-width: 42px; }
   .portal-clock { gap: 3px; padding: 3px 2px; font-size: clamp(10px, 2.55vw, 12px); }
   .portal-clock-date { font-size: clamp(9px, 2.55vw, 12px); }
   .portal-clock-icon { width: 12px; height: 12px; }
@@ -263,6 +264,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #dfc58f; outline-offs
   .brand-mark { width: 16px; height: 16px; flex-basis: 16px; font-size: 11px; }
   .brand-name { font-size: 9px; letter-spacing: -.035em; }
   .view-tab { min-width: 34px; height: 27px; padding-inline: 2px; font-size: 9px; letter-spacing: 0; }
+  #board-tab, #board-tasks-tab { min-width: 31px; }
   .portal-clock { gap: 1px; padding-inline: 1px; font-size: 9px; letter-spacing: -.035em; }
   .portal-clock-date { font-size: 8px; }
   .portal-clock-icon { width: 10px; height: 10px; }

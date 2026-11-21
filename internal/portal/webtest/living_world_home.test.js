@@ -13,6 +13,9 @@ const sceneContext = { module: { exports: {} } };
 const sceneSource = fs.readFileSync(path.join(__dirname, "../web/living/scene.js"), "utf8");
 vm.runInNewContext(sceneSource, sceneContext);
 const scene = sceneContext.module.exports;
+const currentActivityContext = { window: {} };
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../web/living/current-activity.js"), "utf8"), currentActivityContext);
+global.RenCrowCurrentActivity = currentActivityContext.window.RenCrowCurrentActivity;
 const worldHome = require("../web/living/world-home.js");
 const house = houseContext.window.housePreviewData;
 const houseGLB = fs.readFileSync(path.join(__dirname, "../web/living/assets/house-105.glb"));
@@ -312,6 +315,15 @@ test("accepts only snapshots pinned to the shipped HOUSE and valid actor state",
   for (const [id, active_kind] of [["mio", "fashion_show"], ["midori", "reading"]]) {
     assert.equal(worldHome.validateSnapshot(snapshot({ id, room_id: "living", position: [0, 0, 0], active_kind })).actors[0].active_kind, active_kind);
   }
+});
+
+test("WORLD snapshot preserves only the canonical current activity descriptor", () => {
+  const current_activity = { kind: "sleep", label: "就寝中", phase: "sleeping", revision: 9 };
+  const accepted = worldHome.validateSnapshot(snapshot({ id: "mio", room_id: "upper-room-2-1", position: [0, 0, 0], current_activity }));
+  assert.deepEqual(JSON.parse(JSON.stringify(accepted.actors[0].current_activity)), current_activity);
+  assert.throws(() => worldHome.validateSnapshot(snapshot({
+    id: "mio", room_id: "upper-room-2-1", position: [0, 0, 0], current_activity: { ...current_activity, label: "private title" }
+  })), /current_activity/);
 });
 
 test("WORLD sample exposes server time derived from observed_at and monotonic receipt time", () => {
@@ -699,19 +711,23 @@ test("heartbeat seat activity is cleared when the next response ends the activit
   const setter = sourceBetween("    function setHeartbeatBubbles(items) {", "    function createMarker(desk, index) {");
   const heartbeatSeatActivities = new Map();
   const heartbeatBubbleContent = new Map();
+  const currentActivity = { kind: "chat", label: "シロと会話中", phase: "talking", revision: 4 };
   const heartbeatSeatActivityPoses = {
     sofa_reading: true, sofa_chat: true, dining_tea: true, dining_tea_chat: true,
   };
   const bubble = { label: { textContent: "" }, title: { textContent: "", hidden: false }, root: { hidden: true, setAttribute() {} } };
-  vm.runInNewContext(`${setter}\nsetHeartbeatBubbles([{ actor_id: "mio", label: "ソファで読書中", ongoing_activity: "sofa_reading" }]);`, {
+  vm.runInNewContext(`${setter}\nsetHeartbeatBubbles([{ actor_id: "mio", label: "古いラベル", current_activity, ongoing_activity: "sofa_reading" }]);`, {
+    current_activity: currentActivity,
     heartbeatSeatActivities,
     heartbeatSeatActivityPoses,
     heartbeatBubbleContent,
     heartbeatBubbleNodes: new Map([["mio", bubble]]),
     RESIDENT_IDS: ["mio"],
+    global: { RenCrowCurrentActivity: { isValid: value => value === currentActivity } },
     hideHeartbeatBubbles() {},
   });
   assert.equal(heartbeatSeatActivities.get("mio"), "sofa_reading");
+  assert.equal(bubble.label.textContent, currentActivity.label, "canonical activity label takes precedence in the scene bubble");
 
   vm.runInNewContext(`${setter}\nsetHeartbeatBubbles([{ actor_id: "mio", label: "日課中" }]);`, {
     heartbeatSeatActivities,
@@ -719,6 +735,7 @@ test("heartbeat seat activity is cleared when the next response ends the activit
     heartbeatBubbleContent,
     heartbeatBubbleNodes: new Map([["mio", bubble]]),
     RESIDENT_IDS: ["mio"],
+    global: { RenCrowCurrentActivity: { isValid: () => false } },
     hideHeartbeatBubbles() {},
   });
   assert.equal(heartbeatSeatActivities.has("mio"), false, "activity end clears the render-only pose immediately");

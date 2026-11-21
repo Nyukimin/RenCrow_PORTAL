@@ -2086,7 +2086,9 @@
         if (Object.hasOwn(heartbeatSeatActivityPoses, item.ongoing_activity)) heartbeatSeatActivities.set(item.actor_id, item.ongoing_activity);
         var bubble = heartbeatBubbleNodes.get(item.actor_id);
         if (!bubble) return;
-        var label = item.label.slice(0, 48);
+        var label = global.RenCrowCurrentActivity && global.RenCrowCurrentActivity.isValid(item.current_activity, item.actor_id)
+          ? item.current_activity.label.slice(0, 48)
+          : item.label.slice(0, 48);
         var title = typeof item.title === "string" ? item.title.trim().slice(0, 120) : "";
         bubble.label.textContent = label;
         bubble.title.textContent = title;

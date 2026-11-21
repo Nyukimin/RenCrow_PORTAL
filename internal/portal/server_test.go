@@ -1415,6 +1415,38 @@ func TestLivingHeartbeatProjectionAcceptsSeatedRestActivities(t *testing.T) {
 	}
 }
 
+func TestLivingHeartbeatProjectionPreservesOnlyCanonicalCurrentActivity(t *testing.T) {
+	body := []byte(`{"observed_at":"2026-11-21T00:00:00Z","agents":[{"actor_id":"mio","state":"running","current_activity":{"kind":"hobby","label":"ファッション中","phase":"active","revision":7,"task_id":"must-not-pass"}},{"actor_id":"shiro","state":"waiting"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"waiting"},{"actor_id":"aka","state":"waiting"},{"actor_id":"ao","state":"waiting"},{"actor_id":"kin","state":"waiting"},{"actor_id":"gin","state":"waiting"}]}`)
+	if _, err := projectLivingHeartbeat(body); err == nil {
+		t.Fatal("unknown current_activity field was accepted")
+	}
+	body = []byte(strings.Replace(string(body), `,"task_id":"must-not-pass"`, "", 1))
+	projected, err := projectLivingHeartbeat(body)
+	if err != nil {
+		t.Fatalf("curated current activity rejected: %v", err)
+	}
+	encoded, err := json.Marshal(projected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"current_activity":{"kind":"hobby","label":"ファッション中","phase":"active","revision":7}`) || strings.Contains(string(encoded), "task_id") {
+		t.Fatalf("canonical activity was not preserved as a safe object: %s", encoded)
+	}
+	for _, invalid := range []string{
+		`{"kind":"private","label":"秘密の仕事","phase":"working","revision":7}`,
+		`{"kind":"game","label":"secret game title","phase":"playing","revision":7}`,
+		`{"kind":"sleep","label":"就寝中","phase":"sleep_window","revision":7}`,
+		`{"kind":"chat","label":"ミオと会話中","phase":"talking","revision":7}`,
+		`{"kind":"hobby","label":"読書中","phase":"active","revision":7}`,
+		`{"kind":"work","label":"作業中","phase":"working","revision":0}`,
+	} {
+		bad := strings.Replace(string(body), `"kind":"hobby","label":"ファッション中","phase":"active","revision":7`, strings.Trim(invalid, "{}"), 1)
+		if _, err := projectLivingHeartbeat([]byte(bad)); err == nil {
+			t.Errorf("invalid current activity accepted: %s", invalid)
+		}
+	}
+}
+
 func TestLivingHeartbeatProjectionAcceptsCanonicalTaskWorkWithoutPrivateContent(t *testing.T) {
 	var body struct {
 		ObservedAt string           `json:"observed_at"`

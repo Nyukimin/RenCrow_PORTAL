@@ -10,6 +10,7 @@
   <script defer src="/assets/living/assets/house-data.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/sd-motion.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/hobby-motion.js?v={{.AssetVersion}}"></script>
+  <script defer src="/assets/living/current-activity.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/world-home.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/scene.js?v={{.AssetVersion}}"></script>
   <script defer src="/assets/living/living.js?v={{.AssetVersion}}"></script>
@@ -27,6 +28,8 @@
         <button id="living-tab" class="view-tab" type="button" aria-pressed="false" data-view="workplace">LIVING</button>
         {{if .BoardURL}}<a class="view-tab board-tab" id="board-tab" href="{{.BoardURL}}">BOARD</a>
         {{else}}<span class="view-tab board-tab is-disabled" id="board-tab" role="link" aria-disabled="true" title="BOARDの接続先が未設定です">BOARD</span>{{end}}
+        {{if .BoardURL}}<a class="view-tab board-tab" id="board-tasks-tab" href="{{.BoardURL}}?view=tasks">Tasks</a>
+        {{else}}<span class="view-tab board-tab is-disabled" id="board-tasks-tab" role="link" aria-disabled="true" title="BOARDの接続先が未設定です">Tasks</span>{{end}}
       </nav>
 
       <time class="portal-clock" id="jst-clock" aria-label="日本標準時">

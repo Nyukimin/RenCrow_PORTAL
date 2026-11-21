@@ -80,6 +80,15 @@
         throw new Error("WORLD snapshot mirror_pose_completions is invalid");
       }
       var accepted = { id: actor.id, room_id: actor.room_id, position: actor.position.slice() };
+      if (actor.current_activity !== undefined) {
+        if (!global.RenCrowCurrentActivity || !global.RenCrowCurrentActivity.isValid(actor.current_activity, actor.id)) throw new Error("WORLD snapshot current_activity is invalid");
+        accepted.current_activity = {
+          kind: actor.current_activity.kind,
+          label: actor.current_activity.label,
+          phase: actor.current_activity.phase,
+          revision: actor.current_activity.revision
+        };
+      }
       if (actor.id === "lumina") {
         if (!validTimestamp(actor.visit_until)) throw new Error("WORLD visitor expiration is invalid");
         accepted.visit_until = actor.visit_until;

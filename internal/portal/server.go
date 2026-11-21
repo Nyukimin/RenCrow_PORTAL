@@ -383,10 +383,18 @@ type livingHeartbeatAgent struct {
 	ActorID             string          `json:"actor_id"`
 	State               string          `json:"state"`
 	ActivityKind        *string         `json:"activity_kind,omitempty"`
+	CurrentActivityRaw  json.RawMessage `json:"current_activity,omitempty"`
 	GameID              json.RawMessage `json:"game_id,omitempty"`
 	Title               *string         `json:"title,omitempty"`
 	RoutineAvailability *string         `json:"routine_availability,omitempty"`
 	OngoingActivity     *string         `json:"ongoing_activity,omitempty"`
+}
+
+type livingCurrentActivity struct {
+	Kind     string `json:"kind"`
+	Label    string `json:"label"`
+	Phase    string `json:"phase"`
+	Revision uint64 `json:"revision"`
 }
 
 type livingHeartbeatResponse struct {
@@ -493,6 +501,16 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat agent")
 		}
 		seen[agent.ActorID] = true
+		if len(agent.CurrentActivityRaw) > 0 {
+			currentActivity, err := parseLivingCurrentActivity(agent.CurrentActivityRaw, agent.ActorID)
+			if err != nil {
+				return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat current activity")
+			}
+			agent.CurrentActivityRaw, err = json.Marshal(currentActivity)
+			if err != nil {
+				return livingHeartbeatResponse{}, fmt.Errorf("encode living heartbeat current activity")
+			}
+		}
 		if agent.ActivityKind != nil && !allowedActivities[*agent.ActivityKind] {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat activity")
 		}
@@ -534,6 +552,80 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 		projected.Agents = append(projected.Agents, agent)
 	}
 	return projected, nil
+}
+
+func parseLivingCurrentActivity(raw json.RawMessage, actorID string) (*livingCurrentActivity, error) {
+	var activity livingCurrentActivity
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&activity); err != nil || activity.Kind == "" || activity.Label == "" || activity.Phase == "" || activity.Revision == 0 {
+		return nil, fmt.Errorf("invalid current activity fields")
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, fmt.Errorf("invalid current activity encoding")
+	}
+	if !validLivingCurrentActivity(activity, actorID) {
+		return nil, fmt.Errorf("current activity is outside the public vocabulary")
+	}
+	return &activity, nil
+}
+
+func validLivingCurrentActivity(activity livingCurrentActivity, actorID string) bool {
+	if activity.Revision == 0 {
+		return false
+	}
+	switch activity.Kind {
+	case "work":
+		return activity.Phase == "working" && oneOfLivingCurrentActivityLabel(activity.Label, "日記を書く", "レビュー中", "調査中", "分析中", "執筆中", "作業中")
+	case "chat":
+		if activity.Phase != "talking" {
+			return false
+		}
+		if activity.Label == "会話中" {
+			return true
+		}
+		partner := map[string]string{"ミオ": "mio", "シロ": "shiro", "ミドリ": "midori", "クロ": "kuro", "アカ": "aka", "アオ": "ao", "キン": "kin", "ギン": "gin"}[strings.TrimSuffix(activity.Label, "と会話中")]
+		return strings.HasSuffix(activity.Label, "と会話中") && partner != "" && partner != actorID
+	case "hobby":
+		if activity.Phase != "active" {
+			return false
+		}
+		if activity.Label == "趣味中" {
+			return true
+		}
+		hobbies := map[string]map[string]bool{
+			"mio":    {"ファッション中": true, "動画の企画中": true},
+			"shiro":  {"映画リサーチ中": true, "トレーニング中": true},
+			"kuro":   {"オタク文化中": true, "ミラーポーズ中": true},
+			"midori": {"読書中": true, "マンガ文化中": true, "音楽中": true, "物語の企画中": true},
+		}
+		return hobbies[actorID][activity.Label]
+	case "rest":
+		return activity.Phase == "resting" && activity.Label == "休憩中"
+	case "sleep":
+		labels := map[string]string{"sleep_window": "就寝予定", "sleeping": "就寝中", "waking": "起床中", "preparing": "就寝準備中"}
+		return labels[activity.Phase] != "" && activity.Label == labels[activity.Phase]
+	case "moving":
+		return activity.Phase == "in_transit" && activity.Label == "移動中"
+	case "game":
+		return activity.Phase == "playing" && oneOfLivingCurrentActivityLabel(activity.Label, "NetHackをプレイ中", "Territory Commanderをプレイ中", "Survival Gardenをプレイ中", "ヘルツォーク・ツヴァイをプレイ中", "ゲーム中")
+	case "evaluating":
+		return activity.Phase == "waiting" && activity.Label == "次の活動を選択中"
+	case "routine":
+		return activity.Phase == "active" && activity.Label == "活動中"
+	default:
+		return false
+	}
+}
+
+func oneOfLivingCurrentActivityLabel(value string, allowed ...string) bool {
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
 }
 
 func safeLivingHeartbeatTitle(value string) *string {

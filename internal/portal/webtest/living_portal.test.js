@@ -11,6 +11,7 @@ const html = fs.readFileSync(path.join(webRoot, "index.html"), "utf8");
 const css = fs.readFileSync(path.join(webRoot, "living.css"), "utf8");
 const livingSource = fs.readFileSync(path.join(webRoot, "living.js"), "utf8");
 const sceneSource = fs.readFileSync(path.join(webRoot, "scene.js"), "utf8");
+const currentActivitySource = fs.readFileSync(path.join(webRoot, "current-activity.js"), "utf8");
 
 function extract(source, start, end) {
   const startAt = source.indexOf(start);
@@ -65,16 +66,49 @@ function testPortalShellMatchesHouseReference() {
   assert.ok(header, "portal header must exist");
   assert.match(header[1], /RenCrow PORTAL/);
   assert.match(header[1], /<nav[^>]*class="view-switch"/);
-  assert.match(header[1], /HOUSE[\s\S]*LIVING[\s\S]*BOARD/);
+  assert.match(header[1], /HOUSE[\s\S]*LIVING[\s\S]*BOARD[\s\S]*Tasks/);
   assert.match(header[1], /<time class="portal-clock" id="jst-clock"[^>]*aria-label="日本標準時"/);
   assert.match(header[1], /<svg class="portal-clock-icon"[^>]*aria-hidden="true"/);
   assert.match(header[1], /<span class="portal-clock-date" id="jst-clock-date">/);
   assert.match(header[1], /<strong class="portal-clock-time" id="jst-clock-time">/);
   assert.match(header[1], /id="board-tab"[^>]*href="\{\{\.BoardURL\}\}"/);
+  assert.match(header[1], /id="board-tasks-tab"[^>]*href="\{\{\.BoardURL\}\}\?view=tasks"/);
   assert.match(header[1], /aria-disabled="true"[^>]*>BOARD<\/span>/);
   assert.doesNotMatch(html, /scene-topline|scene-bottomline|living-section|board-link-panel|site-footer|resident-card|data-person=|data-filter=|motion-preview|world-home-toggle|marker-toggle/);
   assert.match(html, /<canvas id="scene"/);
   assert.match(html, /id="scene-load-status"[^>]*role="status"/);
+}
+
+function testCanonicalActivityLabelAndWORLDProjectionAreCurated() {
+  const policy = extract(livingSource, "  const heartbeatActors = new Set(", "  let activeView =");
+  const mapper = extract(livingSource, "  function presentHeartbeatResponse(payload) {", "\n  async function pollLivingHeartbeat");
+  const currentActivity = { kind: "chat", label: "シロと会話中", phase: "talking", revision: 12 };
+  const actors = ["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"].map(actor_id => ({actor_id,state:"running"}));
+  actors[0].current_activity = currentActivity;
+  const activitySandbox = { window: {} };
+  vm.runInNewContext(currentActivitySource, activitySandbox);
+  const result = vm.runInNewContext(
+    `${policy}\n${mapper}\npresentHeartbeatResponse({observed_at:"2026-11-21T00:00:00Z",agents});`,
+    { agents: actors, names: new Map(), window: activitySandbox.window },
+  );
+  assert.equal(result[0].label, currentActivity.label, "canonical activity label takes precedence over the scheduler label");
+  assert.deepEqual(JSON.parse(JSON.stringify(result[0].current_activity)), currentActivity);
+  assert.match(sceneSource, /item\.current_activity\.label\.slice\(0, 48\)/, "scene bubbles use the canonical label when available");
+  assert.match(fs.readFileSync(path.join(webRoot, "world-home.js"), "utf8"), /accepted\.current_activity = \{/,
+    "WORLD validation retains the same canonical descriptor");
+  for (const invalid of [
+    { ...currentActivity, label: "秘密のタスク" },
+    { ...currentActivity, phase: "working" },
+    { ...currentActivity, label: "ミオと会話中" },
+    { ...currentActivity, task_id: "private-task" },
+  ]) {
+    const changed = actors.slice();
+    changed[0] = { ...actors[0], current_activity: invalid };
+    assert.throws(() => vm.runInNewContext(
+      `${policy}\n${mapper}\npresentHeartbeatResponse({observed_at:"2026-11-21T00:00:00Z",agents});`,
+      { agents: changed, names: new Map(), window: activitySandbox.window },
+    ), /invalid living heartbeat current activity/);
+  }
 }
 
 function testHouseSceneUsesViewportAndResponsiveFullFrame() {
@@ -483,6 +517,7 @@ testJstClockUpdatesAtMinuteBoundaryAndKeepsDatetime();
 testHeaderTabsSwitchTheRealHouseCameras();
 testBoardTabUsesConfiguredUrlAndFailsClosedWithoutIt();
 testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection();
+testCanonicalActivityLabelAndWORLDProjectionAreCurated();
 testHeartbeatGameLabelsRequireRunningNethackIdentity();
 testHeartbeatBubblesHaveAReadableOverlayAndKeepTheCurrentFloorGate();
 testHeartbeatBubblePlacementStaysInsideViewportAtEdges();

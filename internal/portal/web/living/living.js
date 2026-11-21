@@ -189,6 +189,9 @@
       if (agent.activity_kind !== undefined && !heartbeatActivities.has(agent.activity_kind)) {
         throw new TypeError("invalid living heartbeat activity");
       }
+      if (agent.current_activity !== undefined && !window.RenCrowCurrentActivity?.isValid(agent.current_activity, agent.actor_id)) {
+        throw new TypeError("invalid living heartbeat current activity");
+      }
       if (agent.game_id !== undefined && typeof agent.game_id !== "string") {
         throw new TypeError("invalid living heartbeat game id");
       }
@@ -215,7 +218,7 @@
         throw new TypeError("invalid living heartbeat title");
       }
       seen.add(agent.actor_id);
-      const label = runningRoutineMove
+      const legacyLabel = runningRoutineMove
         ? heartbeatOngoingActivityLabels.moving_home
         : projectedSeatActivity
           ? heartbeatOngoingActivityLabels[agent.ongoing_activity]
@@ -230,11 +233,13 @@
                 ? (agent.game_id === "nethack" ? "Nethackで遊んでる" : "ゲームで遊んでる")
                 : (heartbeatActivityLabels[agent.activity_kind] || heartbeatStateLabels.running)
               : heartbeatStateLabels[agent.state];
+      const label = agent.current_activity?.label || legacyLabel;
       const titleIsPublic = agent.activity_kind === "private" && (agent.state === "running" || agent.state === "stopping");
       const title = titleIsPublic && typeof agent.title === "string"
         ? agent.title.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120)
         : "";
       const projection = { actor_id: agent.actor_id, actor_name: names.get(agent.actor_id) || agent.actor_id, label, title };
+      if (agent.current_activity !== undefined) projection.current_activity = agent.current_activity;
       if (projectedSeatActivity) projection.ongoing_activity = agent.ongoing_activity;
       return projection;
     });
@@ -484,6 +489,12 @@
       throw new Error("HOUSE model is not ready for WORLD data");
     }
     worldHomeLatest = accepted;
+    callScene("setHeartbeatBubbles", accepted.actors.filter(actor => actor.current_activity).map(actor => ({
+      actor_id: actor.id,
+      actor_name: names.get(actor.id) || actor.id,
+      current_activity: actor.current_activity,
+      label: actor.current_activity.label
+    })));
     const actors = new Map(accepted.actors.map((actor) => [actor.id, actor]));
     cards.forEach((card) => {
       const status = card.querySelector(".resident-status");
