@@ -1375,6 +1375,155 @@ func TestLivingHeartbeatRelayUsesExactAuthorizedBoundedProjection(t *testing.T) 
 	}
 }
 
+func livingHeartbeatSeatedRestFixture() []byte {
+	return []byte(`{"observed_at":"2026-11-14T01:02:03Z","agents":[{"actor_id":"mio","state":"waiting","routine_availability":"available","ongoing_activity":"sofa_reading"},{"actor_id":"shiro","state":"waiting","activity_kind":"routine","routine_availability":"available","ongoing_activity":"sofa_chat"},{"actor_id":"kuro","state":"running","activity_kind":"routine","routine_availability":"available","ongoing_activity":"dining_tea"},{"actor_id":"midori","state":"running","activity_kind":"routine","routine_availability":"available","ongoing_activity":"dining_tea_chat"},{"actor_id":"aka","state":"running","activity_kind":"game","game_id":"nethack"},{"actor_id":"ao","state":"running","activity_kind":"private","title":"Private slot"},{"actor_id":"kin","state":"checking","activity_kind":"board"},{"actor_id":"gin","state":"waiting"}]}`)
+}
+
+func TestLivingHeartbeatProjectionAcceptsSeatedRestActivities(t *testing.T) {
+	projected, err := projectLivingHeartbeat(livingHeartbeatSeatedRestFixture())
+	if err != nil {
+		t.Fatalf("seated-rest activities rejected: %v", err)
+	}
+	if len(projected.Agents) != 8 {
+		t.Fatalf("projected %d actors, want 8", len(projected.Agents))
+	}
+	agents := make(map[string]livingHeartbeatAgent, len(projected.Agents))
+	for _, agent := range projected.Agents {
+		agents[agent.ActorID] = agent
+	}
+	for actorID, activity := range map[string]string{
+		"mio": "sofa_reading", "shiro": "sofa_chat", "kuro": "dining_tea", "midori": "dining_tea_chat",
+	} {
+		agent := agents[actorID]
+		if agent.OngoingActivity == nil || *agent.OngoingActivity != activity {
+			t.Errorf("%s ongoing_activity = %v, want %q", actorID, agent.OngoingActivity, activity)
+		}
+	}
+	if got := string(agents["aka"].GameID); got != `"nethack"` {
+		t.Errorf("game_id projection = %s, want nethack", got)
+	}
+	if agents["ao"].Title == nil || *agents["ao"].Title != "Private slot" {
+		t.Errorf("unrelated private actor projection = %#v", agents["ao"])
+	}
+	if agents["kin"].ActivityKind == nil || *agents["kin"].ActivityKind != "board" || agents["gin"].State != "waiting" {
+		t.Errorf("unrelated actor projections changed: kin=%#v gin=%#v", agents["kin"], agents["gin"])
+	}
+
+	unknown := strings.Replace(string(livingHeartbeatSeatedRestFixture()), `"dining_tea_chat"`, `"unknown_rest"`, 1)
+	if _, err := projectLivingHeartbeat([]byte(unknown)); err == nil {
+		t.Fatal("unknown ongoing_activity was accepted")
+	}
+}
+
+func TestLivingHeartbeatProjectionAcceptsCanonicalTaskWorkWithoutPrivateContent(t *testing.T) {
+	var body struct {
+		ObservedAt string           `json:"observed_at"`
+		Agents     []map[string]any `json:"agents"`
+	}
+	if err := json.Unmarshal(livingHeartbeatSeatedRestFixture(), &body); err != nil {
+		t.Fatal(err)
+	}
+	body.Agents[0] = map[string]any{
+		"actor_id": "mio", "state": "running", "activity_kind": "task",
+		"title": "private-title-marker", "task_id": "private-task-marker", "prompt": "private-prompt-marker",
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projected, err := projectLivingHeartbeat(encoded)
+	if err != nil {
+		t.Fatalf("canonical task work rejected: %v", err)
+	}
+	mio := projected.Agents[0]
+	if mio.ActorID != "mio" || mio.State != "running" || mio.ActivityKind == nil || *mio.ActivityKind != "task" || mio.Title != nil {
+		t.Fatalf("task work projection = %#v", mio)
+	}
+	public, err := json.Marshal(projected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"private-title-marker", "private-task-marker", "private-prompt-marker"} {
+		if strings.Contains(string(public), marker) {
+			t.Errorf("private content was relayed: %s", marker)
+		}
+	}
+}
+
+func TestLivingHeartbeatProjectionRejectsSeatedRestActivitiesForNonRoutineWork(t *testing.T) {
+	for _, activity := range []string{"sofa_reading", "sofa_chat", "dining_tea", "dining_tea_chat"} {
+		for _, kind := range []string{"board", "private", "game", "foreground", "task"} {
+			t.Run(activity+"/"+kind, func(t *testing.T) {
+				body := strings.Replace(
+					string(livingHeartbeatSeatedRestFixture()),
+					`"state":"waiting","routine_availability":"available","ongoing_activity":"sofa_reading"`,
+					fmt.Sprintf(`"state":"running","activity_kind":%q,"routine_availability":"available","ongoing_activity":%q`, kind, activity),
+					1,
+				)
+				if _, err := projectLivingHeartbeat([]byte(body)); err == nil {
+					t.Fatalf("%s was accepted alongside %s work", activity, kind)
+				}
+			})
+		}
+	}
+}
+
+func TestLivingHeartbeatRelayProjectsSeatedRestActivitiesAndRejectsUnknown(t *testing.T) {
+	var calls atomic.Int32
+	var body atomic.Value
+	body.Store(livingHeartbeatSeatedRestFixture())
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.Method != http.MethodGet || r.URL.Path != "/viewer/living/heartbeat" || r.URL.RawQuery != "" {
+			t.Errorf("CORE request = %s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
+		}
+		if r.Header.Get("X-RenCrow-Client") != "RenCrow_PORTAL" || r.Header.Get(interactionProfileHeader) != "portal-living" {
+			t.Errorf("CORE profile headers = %#v", r.Header)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body.Load().([]byte))
+	}))
+	defer core.Close()
+	cfg := DefaultConfig()
+	cfg.CoreURL = core.URL
+	cfg.AuthMode = AuthModeTailscaleServe
+	handler, err := NewHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/living/heartbeat", nil)
+		req.Header.Set(tailscaleUserLoginHeader, "ren@example.test")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	good := request()
+	if good.Code != http.StatusOK {
+		t.Fatalf("heartbeat status=%d body=%s, want 200 with seated-rest activities", good.Code, good.Body.String())
+	}
+	var projected livingHeartbeatResponse
+	if err := json.Unmarshal(good.Body.Bytes(), &projected); err != nil {
+		t.Fatalf("heartbeat response is not JSON: %v", err)
+	}
+	if len(projected.Agents) != 8 || projected.Agents[0].OngoingActivity == nil || *projected.Agents[0].OngoingActivity != "sofa_reading" {
+		t.Fatalf("seated-rest activity was not relayed: %#v", projected)
+	}
+	if string(projected.Agents[4].GameID) != `"nethack"` || projected.Agents[5].Title == nil || *projected.Agents[5].Title != "Private slot" {
+		t.Fatalf("game/private actor projection changed: %#v %#v", projected.Agents[4], projected.Agents[5])
+	}
+
+	body.Store([]byte(strings.Replace(string(livingHeartbeatSeatedRestFixture()), `"dining_tea_chat"`, `"unknown_rest"`, 1)))
+	bad := request()
+	if bad.Code != http.StatusServiceUnavailable || !strings.Contains(bad.Body.String(), "living heartbeat unavailable") {
+		t.Fatalf("unknown activity status=%d body=%s, want generic 503", bad.Code, bad.Body.String())
+	}
+	if strings.Contains(bad.Body.String(), "unknown_rest") || calls.Load() != 2 {
+		t.Fatalf("unknown activity escaped projection or CORE call count changed: calls=%d body=%s", calls.Load(), bad.Body.String())
+	}
+}
+
 func TestLivingHeartbeatGameIDMustBeAStringAndIsProjected(t *testing.T) {
 	base := `{"observed_at":"2026-11-14T01:02:03Z","agents":[{"actor_id":"mio","state":"running","activity_kind":"game","game_id":%s},{"actor_id":"shiro","state":"waiting"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"waiting"},{"actor_id":"aka","state":"waiting"},{"actor_id":"ao","state":"waiting"},{"actor_id":"kin","state":"waiting"},{"actor_id":"gin","state":"waiting"}]}`
 	projected, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, `"nethack"`)))

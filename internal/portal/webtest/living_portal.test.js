@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const test = require("node:test");
 const vm = require("node:vm");
 
 const webRoot = path.join(__dirname, "..", "web", "living");
@@ -17,6 +18,46 @@ function extract(source, start, end) {
   const endAt = source.indexOf(end, startAt + start.length);
   assert.notEqual(endAt, -1, `source must contain ${end} after ${start}`);
   return source.slice(startAt, endAt);
+}
+
+function worldHomePollHarness(fetcher) {
+  const timers = [];
+  const freshness = [];
+  const statuses = [];
+  const retained = { state_seq: 17 };
+  const sandbox = {
+    worldHomeLive: true,
+    worldHomeRequestVersion: 3,
+    worldHomePollTimer: null,
+    worldHomeFetchTimeoutMs: 5000,
+    worldHomeLatest: retained,
+    houseAssetVerified: true,
+    scene: {
+      worldHomeReady() { return true; },
+      setWorldHomeSnapshotFresh(value) { freshness.push(value); },
+    },
+    callScene(method, ...args) { return sandbox.scene[method]?.(...args); },
+    fetch: fetcher,
+    showWorldHomeSnapshot(snapshot) {
+      sandbox.worldHomeLatest = snapshot;
+      sandbox.scene.setWorldHomeSnapshotFresh(true);
+    },
+    setWorldHomeStatus(message, unavailable) { statuses.push({ message, unavailable }); },
+    cards: [],
+    console: { warn() {} },
+    AbortController,
+    window: {
+      setTimeout(callback, delay) {
+        const timer = { callback, delay, cleared: false };
+        timers.push(timer);
+        return timer;
+      },
+      clearTimeout(timer) { if (timer) timer.cleared = true; },
+    },
+  };
+  const poll = extract(livingSource, "  function scheduleWorldHomePoll(version) {", "\n  function setWorldHomeLive(enabled)");
+  vm.runInNewContext(poll, sandbox);
+  return { sandbox, timers, freshness, statuses, retained };
 }
 
 function testPortalShellMatchesHouseReference() {
@@ -199,18 +240,12 @@ function testBoardTabUsesConfiguredUrlAndFailsClosedWithoutIt() {
 }
 
 function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
+  const policy = extract(livingSource, "  const heartbeatActors = new Set(", "  let activeView =");
   const mapper = extract(livingSource, "  function presentHeartbeatResponse(payload) {", "\n  async function pollLivingHeartbeat");
-  const sandbox = {
-    heartbeatActors: new Set(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]),
-    heartbeatStates: new Set(["waiting", "checking", "running", "stopping"]),
-    heartbeatActivities: new Set(["board", "private", "game", "foreground", "routine"]),
-    heartbeatRoutineAvailability: new Set(["available", "disabled", "unavailable"]),
-    heartbeatOngoingActivities: new Set(["rest", "sleep_window", "waiting", "moving_home"]),
-    heartbeatActivityLabels: { board: "BOARD対応中", private: "個別タスク中", game: "ゲーム中", foreground: "会話対応中", routine: "日課中" },
-    heartbeatStateLabels: { waiting: "待機中", checking: "確認中", running: "実行中", stopping: "停止中" },
-    heartbeatOngoingActivityLabels: { rest: "休憩中", sleep_window: "就寝時間", waiting: "次の活動を確認中", moving_home: "自室に移動中" },
-    names: new Map(),
-  };
+  const present = (agents) => vm.runInNewContext(
+    `${policy}\n${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`,
+    { agents, names: new Map() },
+  );
   const agents = [
     { actor_id: "mio", state: "waiting", routine_availability: "available", ongoing_activity: "rest" },
     { actor_id: "shiro", state: "waiting", routine_availability: "available", ongoing_activity: "sleep_window" },
@@ -221,12 +256,33 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
     { actor_id: "kin", state: "stopping" },
     { actor_id: "gin", state: "running", activity_kind: "routine", routine_availability: "available", ongoing_activity: "moving_home" },
   ];
-  const mapped = vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents });
+  const mapped = present(agents);
   assert.deepEqual(Array.from(mapped, item => item.label), ["休憩中", "就寝時間", "次の活動を確認中", "日課停止中", "日課状態を取得できません", "確認中", "停止中", "自室に移動中"]);
   const waitingMoveAgents = agents.slice();
   waitingMoveAgents[0] = { ...agents[0], ongoing_activity: "moving_home" };
-  const waitingMove = vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents: waitingMoveAgents });
+  const waitingMove = present(waitingMoveAgents);
   assert.equal(waitingMove[0].label, "自室に移動中", "fresh WORLD movement must remain visible while the scheduler is waiting");
+
+  for (const [activity, label] of Object.entries({
+    sofa_reading: "ソファで読書中",
+    sofa_chat: "ソファで会話中",
+    dining_tea: "ダイニングでお茶中",
+    dining_tea_chat: "ダイニングでお茶・会話中",
+  })) {
+    const waitingRoutine = agents.slice();
+    waitingRoutine[0] = { ...agents[0], state: "waiting", routine_availability: "available", ongoing_activity: activity };
+    const waitingProjection = present(waitingRoutine)[0];
+    assert.equal(waitingProjection.label, label, `${activity} is visible while the scheduler waits`);
+    assert.equal(waitingProjection.ongoing_activity, activity, `${activity} remains attached to its actor for the matching WORLD seat`);
+
+    const runningRoutine = agents.slice();
+    runningRoutine[0] = { ...agents[0], state: "running", activity_kind: "routine", routine_availability: "available", ongoing_activity: activity };
+    const runningProjection = present(runningRoutine)[0];
+    assert.equal(runningProjection.label, label, `${activity} is visible during its running routine`);
+    assert.equal(runningProjection.ongoing_activity, activity, `${activity} remains attached to its actor for the matching WORLD seat`);
+  }
+  assert.equal(Object.hasOwn(present(agents)[0], "ongoing_activity"), false, "rest-only status does not select an activity pose");
+  assert.equal(Object.hasOwn(present(agents)[7], "ongoing_activity"), false, "movement does not select an activity pose");
 
   for (const invalid of [
     { ...agents[0], routine_availability: "maybe" },
@@ -234,27 +290,21 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
     { ...agents[0], ongoing_activity: "rest", routine_availability: "disabled" },
     { ...agents[0], state: "running", routine_availability: "available" },
     { ...agents[0], state: "running", activity_kind: "board", ongoing_activity: "moving_home" },
+    { ...agents[0], state: "running", activity_kind: "board", routine_availability: "available", ongoing_activity: "sofa_reading" },
+    { ...agents[0], state: "running", activity_kind: "board", routine_availability: "available", ongoing_activity: "dining_tea" },
+    { ...agents[0], state: "waiting", activity_kind: "private", routine_availability: "available", ongoing_activity: "sofa_chat" },
+    { ...agents[0], state: "checking", routine_availability: "available", ongoing_activity: "dining_tea_chat" },
     { ...agents[0], state: "checking", ongoing_activity: "moving_home" },
   ]) {
     const changed = agents.slice();
     changed[0] = invalid;
-    assert.throws(() => vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents: changed }), /invalid living heartbeat/);
+    assert.throws(() => present(changed), /invalid living heartbeat/);
   }
 }
 
 function testHeartbeatGameLabelsRequireRunningNethackIdentity() {
+  const policy = extract(livingSource, "  const heartbeatActors = new Set(", "  let activeView =");
   const mapper = extract(livingSource, "  function presentHeartbeatResponse(payload) {", "\n  async function pollLivingHeartbeat");
-  const sandbox = {
-    heartbeatActors: new Set(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]),
-    heartbeatStates: new Set(["waiting", "checking", "running", "stopping"]),
-    heartbeatActivities: new Set(["board", "private", "game", "foreground", "routine"]),
-    heartbeatRoutineAvailability: new Set(["available", "disabled", "unavailable"]),
-    heartbeatOngoingActivities: new Set(["rest", "sleep_window", "waiting", "moving_home"]),
-    heartbeatActivityLabels: { board: "BOARD対応中", private: "個別タスク中", game: "ゲーム中", foreground: "会話対応中", routine: "日課中" },
-    heartbeatStateLabels: { waiting: "待機中", checking: "確認中", running: "実行中", stopping: "停止中" },
-    heartbeatOngoingActivityLabels: { rest: "休憩中", sleep_window: "就寝時間", waiting: "次の活動を確認中", moving_home: "自室に移動中" },
-    names: new Map(),
-  };
   const agents = [
     { actor_id: "mio", state: "running", activity_kind: "game", game_id: "nethack" },
     { actor_id: "shiro", state: "running", activity_kind: "game", game_id: "other-game" },
@@ -265,7 +315,10 @@ function testHeartbeatGameLabelsRequireRunningNethackIdentity() {
     { actor_id: "kin", state: "running", activity_kind: "board" },
     { actor_id: "gin", state: "waiting" },
   ];
-  const present = (input) => vm.runInNewContext(`${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`, { ...sandbox, agents: input });
+  const present = (input) => vm.runInNewContext(
+    `${policy}\n${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`,
+    { agents: input, names: new Map() },
+  );
   const mapped = present(agents);
   assert.deepEqual(Array.from(mapped, item => item.label), ["Nethackで遊んでる", "ゲームで遊んでる", "ゲームで遊んでる", "会話対応中", "停止中", "個別タスク中", "BOARD対応中", "待機中"]);
   assert.equal(mapped[5].title, "Private title", "private task title remains available under its existing visibility policy");
@@ -435,5 +488,49 @@ testHeartbeatBubblesHaveAReadableOverlayAndKeepTheCurrentFloorGate();
 testHeartbeatBubblePlacementStaysInsideViewportAtEdges();
 testPageBootsAndSwitchesViewsWithoutRemovedAuxiliaryDom();
 testAtticMarkingBeamsAreRemovedBeforeMeshBatching();
+
+test("canonical task work has a work label and does not reveal task identity or title", () => {
+  const policy = extract(livingSource, "  const heartbeatActors = new Set(", "  let activeView =");
+  const mapper = extract(livingSource, "  function presentHeartbeatResponse(payload) {", "\n  async function pollLivingHeartbeat");
+  const agents = ["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"].map(actor_id => ({actor_id,state:"waiting"}));
+  agents[0] = {actor_id:"mio",state:"running",activity_kind:"task",title:"private-title-marker",task_id:"private-task-marker"};
+  const result = vm.runInNewContext(
+    `${policy}\n${mapper}\npresentHeartbeatResponse({observed_at:"2026-11-21T00:00:00Z",agents});`,
+    {agents,names:new Map()},
+  );
+  assert.equal(result[0].label, "作業中");
+  assert.equal(result[0].title, "");
+  assert.doesNotMatch(JSON.stringify(result), /private-title-marker|private-task-marker/);
+});
+
+test("WORLD fetch failure clears only activity freshness and a later successful snapshot restores it", async () => {
+  const harness = worldHomePollHarness(async () => ({ ok: false, status: 503 }));
+  await harness.sandbox.pollWorldHome(3);
+  assert.deepEqual(harness.freshness, [false], "failed WORLD fetch disables the activity overlay");
+  assert.equal(harness.sandbox.worldHomeLatest, harness.retained, "the last displayed snapshot remains retained");
+
+  const recovered = { state_seq: 18 };
+  harness.sandbox.fetch = async () => ({ ok: true, async json() { return recovered; } });
+  await harness.sandbox.pollWorldHome(3);
+  assert.deepEqual(harness.freshness, [false, true], "successful snapshot reception restores the activity overlay");
+  assert.equal(harness.sandbox.worldHomeLatest, recovered);
+});
+
+test("WORLD fetch timeout aborts the GET and clears only activity freshness", async () => {
+  let requestSignal = null;
+  const harness = worldHomePollHarness((_url, options) => {
+    requestSignal = options.signal;
+    return new Promise(() => {});
+  });
+  const pending = harness.sandbox.pollWorldHome(3);
+  await Promise.resolve();
+  const timeout = harness.timers.find((timer) => timer.delay === 5000);
+  assert.ok(timeout, "WORLD snapshot GET has a bounded timeout");
+  timeout.callback();
+  await pending;
+  assert.equal(requestSignal.aborted, true, "timed-out request is aborted");
+  assert.deepEqual(harness.freshness, [false]);
+  assert.equal(harness.sandbox.worldHomeLatest, harness.retained, "timeout preserves the last displayed snapshot");
+});
 
 console.log("PORTAL HOUSE shell, camera navigation, JST clock, BOARD link and roof cleanup passed");

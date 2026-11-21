@@ -51,15 +51,17 @@
     living?.dataset.houseSha256?.toLowerCase() === worldHome?.houseSHA256;
   const heartbeatActors = new Set(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]);
   const heartbeatStates = new Set(["waiting", "checking", "running", "stopping"]);
-  const heartbeatActivities = new Set(["board", "private", "game", "foreground", "routine"]);
+  const heartbeatActivities = new Set(["board", "private", "game", "foreground", "routine", "task"]);
   const heartbeatRoutineAvailability = new Set(["available", "disabled", "unavailable"]);
-  const heartbeatOngoingActivities = new Set(["rest", "sleep_window", "waiting", "moving_home"]);
+  const heartbeatOngoingActivities = new Set(["rest", "sleep_window", "waiting", "moving_home", "sofa_reading", "sofa_chat", "dining_tea", "dining_tea_chat"]);
+  const heartbeatSeatActivities = new Set(["sofa_reading", "sofa_chat", "dining_tea", "dining_tea_chat"]);
   const heartbeatActivityLabels = {
     board: "BOARD対応中",
     private: "個別タスク中",
     game: "ゲーム中",
     foreground: "会話対応中",
     routine: "日課中",
+    task: "作業中",
   };
   const heartbeatStateLabels = {
     waiting: "待機中",
@@ -72,7 +74,12 @@
     sleep_window: "就寝時間",
     waiting: "次の活動を確認中",
     moving_home: "自室に移動中",
+    sofa_reading: "ソファで読書中",
+    sofa_chat: "ソファで会話中",
+    dining_tea: "ダイニングでお茶中",
+    dining_tea_chat: "ダイニングでお茶・会話中",
   };
+  const worldHomeFetchTimeoutMs = 5000;
 
   let activeView = "lcp";
   let selectedResidentId = null;
@@ -191,7 +198,14 @@
       }
       const waitingRoutineActivity = agent.state === "waiting" && agent.routine_availability === "available";
       const runningRoutineMove = runningRoutine && agent.routine_availability === "available" && agent.ongoing_activity === "moving_home";
-      if (agent.ongoing_activity !== undefined && (!heartbeatOngoingActivities.has(agent.ongoing_activity) || (!waitingRoutineActivity && !runningRoutineMove))) {
+      const projectedSeatActivity = heartbeatSeatActivities.has(agent.ongoing_activity) &&
+        agent.routine_availability === "available" &&
+        (agent.state === "waiting" || runningRoutine) &&
+        (agent.activity_kind === undefined || agent.activity_kind === "routine");
+      const validOngoingActivity = heartbeatSeatActivities.has(agent.ongoing_activity)
+        ? projectedSeatActivity
+        : waitingRoutineActivity || runningRoutineMove;
+      if (agent.ongoing_activity !== undefined && (!heartbeatOngoingActivities.has(agent.ongoing_activity) || !validOngoingActivity)) {
         throw new TypeError("invalid living heartbeat ongoing activity");
       }
       if (agent.routine_availability === "available" && agent.ongoing_activity === undefined) {
@@ -203,6 +217,8 @@
       seen.add(agent.actor_id);
       const label = runningRoutineMove
         ? heartbeatOngoingActivityLabels.moving_home
+        : projectedSeatActivity
+          ? heartbeatOngoingActivityLabels[agent.ongoing_activity]
         : agent.state === "waiting" && agent.routine_availability === "available"
         ? heartbeatOngoingActivityLabels[agent.ongoing_activity]
         : agent.state === "waiting" && agent.routine_availability === "disabled"
@@ -218,7 +234,9 @@
       const title = titleIsPublic && typeof agent.title === "string"
         ? agent.title.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120)
         : "";
-      return { actor_id: agent.actor_id, actor_name: names.get(agent.actor_id) || agent.actor_id, label, title };
+      const projection = { actor_id: agent.actor_id, actor_name: names.get(agent.actor_id) || agent.actor_id, label, title };
+      if (projectedSeatActivity) projection.ongoing_activity = agent.ongoing_activity;
+      return projection;
     });
   }
 
@@ -495,21 +513,32 @@
       scheduleWorldHomePoll(version);
       return;
     }
+    let timeoutTimer = null;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
     try {
-      const response = await fetch("/api/living/world", {
+      const snapshotPromise = fetch("/api/living/world", {
         method: "GET",
         credentials: "same-origin",
         cache: "no-store",
         headers: { Accept: "application/json" },
+        ...(controller ? { signal: controller.signal } : {}),
+      }).then((response) => {
+        if (!response.ok) throw new Error(`WORLD snapshot unavailable (${response.status})`);
+        return response.json();
       });
-      if (!worldHomeLive || version !== worldHomeRequestVersion) return;
-      if (!response.ok) throw new Error(`WORLD snapshot unavailable (${response.status})`);
-      const snapshot = await response.json();
+      const timeoutPromise = new Promise((_resolve, reject) => {
+        timeoutTimer = window.setTimeout(() => {
+          controller?.abort();
+          reject(new Error("WORLD snapshot timed out"));
+        }, worldHomeFetchTimeoutMs);
+      });
+      const snapshot = await Promise.race([snapshotPromise, timeoutPromise]);
       if (!worldHomeLive || version !== worldHomeRequestVersion) return;
       showWorldHomeSnapshot(snapshot);
     } catch (error) {
       if (!worldHomeLive || version !== worldHomeRequestVersion) return;
       console.warn("WORLD HOUSE snapshot unavailable", error);
+      callScene("setWorldHomeSnapshotFresh", false);
       setWorldHomeStatus(worldHomeLatest ? "接続不可 · 最終受信状態を保持" : "接続不可 · 住人を非表示", true);
       if (!worldHomeLatest) {
         cards.forEach((card) => {
@@ -518,6 +547,7 @@
         });
       }
     } finally {
+      if (timeoutTimer !== null) window.clearTimeout(timeoutTimer);
       scheduleWorldHomePoll(version);
     }
   }

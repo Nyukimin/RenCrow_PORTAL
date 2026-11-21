@@ -49,6 +49,10 @@
       <button class="room-partner-chip room-partner-chip-kuro" id="roomKuroChip" type="button" data-room-switch="kuro" aria-current="false" aria-pressed="false">Kuro</button>
       <button class="room-partner-chip room-partner-chip-midori" id="roomMidoriChip" type="button" data-room-switch="midori" aria-current="false" aria-pressed="false">Midori</button>
     </section>{{end}}
+    {{if or (eq .Mode "chat") (eq .Mode "idlechat")}}<nav class="room-mode-switch" aria-label="Chat mode">
+      <a class="room-mode-switch-link" href="/?mode=Chat"{{if eq .Mode "chat"}} aria-current="page"{{end}}>Chat</a>
+      <a class="room-mode-switch-link" href="/?mode=IdleChat"{{if eq .Mode "idlechat"}} aria-current="page"{{end}}>IdleChat</a>
+    </nav>{{end}}
 
     <time class="room-datetime-panel" id="roomDateTimePanel" datetime="" aria-label="現在日時"></time>
 

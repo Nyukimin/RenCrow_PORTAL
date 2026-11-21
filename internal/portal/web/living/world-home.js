@@ -2,6 +2,7 @@
   "use strict";
 
   var HOUSE_SHA256 = "602a80fee5ce300ecfd3bee8cb4b316f4b3c95a6fda207a14cc95e06aaac840e";
+  var SNAPSHOT_FRESHNESS_MS = 5000;
   var RESIDENT_IDS = Object.freeze(["mio", "shiro", "kuro", "midori", "aka", "ao", "kin", "gin"]);
   var ROOM_LABELS = Object.freeze({
     living: "1F リビング",
@@ -85,7 +86,7 @@
       }
       var validSeat = actor.seat_id === "desk-" + actor.id && actor.room_id === "living" ||
         ["sofa", "sofa-guest"].includes(actor.seat_id) && actor.room_id === "living" ||
-        ["dining", "dining-guest"].includes(actor.seat_id) && actor.room_id === "dining";
+        ["dining", "dining-guest", "dining-aisle-north", "dining-aisle-south", "dining-window-north", "dining-window-south"].includes(actor.seat_id) && actor.room_id === "dining";
       if (validSeat && !actor.active_kind) {
         accepted.seat_id = actor.seat_id;
         if (["type", "notes", "review", "talk"].includes(actor.seat_action) ||
@@ -186,7 +187,13 @@
       return Object.assign(sample, { moving: progress < 1, progress: progress, serverNow: serverNow, actor: actor });
     }
 
-    return Object.freeze({ accept: accept, sample: sample, snapshot: function () { return current; } });
+    function isFresh(nowMonotonicMs) {
+      if (!current || !Number.isFinite(nowMonotonicMs)) return false;
+      var age = nowMonotonicMs - receiptMonotonicMs;
+      return age >= 0 && age < SNAPSHOT_FRESHNESS_MS;
+    }
+
+    return Object.freeze({ accept: accept, sample: sample, isFresh: isFresh, snapshot: function () { return current; } });
   }
 
   function roomLabel(roomId) {
@@ -215,6 +222,7 @@
 
   var api = Object.freeze({
     houseSHA256: HOUSE_SHA256,
+    snapshotFreshnessMs: SNAPSHOT_FRESHNESS_MS,
     residentIds: RESIDENT_IDS,
     roomLabels: ROOM_LABELS,
     mirrorPoses: MIRROR_POSES,
