@@ -2236,6 +2236,61 @@ body.room-mode.room-stage .room-partner-chip:focus-visible{
   outline-offset:2px;
 }
 
+body.room-mode.room-stage .room-mode-switch{
+  position:fixed;
+  top:106px;
+  right:calc(var(--room-edge) + 8px);
+  z-index:38;
+  display:flex;
+  align-items:center;
+  gap:3px;
+  box-sizing:border-box;
+  min-height:38px;
+  padding:4px;
+  border:1px solid rgba(92,126,205,.22);
+  border-radius:999px;
+  background:rgba(255,255,255,.80);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.94),0 14px 34px rgba(70,109,183,.16);
+  backdrop-filter:blur(18px) saturate(1.18);
+}
+
+body.room-mode.room-stage .room-mode-switch-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:66px;
+  min-height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  color:#4e669f;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:800;
+  line-height:1;
+  text-decoration:none;
+  white-space:nowrap;
+  transition:background-color .16s ease,color .16s ease,box-shadow .16s ease;
+}
+
+body.room-mode.room-stage .room-mode-switch-link[aria-current="page"]{
+  color:#fff;
+  background:linear-gradient(180deg,#7eb2ff,#4d72e8);
+  box-shadow:0 8px 18px rgba(53,77,174,.20),inset 0 1px 0 rgba(255,255,255,.48);
+}
+
+body.room-mode.room-stage .room-mode-switch-link:hover{
+  background-color:rgba(126,178,255,.22);
+}
+
+body.room-mode.room-stage .room-mode-switch-link[aria-current="page"]:hover{
+  background:linear-gradient(180deg,#7eb2ff,#4d72e8);
+}
+
+body.room-mode.room-stage .room-mode-switch-link:focus-visible{
+  outline:2px solid rgba(93,126,255,.55);
+  outline-offset:2px;
+}
+
 body.room-mode.room-stage .room-partner-chip:disabled{
   cursor:not-allowed;
   opacity:.56;
@@ -3355,6 +3410,12 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
   flex-wrap:nowrap;
 }
 
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage[data-mode="chat"] .room-mode-switch,
+html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage[data-mode="idlechat"] .room-mode-switch{
+  right:26px;
+  top:106px;
+}
+
 html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-partner-chip{
   min-width:62px;
   height:30px;
@@ -3364,7 +3425,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
 
 html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-camera-live-preview{
   right:26px;
-  top:80px;
+  top:154px;
   width:96px;
   border-radius:12px;
 }
@@ -3659,6 +3720,12 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
     max-width:372.56px;
   }
 
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage[data-mode="chat"] .room-mode-switch,
+  html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage[data-mode="idlechat"] .room-mode-switch{
+    right:var(--room-edge);
+    top:121.98px;
+  }
+
   html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-datetime-panel{
     display:flex;
     left:10.22px;
@@ -3674,7 +3741,7 @@ html.portal-chat-fixed-canvas.portal-chat-landscape > body.room-mode.room-stage.
 
   html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-camera-live-preview{
     right:10.22px;
-    top:121.98px;
+    top:166.58px;
   }
 
   html.portal-chat-fixed-canvas.portal-chat-portrait > body.room-mode.room-stage.room-chat-mode[data-mode="chat"] .room-window{
