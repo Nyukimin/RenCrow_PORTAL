@@ -1415,6 +1415,43 @@ func TestLivingHeartbeatProjectionAcceptsSeatedRestActivities(t *testing.T) {
 	}
 }
 
+func TestLivingHeartbeatProjectionAcceptsCanonicalRunningRestAndSleep(t *testing.T) {
+	body := string(livingHeartbeatSeatedRestFixture())
+	body = strings.Replace(body,
+		`"actor_id":"mio","state":"waiting","routine_availability":"available","ongoing_activity":"sofa_reading"`,
+		`"actor_id":"mio","state":"running","activity_kind":"routine","routine_availability":"available","ongoing_activity":"rest","current_activity":{"kind":"rest","label":"休憩中","phase":"resting","revision":3}`, 1)
+	body = strings.Replace(body,
+		`"actor_id":"shiro","state":"waiting","activity_kind":"routine","routine_availability":"available","ongoing_activity":"sofa_chat"`,
+		`"actor_id":"shiro","state":"running","activity_kind":"routine","routine_availability":"available","ongoing_activity":"sleep_window","current_activity":{"kind":"sleep","label":"就寝予定","phase":"sleep_window","revision":4}`, 1)
+	projected, err := projectLivingHeartbeat([]byte(body))
+	if err != nil {
+		t.Fatalf("CORE canonical running Rest/Sleep contract rejected: %v", err)
+	}
+	actors := make(map[string]livingHeartbeatAgent, len(projected.Agents))
+	for _, actor := range projected.Agents {
+		actors[actor.ActorID] = actor
+	}
+	for actorID, want := range map[string]struct{ kind, ongoing string }{
+		"mio":   {kind: "rest", ongoing: "rest"},
+		"shiro": {kind: "sleep", ongoing: "sleep_window"},
+	} {
+		actor := actors[actorID]
+		var current livingCurrentActivity
+		if err := json.Unmarshal(actor.CurrentActivityRaw, &current); err != nil || current.Kind != want.kind || actor.OngoingActivity == nil || *actor.OngoingActivity != want.ongoing {
+			t.Errorf("%s current=%+v ongoing=%v err=%v; want kind=%s ongoing=%s", actorID, current, actor.OngoingActivity, err, want.kind, want.ongoing)
+		}
+	}
+
+	for name, invalid := range map[string]string{
+		"rest annotation with sleep descriptor": strings.Replace(body, `"kind":"rest","label":"休憩中","phase":"resting","revision":3`, `"kind":"sleep","label":"就寝予定","phase":"sleep_window","revision":3`, 1),
+		"sleep annotation with rest descriptor": strings.Replace(body, `"kind":"sleep","label":"就寝予定","phase":"sleep_window","revision":4`, `"kind":"rest","label":"休憩中","phase":"resting","revision":4`, 1),
+	} {
+		if _, err := projectLivingHeartbeat([]byte(invalid)); err == nil {
+			t.Errorf("mismatched %s was accepted", name)
+		}
+	}
+}
+
 func TestLivingHeartbeatProjectionPreservesOnlyCanonicalCurrentActivity(t *testing.T) {
 	body := []byte(`{"observed_at":"2026-11-21T00:00:00Z","agents":[{"actor_id":"mio","state":"running","current_activity":{"kind":"hobby","label":"ファッション中","phase":"active","revision":7,"task_id":"must-not-pass"}},{"actor_id":"shiro","state":"waiting"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"waiting"},{"actor_id":"aka","state":"waiting"},{"actor_id":"ao","state":"waiting"},{"actor_id":"kin","state":"waiting"},{"actor_id":"gin","state":"waiting"}]}`)
 	if _, err := projectLivingHeartbeat(body); err == nil {
@@ -1581,12 +1618,14 @@ func TestLivingHeartbeatRelayProjectsSeatedRestActivitiesAndRejectsUnknown(t *te
 
 func TestLivingHeartbeatGameIDMustBeAStringAndIsProjected(t *testing.T) {
 	base := `{"observed_at":"2026-11-14T01:02:03Z","agents":[{"actor_id":"mio","state":"running","activity_kind":"game","game_id":%s},{"actor_id":"shiro","state":"waiting"},{"actor_id":"kuro","state":"waiting"},{"actor_id":"midori","state":"waiting"},{"actor_id":"aka","state":"waiting"},{"actor_id":"ao","state":"waiting"},{"actor_id":"kin","state":"waiting"},{"actor_id":"gin","state":"waiting"}]}`
-	projected, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, `"nethack"`)))
-	if err != nil {
-		t.Fatalf("valid game_id rejected: %v", err)
-	}
-	if got := string(projected.Agents[0].GameID); got != `"nethack"` {
-		t.Fatalf("projected game_id = %s, want string nethack", got)
+	for _, gameID := range []string{"nethack", "territory_commander", "survival_garden", "herzog_zwei"} {
+		projected, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, fmt.Sprintf("%q", gameID))))
+		if err != nil {
+			t.Fatalf("valid game_id %q rejected: %v", gameID, err)
+		}
+		if got := string(projected.Agents[0].GameID); got != fmt.Sprintf("%q", gameID) {
+			t.Errorf("projected game_id = %s, want %q", got, gameID)
+		}
 	}
 	unknown, err := projectLivingHeartbeat([]byte(fmt.Sprintf(base, `"other-game"`)))
 	if err != nil {

@@ -201,13 +201,16 @@
       }
       const waitingRoutineActivity = agent.state === "waiting" && agent.routine_availability === "available";
       const runningRoutineMove = runningRoutine && agent.routine_availability === "available" && agent.ongoing_activity === "moving_home";
+      const runningRoutinePassiveActivity = runningRoutine && agent.routine_availability === "available" &&
+        ((agent.ongoing_activity === "rest" && agent.current_activity?.kind === "rest") ||
+          (agent.ongoing_activity === "sleep_window" && agent.current_activity?.kind === "sleep"));
       const projectedSeatActivity = heartbeatSeatActivities.has(agent.ongoing_activity) &&
         agent.routine_availability === "available" &&
         (agent.state === "waiting" || runningRoutine) &&
         (agent.activity_kind === undefined || agent.activity_kind === "routine");
       const validOngoingActivity = heartbeatSeatActivities.has(agent.ongoing_activity)
         ? projectedSeatActivity
-        : waitingRoutineActivity || runningRoutineMove;
+        : waitingRoutineActivity || runningRoutineMove || runningRoutinePassiveActivity;
       if (agent.ongoing_activity !== undefined && (!heartbeatOngoingActivities.has(agent.ongoing_activity) || !validOngoingActivity)) {
         throw new TypeError("invalid living heartbeat ongoing activity");
       }
@@ -240,7 +243,7 @@
         : "";
       const projection = { actor_id: agent.actor_id, actor_name: names.get(agent.actor_id) || agent.actor_id, label, title };
       if (agent.current_activity !== undefined) projection.current_activity = agent.current_activity;
-      if (projectedSeatActivity) projection.ongoing_activity = agent.ongoing_activity;
+      if (projectedSeatActivity || runningRoutinePassiveActivity) projection.ongoing_activity = agent.ongoing_activity;
       return projection;
     });
   }

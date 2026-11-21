@@ -291,9 +291,11 @@ function testBoardTabUsesConfiguredUrlAndFailsClosedWithoutIt() {
 function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
   const policy = extract(livingSource, "  const heartbeatActors = new Set(", "  let activeView =");
   const mapper = extract(livingSource, "  function presentHeartbeatResponse(payload) {", "\n  async function pollLivingHeartbeat");
+  const activitySandbox = { window: {} };
+  vm.runInNewContext(currentActivitySource, activitySandbox);
   const present = (agents) => vm.runInNewContext(
     `${policy}\n${mapper}\npresentHeartbeatResponse({ observed_at:"2026-11-15T00:00:00Z", agents });`,
-    { agents, names: new Map() },
+    { agents, names: new Map(), window: activitySandbox.window },
   );
   const agents = [
     { actor_id: "mio", state: "waiting", routine_availability: "available", ongoing_activity: "rest" },
@@ -333,6 +335,21 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
   assert.equal(Object.hasOwn(present(agents)[0], "ongoing_activity"), false, "rest-only status does not select an activity pose");
   assert.equal(Object.hasOwn(present(agents)[7], "ongoing_activity"), false, "movement does not select an activity pose");
 
+  const runningRestAndSleep = agents.slice();
+  runningRestAndSleep[0] = {
+    actor_id: "mio", state: "running", activity_kind: "routine", routine_availability: "available", ongoing_activity: "rest",
+    current_activity: { kind: "rest", label: "休憩中", phase: "resting", revision: 3 },
+  };
+  runningRestAndSleep[1] = {
+    actor_id: "shiro", state: "running", activity_kind: "routine", routine_availability: "available", ongoing_activity: "sleep_window",
+    current_activity: { kind: "sleep", label: "就寝予定", phase: "sleep_window", revision: 4 },
+  };
+  const canonicalRunningProjection = present(runningRestAndSleep);
+  assert.equal(canonicalRunningProjection[0].ongoing_activity, "rest", "CORE current Rest authorizes the running routine rest annotation");
+  assert.equal(canonicalRunningProjection[1].ongoing_activity, "sleep_window", "CORE current Sleep authorizes the running routine sleep annotation");
+  assert.equal(canonicalRunningProjection[0].label, "休憩中");
+  assert.equal(canonicalRunningProjection[1].label, "就寝予定");
+
   for (const invalid of [
     { ...agents[0], routine_availability: "maybe" },
     { ...agents[0], ongoing_activity: "unknown" },
@@ -344,6 +361,9 @@ function testHeartbeatWaitingActivityUsesOnlyValidatedRoutineProjection() {
     { ...agents[0], state: "waiting", activity_kind: "private", routine_availability: "available", ongoing_activity: "sofa_chat" },
     { ...agents[0], state: "checking", routine_availability: "available", ongoing_activity: "dining_tea_chat" },
     { ...agents[0], state: "checking", ongoing_activity: "moving_home" },
+    { ...runningRestAndSleep[0], current_activity: undefined },
+    { ...runningRestAndSleep[0], current_activity: runningRestAndSleep[1].current_activity },
+    { ...runningRestAndSleep[1], current_activity: runningRestAndSleep[0].current_activity },
   ]) {
     const changed = agents.slice();
     changed[0] = invalid;

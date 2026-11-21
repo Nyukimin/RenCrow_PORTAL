@@ -491,6 +491,7 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 	allowedSeatedRestActivity := map[string]bool{
 		"sofa_reading": true, "sofa_chat": true, "dining_tea": true, "dining_tea_chat": true,
 	}
+	allowedGameIDs := map[string]bool{"nethack": true, "territory_commander": true, "survival_garden": true, "herzog_zwei": true}
 	projected := livingHeartbeatResponse{
 		ObservedAt: observedAt.UTC().Format(time.RFC3339Nano),
 		Agents:     make([]livingHeartbeatAgent, 0, len(*received.Agents)),
@@ -501,8 +502,9 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 			return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat agent")
 		}
 		seen[agent.ActorID] = true
+		var currentActivity *livingCurrentActivity
 		if len(agent.CurrentActivityRaw) > 0 {
-			currentActivity, err := parseLivingCurrentActivity(agent.CurrentActivityRaw, agent.ActorID)
+			currentActivity, err = parseLivingCurrentActivity(agent.CurrentActivityRaw, agent.ActorID)
 			if err != nil {
 				return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat current activity")
 			}
@@ -519,7 +521,7 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 			if agent.GameID[0] != '"' || json.Unmarshal(agent.GameID, &gameID) != nil {
 				return livingHeartbeatResponse{}, fmt.Errorf("invalid living heartbeat game id")
 			}
-			if gameID != "nethack" {
+			if !allowedGameIDs[gameID] {
 				agent.GameID = nil
 			}
 		}
@@ -531,7 +533,10 @@ func projectLivingHeartbeat(body []byte) (livingHeartbeatResponse, error) {
 		runningRoutineMove := runningRoutine && agent.RoutineAvailability != nil && *agent.RoutineAvailability == "available" && agent.OngoingActivity != nil && *agent.OngoingActivity == "moving_home"
 		waitingRoutineSeatedRest := waitingRoutineActivity && (agent.ActivityKind == nil || *agent.ActivityKind == "routine")
 		runningRoutineSeatedRest := runningRoutine && agent.RoutineAvailability != nil && *agent.RoutineAvailability == "available" && agent.OngoingActivity != nil && allowedSeatedRestActivity[*agent.OngoingActivity]
-		validOngoingActivity := waitingRoutineActivity || runningRoutineMove
+		runningRoutinePassive := runningRoutine && agent.RoutineAvailability != nil && *agent.RoutineAvailability == "available" && currentActivity != nil &&
+			((agent.OngoingActivity != nil && *agent.OngoingActivity == "rest" && currentActivity.Kind == "rest") ||
+				(agent.OngoingActivity != nil && *agent.OngoingActivity == "sleep_window" && currentActivity.Kind == "sleep"))
+		validOngoingActivity := waitingRoutineActivity || runningRoutineMove || runningRoutinePassive
 		if agent.OngoingActivity != nil && allowedSeatedRestActivity[*agent.OngoingActivity] {
 			validOngoingActivity = waitingRoutineSeatedRest || runningRoutineSeatedRest
 		}
