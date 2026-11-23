@@ -1561,6 +1561,47 @@
       return nodes;
     }
 
+    function shortenDeskChairBackrests(nodes, floorRoot, THREE) {
+      var names = [
+        "Backrest_v4", "Backrest.002_v4", "Backrest.003_v4", "Backrest.005_v4",
+        "Backrest_v4__PORTAL_EXTRA_SEAT", "Backrest.002_v4__PORTAL_EXTRA_SEAT",
+        "Backrest.003_v4__PORTAL_EXTRA_SEAT", "Backrest.005_v4__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_0__render_mesh", "ART05_Chair_back_welt_1__render_mesh",
+        "ART05_Chair_back_welt_2__render_mesh", "ART05_Chair_back_welt_3__render_mesh",
+        "ART05_Chair_back_welt_0__render_mesh__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_1__render_mesh__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_2__render_mesh__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_3__render_mesh__PORTAL_EXTRA_SEAT"
+      ];
+      var backrests = names.map(function (name) {
+        var object = nodes.get(name);
+        if (!object || object.parent !== floorRoot || !object.isMesh || !object.geometry) {
+          throw new Error("HOUSE_105のデスク椅子の背もたれ部品が不正です: " + name);
+        }
+        return object;
+      });
+
+      backrests.forEach(function (object) {
+        object.updateWorldMatrix(true, false);
+        var before = new THREE.Box3().setFromObject(object);
+        var height = before.max.y - before.min.y;
+        if (before.isEmpty() || !Number.isFinite(height) || height <= 0 || !Number.isFinite(object.scale.y) || object.scale.y <= 0) {
+          throw new Error("HOUSE_105のデスク椅子の背もたれ寸法が不正です: " + object.userData.name);
+        }
+
+        // Preserve each panel's measured world-space lower edge, including its GLB rotation.
+        object.scale.y *= 0.52;
+        object.updateWorldMatrix(true, false);
+        var shortened = new THREE.Box3().setFromObject(object);
+        object.position.y += before.min.y - shortened.min.y;
+        object.updateWorldMatrix(true, false);
+        var after = new THREE.Box3().setFromObject(object);
+        if (after.isEmpty() || Math.abs(after.min.y - before.min.y) > 0.0001) {
+          throw new Error("HOUSE_105のデスク椅子の背もたれ下端を維持できません: " + object.userData.name);
+        }
+      });
+    }
+
     function extendGroundFloor(nodes) {
       // Keep the rear edge at -4.2 and continue the same planks through to the old deck's front edge.
       var extension = 5.7 - 4.2;
@@ -1827,6 +1868,7 @@
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
         var groundNodes = arrangeFloor(groundRoot, metadata.groundLayout);
+        shortenDeskChairBackrests(groundNodes, groundRoot, THREE);
         [
           "Side_window_glass_v4",
           "Side_window_glass.001_v4",
