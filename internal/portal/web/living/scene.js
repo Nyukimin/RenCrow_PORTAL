@@ -1561,6 +1561,47 @@
       return nodes;
     }
 
+    function shortenDeskChairBackrests(nodes, floorRoot, THREE) {
+      var names = [
+        "Backrest_v4", "Backrest.002_v4", "Backrest.003_v4", "Backrest.005_v4",
+        "Backrest_v4__PORTAL_EXTRA_SEAT", "Backrest.002_v4__PORTAL_EXTRA_SEAT",
+        "Backrest.003_v4__PORTAL_EXTRA_SEAT", "Backrest.005_v4__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_0__render_mesh", "ART05_Chair_back_welt_1__render_mesh",
+        "ART05_Chair_back_welt_2__render_mesh", "ART05_Chair_back_welt_3__render_mesh",
+        "ART05_Chair_back_welt_0__render_mesh__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_1__render_mesh__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_2__render_mesh__PORTAL_EXTRA_SEAT",
+        "ART05_Chair_back_welt_3__render_mesh__PORTAL_EXTRA_SEAT"
+      ];
+      var backrests = names.map(function (name) {
+        var object = nodes.get(name);
+        if (!object || object.parent !== floorRoot || !object.isMesh || !object.geometry) {
+          throw new Error("HOUSE_105のデスク椅子の背もたれ部品が不正です: " + name);
+        }
+        return object;
+      });
+
+      backrests.forEach(function (object) {
+        object.updateWorldMatrix(true, false);
+        var before = new THREE.Box3().setFromObject(object);
+        var height = before.max.y - before.min.y;
+        if (before.isEmpty() || !Number.isFinite(height) || height <= 0 || !Number.isFinite(object.scale.y) || object.scale.y <= 0) {
+          throw new Error("HOUSE_105のデスク椅子の背もたれ寸法が不正です: " + object.userData.name);
+        }
+
+        // Preserve each panel's measured world-space lower edge, including its GLB rotation.
+        object.scale.y *= 0.52;
+        object.updateWorldMatrix(true, false);
+        var shortened = new THREE.Box3().setFromObject(object);
+        object.position.y += before.min.y - shortened.min.y;
+        object.updateWorldMatrix(true, false);
+        var after = new THREE.Box3().setFromObject(object);
+        if (after.isEmpty() || Math.abs(after.min.y - before.min.y) > 0.0001) {
+          throw new Error("HOUSE_105のデスク椅子の背もたれ下端を維持できません: " + object.userData.name);
+        }
+      });
+    }
+
     function extendGroundFloor(nodes) {
       // Keep the rear edge at -4.2 and continue the same planks through to the old deck's front edge.
       var extension = 5.7 - 4.2;
@@ -1827,6 +1868,53 @@
         secondRoot = loadedSecond;
         atticRoot = loadedAttic;
         var groundNodes = arrangeFloor(groundRoot, metadata.groundLayout);
+        shortenDeskChairBackrests(groundNodes, groundRoot, THREE);
+        [
+          "Side_window_glass_v4",
+          "Side_window_glass.001_v4",
+          "Side_window_glass.002_v4",
+          "Side_window_glass.003_v4",
+          "Side_window_mullion_v4",
+          "Side_window_mullion.001_v4",
+          "Side_window_mullion.002_v4",
+          "Side_window_mullion.003_v4",
+          "Side_window_sill_v4",
+          "1F_Timber_Post_-12_v4",
+          "REVIEW64_Pendant_0_ceiling_rose",
+          "REVIEW64_Pendant_0_cord",
+          "REVIEW64_Pendant_0_hood",
+          "REVIEW64_Pendant_0_opal",
+          "REVIEW64_Pendant_0_rolled_rim",
+          "REVIEW64_Pendant_1_ceiling_rose",
+          "REVIEW64_Pendant_1_cord",
+          "REVIEW64_Pendant_1_hood",
+          "REVIEW64_Pendant_1_opal",
+          "REVIEW64_Pendant_1_rolled_rim",
+          "String_light_cable_level0_v4__render_mesh",
+          "Warm_string_bulb_v4",
+          "Warm_string_bulb.001_v4",
+          "Warm_string_bulb.002_v4",
+          "Warm_string_bulb.003_v4",
+          "Warm_string_bulb.004_v4",
+          "Warm_string_bulb.005_v4",
+          "Warm_string_bulb.006_v4",
+          "Warm_string_bulb.007_v4",
+          "Warm_string_bulb.008_v4",
+          "Warm_string_bulb.009_v4",
+          "Warm_string_bulb.010_v4",
+          "Warm_string_bulb.011_v4",
+          "Foliage grouped.006_v4",
+          "Plant pot.006_v4",
+          "Soil.006_v4",
+          "Stems.006_v4__render_mesh",
+          "V2_ceramic_pot_rim.011_v4",
+          "V2_plant_branching_stems.011_v4__render_mesh",
+          "V2_pot_foot.011_v4"
+        ].forEach(function (name) {
+          var node = groundNodes.get(name);
+          if (!node) throw new Error("HOUSE_105の非表示対象が見つかりません: " + name);
+          node.removeFromParent();
+        });
         extendGroundFloor(groundNodes);
         if (motionEnabled) {
           root.updateMatrixWorld(true);
